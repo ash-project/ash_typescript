@@ -18,8 +18,11 @@ reads error handling from each domain's `typescript_rpc` section. Pass it
 wherever the old API took your OTP app name.
 
 Code generation, the DSLs (`typescript_rpc`, `typescript`, typed controllers,
-typed channels) and the generated TypeScript are unchanged. The wire format is
-the same, except for the error-type and tenant changes described below.
+typed channels) and the generated TypeScript are unchanged, except for custom
+types, which are now declared on the manifest module (see
+[Custom types are declared on the manifest](#custom-types-are-declared-on-the-manifest)).
+The wire format is the same, except for the error-type, tenant and custom-type
+changes described below.
 
 ## Running RPC actions from a controller
 
@@ -310,6 +313,202 @@ either is still set. `AshTypescript.typed_controllers/0` and
   `format_payload(channel_module, resource, event, payload)` and
   `push_formatted/4` is now
   `push_formatted(socket, channel_module, resource, event, payload)`.
+
+## Custom types are declared on the manifest
+
+### Config keys move to `custom_types`
+
+`type_mapping_overrides`, `zod_mapping_overrides` and
+`valibot_mapping_overrides` are no longer read. Compiling the manifest prints a
+warning while one is still set, and its entries have no effect. Declare the
+types in the manifest module's `custom_types` section instead:
+
+```elixir
+# Before (config/config.exs)
+config :ash_typescript,
+  type_mapping_overrides: [
+    {SomeLib.ObjectId, "string"},
+    {SomeLib.Color, "CustomTypes.Color"}
+  ],
+  zod_mapping_overrides: [{SomeLib.ObjectId, "CustomZodSchemas.objectId"}],
+  valibot_mapping_overrides: [{SomeLib.ObjectId, "CustomValibotSchemas.objectId"}]
+
+# After (lib/my_app/ash_typescript_manifest.ex)
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+
+  custom_types do
+    scalar SomeLib.ObjectId, :string do
+      zod "CustomZodSchemas.objectId"
+      valibot "CustomValibotSchemas.objectId"
+    end
+
+    scalar SomeLib.Color, :string do
+      typescript "CustomTypes.Color"
+    end
+  end
+end
+```
+
+A string override whose TypeScript type follows from a base type
+(`{Mod, "string"}`) becomes `scalar Mod, :string`. Anything else keeps
+`typescript "…"`. `zod_import_into_generated` and
+`valibot_import_into_generated` stay in config. A scoped manifest
+(`domains: [...]`) declares its own `custom_types`.
+
+### Map-like custom types declare fields
+
+A custom type whose values are maps or structs (`storage_type :map`, or
+composite) now behaves like a typed map. Before, such a type named a
+hand-written TypeScript type, was selected whole, and every key of its values
+went out through the output formatter (unknown input keys were passed on).
+Now:
+
+- it declares its fields, and compiling the manifest fails for one that
+  doesn't, with a message naming the ways to declare them;
+- clients select its sub-fields (`{ colorPalette: ["primary"] }`). Selecting
+  it bare is a TypeScript error and `requires_field_selection` on the server,
+  and a generic action that returns one needs `fields`;
+- its keys are the fields' client names. Undeclared keys never reach the
+  client, and in requests they are `unknown_input`;
+- its TypeScript type, input type and zod/valibot schemas are generated from
+  the fields. It can't declare a TypeScript type: `typescript_type_name/0` on
+  it, or a `scalar` entry for it, fails compilation with a migration message.
+
+For a v0.19 map-storage type with `typescript_type_name/0`:
+
+```elixir
+# Before
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  def storage_type(_), do: :map
+  # cast_input/2, ...
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
+end
+
+# After
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  def storage_type(_), do: :map
+  # cast_input/2, ...
+
+  def typescript_fields do
+    [
+      primary: [type: :string, allow_nil?: false],
+      secondary: [type: :string, allow_nil?: false],
+      accent: [type: :string]
+    ]
+  end
+end
+```
+
+```typescript
+// Before
+const todo = await getTodo({ input: { id }, fields: ["id", "colorPalette"] });
+
+// After
+const todo = await getTodo({
+  input: { id },
+  fields: ["id", { colorPalette: ["primary", "secondary", "accent"] }],
+});
+```
+
+The hand-written `CustomTypes.ColorPalette` imported through
+`import_into_generated` is no longer referenced. Delete it, or keep it for your
+own code. For a type you don't own, declare a `map` entry instead of
+`typescript_fields/0`:
+
+```elixir
+custom_types do
+  map SomeLib.ColorPalette do
+    field :primary, :string, allow_nil?: false
+    field :secondary, :string, allow_nil?: false
+    field :accent, :string
+  end
+end
+```
+
+A composite type's `composite_types/1` entries are its fields, with nothing to
+add. Fields are per module (`composite_types/1` is read with the type's
+default constraints), and a NewType over a custom type inherits the subtype's
+fields. See [Custom Types](../advanced/custom-types.md#map-like-custom-types).
+
+For more precise member types than the generated ones, use scalar custom
+types with their own TypeScript mapping as field types:
+
+```elixir
+defmodule MyApp.HexColor do
+  use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-fA-F]{6}$/]
+  def typescript_type_name, do: "`#${string}`"
+end
+
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  # storage_type :map, cast_input/2, …
+  def typescript_fields do
+    [
+      primary: [type: MyApp.HexColor, allow_nil?: false],
+      secondary: [type: MyApp.HexColor, allow_nil?: false],
+      accent: [type: MyApp.HexColor]
+    ]
+  end
+end
+```
+
+For a type you don't own, the same comes from the manifest:
+
+```elixir
+custom_types do
+  scalar SomeLib.HexColor, :string do
+    constraints match: ~r/^#[0-9a-fA-F]{6}$/
+    typescript "`#${string}`"
+  end
+
+  map SomeLib.ColorPalette do
+    field :primary, SomeLib.HexColor, allow_nil?: false
+    field :secondary, SomeLib.HexColor, allow_nil?: false
+    field :accent, SomeLib.HexColor
+  end
+end
+```
+
+Either form generates
+``{primary: `#${string}`, secondary: `#${string}`, accent: `#${string}` | null, __type: "TypedMap", …}``
+for results, ``{primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null}``
+for inputs, and zod/valibot string schemas with the regex. These are
+client-side only: on the server the value is cast by `ColorPalette`'s own
+`cast_input/2`, which enforces the regex only if it casts each entry through
+`MyApp.HexColor` (the [Custom Types](../advanced/custom-types.md#precise-member-types)
+guide shows one).
+
+### Money, ULID and Ltree
+
+These are built-in declarations now:
+
+- `AshMoney.Types.Money` is a map of `currency` and `amount`. Select
+  `{ price: ["currency", "amount"] }` instead of `"price"`. Responses no longer
+  contain `format_options`. The generated `Money` alias is removed: fields of
+  the type are typed from its fields, and a project that imported `Money` from
+  the generated file declares its own alias.
+- The `ULID`, `AshPostgresLtreeArray` and `AshPostgresLtreeFlexible` aliases
+  are removed. Fields of those types are typed `string`, `string[]` and
+  `string | string[]` directly. Their zod/valibot schemas are unchanged.
+- A `custom_types` entry for one of these modules replaces the built-in.
+
+### Typed maps and structs send declared fields only
+
+Typed controller route results, typed channel payloads and action metadata
+send only the declared fields of each typed map and struct, under their
+client names. A route or channel that returned extra keys in a typed map or
+struct loses them (its generated TypeScript type never had them). Struct
+values (an `Ash.TypedStruct`, `%Money{}`) no longer crash formatting.
+
+### Out-of-tree schema formatters
+
+If you implement `AshTypescript.Codegen.SchemaFormatter` yourself, it drops
+`mapping_overrides/0`, `third_party_types/0`, `ltree_array/0` and
+`ltree_union/0`, and gains `library/0` (`:zod` or `:valibot`). The two in-tree
+formatters are updated.
 
 ## Unknown metadata fields, sort and filter names are errors
 

@@ -204,6 +204,18 @@ const todo = await getTodo({
 
 Selecting a composite member as a plain string (`{ metadataReport: ["total", "rows"] }`) is a TypeScript compile error — members holding resources need explicit field selection, exactly like embedded resources elsewhere.
 
+### Custom Types With Declared Fields
+
+A custom type whose values are maps or structs (for example `AshMoney.Types.Money`, or a `storage_type :map` type with `typescript_fields/0`) is selected like a typed map:
+
+```typescript
+const tasks = await listTasks({
+  fields: ["id", { price: ["currency", "amount"] }],
+});
+```
+
+Selecting it bare (`"price"`) is a TypeScript compile error. See [Custom Types](../advanced/custom-types.md#selecting-fields).
+
 ## Union Types
 
 For union type fields, select fields from specific union members:

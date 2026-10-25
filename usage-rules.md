@@ -59,7 +59,9 @@ SPDX-License-Identifier: MIT
 | **Description** | `description: "Custom desc"` | Override JSDoc description |
 | **Channel Function** | `actionNameChannel({channel, resultHandler})` | Phoenix channel RPC |
 | **Validation Fn** | `validateActionName({...})` | Client-side validation |
-| **Type Overrides** | `type_mapping_overrides: [{Module, "TSType"}]` | Map dependency types |
+| **Scalar Custom Type** | `def typescript_type_name, do: "CustomTypes.X"` | Own single-value type |
+| **Map-Like Custom Type** | `def typescript_fields, do: [primary: [type: :string]]` | `:map`/composite type; select `{ palette: ["primary"] }` |
+| **Types You Don't Own** | manifest `custom_types do scalar Mod, :string; map Mod do field :a, :string end end` | Replaces the removed `type_mapping_overrides` / `zod_`/`valibot_mapping_overrides` config |
 | **Typed Controller** | `use AshTypescript.TypedController` | Controller-style routes |
 | **Controller Module** | `typed_controller do module_name MyWeb.Ctrl` | Generated controller module |
 | **Verb Shortcut** | `get :auth do run fn ... end end` | Preferred route syntax |
@@ -381,6 +383,9 @@ for (const action of manifest.actions) {
 | Typed channel event not found | Event name must match `event:` option on resource's `pub_sub` publication |
 | Duplicate channel event names | Use unique event names across all resources in one channel |
 | Channel payload is `unknown` | Use `transform :some_calc` (an `:auto`-typed calculation) on the publication, or add explicit `returns:` |
+| "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |
+| "Map-like custom types that declare a TypeScript type" | Remove `typescript_type_name/0` (or the `scalar` entry); TS comes from the fields |
+| `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
 
@@ -438,7 +443,6 @@ config :ash_typescript,
   always_regenerate: false,
   # Imports/Types
   import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
-  type_mapping_overrides: [{MyApp.CustomType, "string"}],
   # Typed Controller (route helpers); list controllers on the manifest module
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts",

@@ -73,8 +73,18 @@ defmodule MyApp.AshTypescriptManifest do
     otp_app: :my_app,
     typed_controllers: [MyApp.Session],   # default [], the only source
     typed_channels: [MyApp.OrgChannel]    # default [], the only source
+
+  # Custom types the app doesn't own (replaces the removed *_mapping_overrides config)
+  custom_types do
+    scalar SomeLib.ObjectId, :string, zod: "CustomZodSchemas.objectId"
+    map SomeLib.ColorPalette do
+      field :primary, :string, allow_nil?: false
+    end
+  end
 end
 ```
+
+Map-like custom types (`storage_type :map` or composite) are named types with declared fields (`custom_types` `map` > `typescript_fields/0` > built-in Money > `composite_types/1`, see `AshTypescript.CustomTypes`), selected by sub-field and typed from their fields; undeclared ones fail manifest compilation. Details: [type-system.md](agent-docs/features/type-system.md).
 
 The manifest also stores typed controller routes (`%AshTypescript.Manifest.Route{}`, keyed `{source_module, name}`) and typed channel publications (`%AshTypescript.Manifest.Publication{}`, keyed `{channel_module, resource, event}`) for the modules in `typed_controllers:` / `typed_channels:`, under `custom.ash_typescript.routes` / `.publications` (read with `AshTypescript.Manifest.Custom.route/3`, `routes/1`, `publication/4`, `publications/1`). Codegen and the runtime take their typed module sets from there; `config :ash_typescript, :typed_controllers` / `:typed_channels` are no longer read, and setting either triggers a compile-time warning. The manifest has a compile-time edge on each listed module, so typed controllers and channels must never read the manifest at compile time. Tests build manifests with other lists via `AshTypescript.Test.InlineManifest.build!/1`, never `put_env`.
 
@@ -380,7 +390,7 @@ npm run testValibot                  # Run generated Valibot schemas against rea
 schemas against fixture inputs — they are the only path that exercises schema
 runtime behavior (e.g. catches a bug like an empty `z.object({})` for a type
 that should validate `{ amount, currency }`). Always run them after touching
-`third_party_types`, constraint generation, or any other validation codegen.
+`custom_types` entries, built-ins, constraint generation, or any other validation codegen.
 
 ### Quality Checks
 ```bash
@@ -404,7 +414,7 @@ mix credo --strict                   # Linting
 
 | Working On | See Documentation | Test Files |
 |------------|-------------------|------------|
-| **Type generation or custom types** | [features/type-system.md](agent-docs/features/type-system.md) | `test/ash_typescript/typescript_codegen_test.exs` |
+| **Type generation or custom types** | [features/type-system.md](agent-docs/features/type-system.md) | `test/ash_typescript/typescript_codegen_test.exs`, `test/ash_typescript/custom_types/`, `test/ash_typescript/manifest/custom_type_*_test.exs`, `test/ash_typescript/custom_type_output_test.exs` |
 | **Field/argument name mapping** | [features/field-argument-name-mapping.md](agent-docs/features/field-argument-name-mapping.md) | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` |
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC integration (RpcProfile, RpcMappingSource, rpc_action options)** | [features/rpc-integration.md](agent-docs/features/rpc-integration.md) | `test/ash_typescript/rpc_mapping_source_test.exs`, `test/ash_typescript/rpc_profile_test.exs`, `test/ash_typescript/rpc/entrypoint_resolution_test.exs` |
@@ -459,10 +469,12 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | `UndefinedFunctionError` on `AshTypescript.Test.*` | Test resources not compiled (dev env) | Run via `mix test` / `mix test.codegen`, which set `MIX_ENV=test` via `preferred_envs` |
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
 | "Invalid field names found in map/keyword/tuple type constraints" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
-| "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
-| Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Add `zod_mapping_overrides` / `valibot_mapping_overrides`, or express the type as an `Ash.Type.NewType` with constraints |
-| Zod/Valibot schema too permissive (e.g. `z.record`) for a custom type | Hand-rolled `:map`-storage type — the shape lives in `cast_input/2` and can't be introspected | Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override |
-| `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A mapping override references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
+| "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add a `scalar Mod, :string` entry to the manifest module's `custom_types` section |
+| "undeclared custom type" / "Undeclared map-like custom types found" | A `storage_type :map` or composite custom type has no declared fields | Declare them: `typescript_fields/0`, a `custom_types` `map` entry, or `composite?/1` + `composite_types/1` (an inline manifest over the test app needs `InlineManifest.build!/1`'s default `body:`) |
+| "Map-like custom types that declare a TypeScript type" | A map-like or field-declaring custom type exports `typescript_type_name/0` or has a `scalar` entry | Remove it; the TS type is generated from the fields |
+| "config :ash_typescript, :type_mapping_overrides is no longer read" (or `zod_`/`valibot_mapping_overrides`) | Removed config key still set | Move the entries to the manifest module's `custom_types` section |
+| Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Give it a `custom_types` `scalar` entry (base type, or `zod`/`valibot`), or express the type as an `Ash.Type.NewType` with constraints |
+| `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A `custom_types` entry's `zod`/`valibot` references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |

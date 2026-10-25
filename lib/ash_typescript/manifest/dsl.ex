@@ -94,8 +94,9 @@ defmodule AshTypescript.Manifest.Dsl do
     Declares the fields of a map-like custom type you don't own (one with
     `storage_type :map`, or composite). Its TypeScript is generated from its
     fields, so a map has no `typescript` option: a map-like type that only
-    names a TypeScript type declares its fields instead. A map needs at
-    least one field.
+    names a TypeScript type declares its fields instead (see "Migrating
+    from `typescript_type_name/0`" in the Custom Types guide). A map needs
+    at least one field.
     """,
     examples: [
       """

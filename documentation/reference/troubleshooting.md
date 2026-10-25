@@ -216,13 +216,39 @@ New projects get this automatically from `mix igniter.install ash_typescript`. S
 
 **Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping. The error lists every offending type with its location.
 
-**Solution:** Either implement `typescript_type_name/0` on the type module, or add a mapping override:
+**Solution:** Either implement `typescript_type_name/0` on the type module, or, for a type you don't own, declare it in the manifest module's `custom_types` section:
 
 ```elixir
-config :ash_typescript, type_mapping_overrides: [{MyApp.CustomType, "string"}]
+custom_types do
+  scalar SomeLib.CustomType, :string
+end
 ```
 
 See [Custom Types](../advanced/custom-types.md).
+
+#### Error: "undeclared custom type" / "Undeclared map-like custom types found"
+
+**Cause:** A custom type whose values are maps or structs (`storage_type :map`, or composite) has no declared fields, so its keys have no client names. An RPC action, typed query, typed controller route or channel publication that reaches it fails with "returns (or accepts) an undeclared custom type, `MyApp.Thing`, at `<path>`". Other uses are listed under "Undeclared map-like custom types found".
+
+**Solution:** Declare its fields: `typescript_fields/0` on a type you own, a `map` entry in the manifest's `custom_types` for one you don't, or `composite?/1` + `composite_types/1`. If the type still exports `typescript_type_name/0` (or has a `scalar` entry), remove it. See [Map-Like Custom Types](../advanced/custom-types.md#map-like-custom-types).
+
+#### Error: "Map-like custom types that declare a TypeScript type"
+
+**Cause:** A map-like custom type, or one with declared fields, exports `typescript_type_name/0` or is covered by a `scalar` entry. Its TypeScript type is generated from its fields, so it can't be declared.
+
+**Solution:** Remove `typescript_type_name/0` (or turn the `scalar` entry into a `map` one) and declare the fields. For more precise member types, use scalar custom types with their own TypeScript mapping as field types. See [Migrating from `typescript_type_name/0`](../advanced/custom-types.md#migrating-from-typescript_type_name-0).
+
+#### Warning: "config :ash_typescript, :type_mapping_overrides is no longer read and is ignored"
+
+**Cause:** `type_mapping_overrides`, `zod_mapping_overrides` or `valibot_mapping_overrides` is still set in config. Their entries have no effect.
+
+**Solution:** Move the entries to the manifest module's `custom_types` section and remove the keys. See the [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest).
+
+#### Error: `requires_field_selection` for a custom type field
+
+**Cause:** A map-like custom type is selected by sub-field, like a typed map. The request selected it bare (`"colorPalette"`), or a generic action returning one was called without `fields`.
+
+**Solution:** Select its sub-fields: `{ colorPalette: ["primary", "secondary"] }`.
 
 #### Errors about resources/modules that only exist in another environment
 
@@ -236,29 +262,25 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A hand-rolled `use Ash.Type` module whose `storage_type/1` has no unambiguous JSON wire form. AshTypescript stays permissive rather than guessing, since a wrong schema rejects valid data.
 
-**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or set the schema directly:
+**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or declare it as a `scalar` in the manifest module's `custom_types` section, with a base type or the schema itself:
 
 ```elixir
-config :ash_typescript,
-  zod_mapping_overrides: [{MyApp.CustomType, "z.string()"}],
-  valibot_mapping_overrides: [{MyApp.CustomType, "v.string()"}]
+custom_types do
+  scalar MyApp.CustomType, :string do
+    zod "z.string()"
+    valibot "v.string()"
+  end
+end
 ```
-
-#### A custom type's schema is more permissive than its TypeScript type
-
-**Cause:** A hand-rolled `:map`-storage type generates `z.record(z.string(), z.any())`. Its real shape lives in `cast_input/2`, which can't be introspected — only the storage type is visible.
-
-**Solution:** Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override.
 
 #### Error: `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts`
 
-**Cause:** A mapping override references an imported symbol, but the generated schema file imports only its validation library. `import_into_generated` does **not** apply to the schema files — it targets the types and RPC files.
+**Cause:** A `custom_types` entry's `zod` / `valibot` references an imported symbol, but the generated schema file imports only its validation library. `import_into_generated` does **not** apply to the schema files — it targets the types and RPC files.
 
 **Solution:** Declare the import with the per-library key:
 
 ```elixir
 config :ash_typescript,
-  zod_mapping_overrides: [{MyApp.ObjectId, "CustomZodSchemas.objectId"}],
   zod_import_into_generated: [
     %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
   ]

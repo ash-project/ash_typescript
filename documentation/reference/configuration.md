@@ -53,15 +53,11 @@ config :ash_typescript,
   # Custom type imports
   import_into_generated: [],
 
-  # Type mapping overrides
-  type_mapping_overrides: [],
+  # Custom types are declared in the manifest module's `custom_types`
+  # section, not in config.
 
-  # Validation-schema overrides for hand-rolled custom types
-  zod_mapping_overrides: [],
-  valibot_mapping_overrides: [],
-
-  # Extra imports for the generated schema files, so an override above can
-  # name a schema you authored in TypeScript
+  # Extra imports for the generated schema files, so a `custom_types` entry's
+  # `zod` / `valibot` can name a schema you authored in TypeScript
   zod_import_into_generated: [],
   valibot_import_into_generated: [],
 
@@ -167,9 +163,6 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `generate_phx_channel_rpc_actions` | `boolean` | `false` | Whether to generate Phoenix channel-based RPC functions |
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |
 | `import_into_generated` | `list` | `[]` | List of custom modules to import |
-| `type_mapping_overrides` | `list` | `[]` | Override TypeScript types for Ash types |
-| `zod_mapping_overrides` | `list` | `[]` | Override generated Zod schemas for custom Ash types |
-| `valibot_mapping_overrides` | `list` | `[]` | Override generated Valibot schemas for custom Ash types |
 | `zod_import_into_generated` | `list` | `[]` | Extra imports for the generated Zod schema file |
 | `valibot_import_into_generated` | `list` | `[]` | Extra imports for the generated Valibot schema file |
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
@@ -269,6 +262,27 @@ end
 - In an umbrella app, the manifest module must live in an app that compiles after the listed modules (usually the web app).
 - Codegen generates nothing for a typed controller or channel that isn't listed, and warns about it (see [Unlisted Typed Module Warning](#unlisted-typed-module-warning)). At runtime, an unlisted typed controller answers every request with a 500, and an unlisted typed channel pushes its payloads unformatted and logs a warning.
 - `config :ash_typescript, typed_controllers: ...` and `typed_channels: ...` are no longer read. If either key is still set, compiling the manifest prints a warning.
+
+### Custom types
+
+Custom types you don't own are declared in the manifest module's `custom_types` section: a `scalar` maps a single-value type to TypeScript and validation schemas, a `map` declares the fields of a map-like type. See [Custom Types](../advanced/custom-types.md) and the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
+
+```elixir
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+
+  custom_types do
+    scalar SomeLib.ObjectId, :string
+
+    map SomeLib.ColorPalette do
+      field :primary, :string, allow_nil?: false
+      field :accent, :string
+    end
+  end
+end
+```
+
+`config :ash_typescript, type_mapping_overrides: ...`, `zod_mapping_overrides: ...` and `valibot_mapping_overrides: ...` are no longer read. If one is still set, compiling the manifest prints a warning (see the [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest)).
 
 For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list instead of `otp_app:`:
 

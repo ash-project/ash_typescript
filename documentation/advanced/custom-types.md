@@ -7,13 +7,22 @@ SPDX-License-Identifier: MIT
 
 # Custom Types
 
-AshTypescript supports custom Ash types with TypeScript integration. This guide covers how to create custom types and map dependency types to TypeScript.
+AshTypescript supports custom Ash types (`use Ash.Type` modules). How a custom
+type reaches TypeScript depends on its values:
 
-## Creating Custom Ash Types
+- A **scalar** custom type holds a single value (a string, a number, a list of
+  strings). It maps to one TypeScript type, which you name with
+  `typescript_type_name/0` or a `scalar` declaration.
+- A **map-like** custom type holds maps or structs: its `storage_type/1` is
+  `:map`, or it is composite (`composite?/1` returns `true`). It declares its
+  **fields**, and behaves like a typed map: clients select its sub-fields,
+  keys get client names, and its TypeScript type and validation schemas are
+  generated from the fields.
 
-Create custom Ash types that map to TypeScript types:
+Types you don't own (from a dependency) are declared in your manifest module's
+`custom_types` section.
 
-### Basic Custom Type
+## Scalar Custom Types
 
 ```elixir
 # 1. Create custom type in Elixir
@@ -35,12 +44,6 @@ end
 ```typescript
 // 2. Create TypeScript type definitions in customTypes.ts
 export type PriorityScore = number;
-
-export type ColorPalette = {
-  primary: string;
-  secondary: string;
-  accent: string;
-};
 ```
 
 ```elixir
@@ -82,110 +85,337 @@ interface TodoFieldsSchema {
 }
 ```
 
-## Built-In Third-Party Type Support
+A scalar custom type is selected like any other field (`"priorityScore"`), and
+its values are sent and received as they are.
 
-Some common third-party Ash types are mapped out of the box — no callback or override needed:
+A type built with `Ash.Type.NewType` (for example
+`use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-f]{6}$/]`)
+needs no mapping at all: it is typed from its subtype and constraints. It can
+still name its own TypeScript type with `typescript_type_name/0`.
 
-| Type module | Generated TypeScript |
-|-------------|---------------------|
-| `AshMoney.Types.Money` | `Money` alias (`{ amount, currency }`, with matching Zod/Valibot object schemas) |
-| `AshPostgres.Ltree` | `AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` alias (depending on the `escape?` constraint) |
-| `AshDoubleEntry.ULID` | `ULID` (string) alias |
+### Scalar Types You Don't Own
 
-Any other type module without a TypeScript mapping fails compilation with "Unsupported types found — AshTypescript cannot map them to TypeScript", listing each offender and its location. Fix it with one of the approaches below.
-
-## Type Mapping Overrides
-
-When using custom Ash types from dependencies (where you can't add the `typescript_type_name/0` callback), use the `type_mapping_overrides` configuration to map them to TypeScript types.
-
-### Configuration
+When the type comes from a dependency, where you can't add
+`typescript_type_name/0`, declare it in the manifest module's `custom_types`
+section. A `scalar` names the base Ash type its values have. The TypeScript type
+and the validation schemas are generated from that base type and its
+constraints, unless you give `typescript`, `zod` or `valibot` yourself:
 
 ```elixir
-# config/config.exs
-config :ash_typescript,
-  type_mapping_overrides: [
-    {AshUUID.UUID, "string"},
-    {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
-  ]
-```
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
 
-### Example: Mapping Dependency Types
+  custom_types do
+    # TypeScript `string`, z.string() / v.string()
+    scalar AshUUID.UUID, :string
 
-```elixir
-# Suppose you're using a third-party library with a custom type
-defmodule MyApp.Product do
-  use Ash.Resource,
-    domain: MyApp.Domain,
-    extensions: [AshTypescript.Resource]
-
-  typescript do
-    type_name "Product"
-  end
-
-  attributes do
-    uuid_primary_key :id
-    attribute :name, :string, public?: true
-
-    # Type from a dependency - can't modify it to add typescript_type_name
-    attribute :uuid, AshUUID.UUID, public?: true
-    attribute :some_value, SomeComplex.Custom.Type, public?: true
+    # TypeScript from your own customTypes.ts (import_into_generated)
+    scalar SomeComplex.Custom.Type, :string do
+      typescript "CustomTypes.MyCustomType"
+    end
   end
 end
 ```
 
+`typescript`, `zod` and `valibot` take a string, or an MFA `{m, f, a}` called as
+`apply(m, f, [constraints | a])` with the constraints where the type is used,
+for mappings that depend on constraints. The section's entities are listed in
+the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
+
+For a scalar, the TypeScript type comes from the first of:
+
+1. a `scalar` declaration in the manifest's `custom_types` section;
+2. the type's `typescript_type_name/0`;
+3. a built-in `scalar` entry (see [Built-In Types](#built-in-types));
+4. the base type.
+
+Any other type module without a TypeScript mapping fails compilation with
+"Unsupported types found — AshTypescript cannot map them to TypeScript",
+listing each offender and its location.
+
+> #### Config keys are gone {: .warning}
+>
+> `config :ash_typescript, type_mapping_overrides: [...]`,
+> `zod_mapping_overrides: [...]` and `valibot_mapping_overrides: [...]` are no
+> longer read. Compiling the manifest prints a warning while one is still set,
+> and its entries have no effect. Move them to `custom_types`: see the
+> [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest).
+
+## Map-Like Custom Types
+
+A custom type whose values are maps or structs declares its fields. Fields use
+the field-spec format of a typed map's `fields` constraint
+(`name: [type:, constraints:, allow_nil?:, description:]`), and default to
+nullable, as typed-map fields do.
+
+### Declaring Fields on a Type You Own
+
+Add a `typescript_fields/0` function to the type:
+
 ```elixir
-# Configure the type mappings
-config :ash_typescript,
-  type_mapping_overrides: [
-    # Map to built-in TypeScript type
-    {AshUUID.UUID, "string"},
+defmodule MyApp.ColorPalette do
+  use Ash.Type
 
-    # Map to custom type (requires defining the type in customTypes.ts)
-    {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
-  ],
+  def storage_type(_), do: :map
+  # cast_input/2, cast_stored/2, dump_to_native/2, ...
 
-  # Import your custom types
-  import_into_generated: [
-    %{
-      import_name: "CustomTypes",
-      file: "./customTypes"
-    }
-  ]
+  def typescript_fields do
+    [
+      primary: [type: :string, allow_nil?: false],
+      secondary: [type: :string, allow_nil?: false],
+      accent_color: [type: :string]
+    ]
+  end
+
+  # Optional: client names in place of the output formatter's
+  def typescript_field_names, do: [accent_color: "accent"]
+end
 ```
+
+A composite type (`composite?/1` returns `true`) needs nothing more: its
+`composite_types/1` entries are its fields, and they are non-null. A
+`typescript_fields/0` on a composite type replaces them.
+
+### Declaring Fields on a Type You Don't Own
+
+Declare a `map` in the manifest module's `custom_types` section. Each `field`
+takes the field's name and type, plus `constraints`, `allow_nil?` (default
+`true`), `client_name` and `description`. `zod` and `valibot` replace the
+generated schemas:
+
+```elixir
+custom_types do
+  map SomeLib.ColorPalette do
+    field :primary, :string, allow_nil?: false
+    field :secondary, :string, allow_nil?: false
+    field :accent_color, :string, client_name: "accent"
+  end
+end
+```
+
+A field's type can be any Ash type, a type with its own `scalar` or `map`
+entry, or a built-in. When it is a declared `scalar`, the field's
+`constraints` are merged over the scalar's, the field winning per key.
+
+### Where Fields Come From
+
+For each custom type, the first of these that applies supplies its fields:
+
+1. the manifest's `custom_types` entry for the type. It wins whole: the type's
+   callbacks and its built-in entry aren't read, and its fields' `client_name`
+   are the only name overrides;
+2. the type's `typescript_fields/0`;
+3. a built-in `map` entry (see [Built-In Types](#built-in-types));
+4. `composite_types/1`, when `composite?/1` is true.
+
+`typescript_field_names/0` names the fields from steps 2-4.
+
+Fields are **per module**, not per use. `typescript_fields/0` takes no
+constraints, and `composite?/1` and `composite_types/1` are called with the
+type's default constraints (`Ash.Type.init(MyType, [])`). A type whose shape
+changes with its constraints gets the shape of its defaults. Declare another
+shape with a `map` entry or `typescript_fields/0`.
+
+An `Ash.Type.NewType` over a custom type inherits the subtype's fields (its
+`custom_types` entry, its `typescript_fields/0`, or its built-in) unless the
+NewType declares its own. The NewType's `typescript_field_names/0` win over
+the subtype's.
+
+### Selecting Fields
+
+A map-like custom type is selected by sub-field, like a typed map:
 
 ```typescript
-// customTypes.ts - Define the MyCustomType type
-export type MyCustomType = {
-  someField: string;
-  anotherField: number;
-};
+const todo = await getTodo({
+  input: { id: "todo-123" },
+  fields: ["id", { colorPalette: ["primary", "accent"] }],
+});
 ```
 
-**Generated TypeScript:**
+Selecting it bare (`"colorPalette"`) is a TypeScript compile error, and the
+server answers `requires_field_selection`. A generic action that returns one
+needs `fields`.
+
+On the wire, its keys are the fields' client names. Only selected, declared
+fields reach the client. Undeclared keys in its values are dropped, and in
+requests they are `unknown_input`. Route results and channel payloads, which
+have no field selection, send every declared field present in the value and
+drop the rest.
+
+### Generated TypeScript
+
+The TypeScript of a map-like custom type is generated from its fields: a
+`TypedMap` in result types, and an object in input types, route results and
+channel payloads. Its zod and valibot schemas are objects of its fields, unless
+its `map` entry has `zod` / `valibot`.
 
 ```typescript
-import * as CustomTypes from "./customTypes";
+// result
+colorPalette: {primary: string, secondary: string, accent: string | null,
+  __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"} | null;
 
-interface ProductResourceSchema {
-  id: string;
-  name: string;
-  uuid: string;                        // Mapped to built-in string type
-  someValue: CustomTypes.MyCustomType; // Mapped to custom type
-}
+// input
+colorPalette?: {primary: string, secondary: string, accent?: string | null} | null;
 ```
 
-### When to Use Each Approach
+### Map-Like Types Can't Declare a TypeScript Type
 
-| Approach | Use When |
-|----------|----------|
-| `typescript_type_name/0` callback | You control the Ash type definition |
-| `type_mapping_overrides` | The type is from a dependency you can't modify |
+A map-like custom type, or one with declared fields, can't name its TypeScript
+type: the generated type has to match the fields clients select and the keys
+the server sends. If such a type exports `typescript_type_name/0`, or a `scalar`
+entry covers it, compiling the manifest fails with a migration message. A `map`
+entry has no `typescript` option.
+
+#### Migrating from `typescript_type_name/0`
+
+Before, a map-storage type named a hand-written TypeScript type:
+
+```elixir
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  def storage_type(_), do: :map
+  # ...
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
+end
+```
+
+After:
+
+1. remove `typescript_type_name/0`;
+2. declare the fields with `typescript_fields/0` (or a `map` entry for a type
+   you don't own);
+3. select sub-fields in the client (`{ colorPalette: ["primary", "secondary"] }`
+   instead of `"colorPalette"`).
+
+The hand-written `CustomTypes.ColorPalette` is no longer referenced by the
+generated code. Delete it, or keep it for your own code.
+
+### Precise Member Types
+
+For more precision than Ash's types give, use scalar custom types with their
+own TypeScript mapping as field types:
+
+```elixir
+defmodule MyApp.HexColor do
+  use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-fA-F]{6}$/]
+  def typescript_type_name, do: "`#${string}`"
+end
+
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  # storage_type :map, cast_input/2 (below), ...
+  def typescript_fields do
+    [
+      primary: [type: MyApp.HexColor, allow_nil?: false],
+      secondary: [type: MyApp.HexColor, allow_nil?: false],
+      accent: [type: MyApp.HexColor]
+    ]
+  end
+end
+```
+
+For a type you don't own, the same precision comes from the manifest:
+
+```elixir
+custom_types do
+  scalar SomeLib.HexColor, :string do
+    constraints match: ~r/^#[0-9a-fA-F]{6}$/
+    typescript "`#${string}`"
+  end
+
+  map SomeLib.ColorPalette do
+    field :primary, SomeLib.HexColor, allow_nil?: false
+    field :secondary, SomeLib.HexColor, allow_nil?: false
+    field :accent, SomeLib.HexColor
+  end
+end
+```
+
+Either form generates:
+
+```typescript
+// result
+colorPalette: {primary: `#${string}`, secondary: `#${string}`, accent: `#${string}` | null,
+  __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"} | null;
+
+// input
+colorPalette?: {primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null} | null;
+```
+
+and zod/valibot string schemas with the regex from `match`.
+
+> #### Declared fields are client-side only {: .info}
+>
+> Field types and constraints shape the generated TypeScript and validation
+> schemas. On the server, a custom type's value is cast only by its own
+> `cast_input/2`: Ash doesn't apply its declared fields, as it does for a
+> NewType over `:map` with `fields`. The same holds for a `scalar` entry's
+> constraints, and for `allow_nil?`. `ColorPalette` above enforces the regex
+> only if its `cast_input/2` casts each entry through its field type:
+>
+> ```elixir
+> @fields [:primary, :secondary, :accent]
+>
+> def cast_input(nil, _), do: {:ok, nil}
+>
+> def cast_input(%{} = value, _) do
+>   {:ok, constraints} = Ash.Type.init(MyApp.HexColor, [])
+>
+>   Enum.reduce_while(@fields, {:ok, %{}}, fn key, {:ok, acc} ->
+>     with {:ok, color} <- Ash.Type.cast_input(MyApp.HexColor, Map.get(value, key), constraints),
+>          {:ok, color} <- Ash.Type.apply_constraints(MyApp.HexColor, color, constraints) do
+>       {:cont, {:ok, Map.put(acc, key, color)}}
+>     else
+>       {:error, error} -> {:halt, {:error, [field: key] ++ List.wrap(error)}}
+>       :error -> {:halt, {:error, field: key, message: "is invalid"}}
+>     end
+>   end)
+> end
+>
+> def cast_input(_, _), do: :error
+> ```
+>
+> Request keys reach `cast_input/2` as atoms (the fields' names), since the
+> server maps client names back before Ash casts.
+
+### Undeclared Map-Like Types Fail Compilation
+
+A map-like custom type with no declared fields fails when the manifest
+compiles. For an RPC action, typed query, typed controller route or channel
+publication, the error names it and says it "returns (or accepts) an
+undeclared custom type, `MyApp.Thing`, at `<path>`". Elsewhere (for example an
+attribute that only generic actions reach) the type is listed under
+"Undeclared map-like custom types found". Each one ends with the
+ways to declare the fields: a `map` entry, `typescript_fields/0`, or
+`composite?/1` + `composite_types/1`, and says what to remove when the type
+still exports `typescript_type_name/0`.
+
+### Compile-Time Rules
+
+The manifest module reads `typescript_fields/0` and `composite_types/1` when it
+compiles, and recompiles when a type module it read them from changes. The
+manifest depends on those type modules at compile time, so they must never
+read the manifest at compile time.
+
+## Built-In Types
+
+Some common third-party Ash types are declared out of the box, as entries of
+the same shape as `custom_types`:
+
+| Type module | Entry | Generated TypeScript |
+|-------------|-------|---------------------|
+| `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | a `TypedMap` / input object of its fields (select `{ price: ["currency", "amount"] }`) |
+| `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
+| `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | `string[]` (`escape?: true`) or `string \| string[]` |
+
+Built-ins rank below the type's own callbacks: if a library adds
+`typescript_fields/0` to Money, those fields replace the built-in's, and
+`typescript_type_name/0` on ULID or Ltree replaces the built-in TypeScript type
+(the built-in zod/valibot schemas stay, since the callback has no schema
+counterpart). A `custom_types` entry for the module replaces the
+built-in entirely (it isn't merged with it).
 
 ## Validation Schemas for Custom Types
-
-`type_mapping_overrides` and `typescript_type_name/0` control the generated
-**TypeScript type**. They do not affect the generated **Zod/Valibot schema** —
-that is resolved separately, and has its own set of options.
 
 ### Prefer `Ash.Type.NewType`
 
@@ -205,10 +435,11 @@ score: z.number().int().min(1).max(100).nullable().optional(),
 
 This is the recommended approach whenever you can express your type this way.
 
-### Hand-Rolled Types Derive From Storage
+### Hand-Rolled Scalars Derive From Storage
 
-A type built with `use Ash.Type` casts through arbitrary code, so its shape
-can't be inspected. AshTypescript derives a schema from `storage_type/1`:
+A scalar built with `use Ash.Type` and `typescript_type_name/0` casts through
+arbitrary code, so its shape can't be inspected. AshTypescript derives a schema
+from `storage_type/1`:
 
 | `storage_type/1` | Generated Zod |
 |------------------|---------------|
@@ -221,42 +452,49 @@ can't be inspected. AshTypescript derives a schema from `storage_type/1`:
 | `:time`, `:time_usec` | `z.string().time()` |
 | `:naive_datetime`, `:utc_datetime`, `:utc_datetime_usec` | `z.iso.datetime()` |
 | `:decimal`, `:binary` | `z.string()` |
-| `:map`, `:jsonb` | `z.record(z.string(), z.any())` |
+| `:jsonb` | `z.record(z.string(), z.any())` |
 | `{:array, inner}` | `z.array(<inner>)` |
 | anything else | `z.any()` |
 
-This is permissive but never wrong: a `:map`-storage type validates as a record
-rather than as its precise object shape. Use an override below if you need
-precision.
+This is permissive but never wrong. A `scalar` entry is generated from its base
+type and constraints instead, and map-like types from their fields.
 
-### Schema Mapping Overrides
+### Schema Overrides
 
-For hand-rolled types, or types from a dependency, set the schema directly:
+To set a schema directly, give the type's `custom_types` entry `zod` and
+`valibot`. On a `scalar` it replaces the schema of the base type, on a `map`
+the object of its fields:
 
 ```elixir
-config :ash_typescript,
-  zod_mapping_overrides: [
-    {SomeLib.ObjectId, ~s{z.string().brand<"ObjectId">()}}
-  ],
-  valibot_mapping_overrides: [
-    {SomeLib.ObjectId, "v.string()"}
-  ]
+custom_types do
+  scalar SomeLib.ObjectId, :string do
+    zod ~s{z.string().brand<"ObjectId">()}
+    valibot "v.string()"
+  end
+end
 ```
 
-The two lists are independent — a type with a Zod override but no Valibot
-override keeps its storage-derived Valibot schema. Overrides also take
-precedence over the built-in third-party mappings.
+The two are independent: an entry with `zod` but no `valibot` keeps its
+generated valibot schema. `typescript_type_name/0` has no schema counterpart,
+so it doesn't replace a built-in's schemas.
 
 ### Referencing a Schema You Wrote
 
-An override can name a schema authored in TypeScript instead of an inline
-expression. Because the generated schema files import only their validation
-library, you must also declare the import, or the generated code will reference
-an undefined name:
+A schema can name one authored in TypeScript instead of an inline expression.
+Because the generated schema files import only their validation library, you
+must also declare the import, or the generated code will reference an undefined
+name:
 
 ```elixir
+# the manifest module
+custom_types do
+  scalar SomeLib.ObjectId, :string do
+    zod "CustomZodSchemas.objectId"
+  end
+end
+
+# config/config.exs
 config :ash_typescript,
-  zod_mapping_overrides: [{SomeLib.ObjectId, "CustomZodSchemas.objectId"}],
   zod_import_into_generated: [
     %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
   ]
@@ -282,25 +520,21 @@ These keys are separate from `import_into_generated`, which targets the types
 and RPC files. Keeping them separate stops unrelated modules from being pulled
 into the schema files, where they could create import cycles.
 
-> #### No schema callback {: .info}
->
-> There is deliberately no ash_typescript-specific callback for validation
-> schemas. Third-party types can't be expected to implement one, so commonly
-> used official Ash libraries are supported in-tree, and everything else uses a
-> `NewType` or config.
-
 ### Choosing an Approach
 
 | Approach | Use When |
 |----------|----------|
 | `Ash.Type.NewType` with constraints | You control the type and it fits the NewType model — covers the type *and* the schema |
-| Storage-derived default | The type is hand-rolled and a permissive schema is acceptable |
-| `zod_mapping_overrides` / `valibot_mapping_overrides` | You need precision or raw library syntax (brands, `.refine()`) |
-| `zod_import_into_generated` / `valibot_import_into_generated` | The override should reuse a schema you maintain in TypeScript |
+| `typescript_type_name/0` on a scalar | You control a hand-rolled scalar type; the schema is storage-derived |
+| `typescript_fields/0` | You control a map-like type |
+| `scalar` / `map` in `custom_types` | The type is from a dependency you can't modify |
+| `zod` / `valibot` on an entry | You need precision or raw library syntax (brands, `.refine()`) |
+| `zod_import_into_generated` / `valibot_import_into_generated` | The schema should reuse one you maintain in TypeScript |
+
 
 ## Untyped Map Type Configuration
 
-By default, AshTypescript generates `Record<string, any>` for map-like types without field constraints. You can configure this to use stricter types.
+By default, AshTypescript generates `Record<string, any>` for untyped maps (`:map`, `:keyword` and `:tuple` without `fields` constraints). You can configure this to use stricter types.
 
 ### Configuration
 
@@ -319,7 +553,7 @@ config :ash_typescript,
 
 ### What Gets Affected
 
-This configuration applies to all map-like types without field constraints:
+This configuration applies to all untyped maps:
 
 - `Ash.Type.Map` without `fields` constraint
 - `Ash.Type.Keyword` without `fields` constraint
@@ -332,12 +566,15 @@ is rejected when the manifest compiles,
 wherever an RPC action, typed query, typed controller route or typed channel
 publication can reach it.
 
-The same applies inside a composite custom type (`composite?/1` returns
-`true`): each `composite_types/1` entry is checked, so an entry like
+The same applies inside a custom type's declared fields, a composite type's
+`composite_types/1` entries included: an entry like
 `{:point, :struct, [instance_of: MyApp.Point]}` without `fields` fails the
 manifest. Use `{:point, MyApp.Point, []}` when `MyApp.Point` is an
-`Ash.TypedStruct`. Custom types that aren't composite aren't inspected, so a
-plain struct they return isn't caught here.
+`Ash.TypedStruct`. A map-like custom type without declared fields fails too
+(see [Map-Like Custom Types](#map-like-custom-types)). A custom type that is
+neither `:map`-stored nor composite but casts to a struct (a `:string`-stored
+type, for example) can't be detected, so a plain struct it returns isn't
+caught here.
 
 At runtime, a value of an `Ash.Type.Map` without `fields` constraints is
 sent exactly as the action produced it and encoded by Jason: nothing converts

@@ -137,7 +137,7 @@ action input, union member or metadata field missing from the manifest, or a
 node built without decoration, e.g. a raw type in a unit test). This is a
 decoration gap. Fix it when the manifest is built (`RpcMappingSource`,
 `AshRpc.Manifest.Decorator`), or pass a decorated type in the test
-(`AshRpc.Manifest.Decorator.decorate_type/3`, `InlineManifest.build!/1`). Never
+(`AshRpc.Manifest.Decorator.decorate_type/4`, `InlineManifest.build!/1`). Never
 add a formatter fallback: the name it produced could differ from what the
 runtime accepts.
 
