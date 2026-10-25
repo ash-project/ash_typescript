@@ -395,8 +395,17 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp add_rpc_routes(igniter, web_module) do
-      run_endpoint = Application.get_env(:ash_typescript, :run_endpoint)
-      validate_endpoint = Application.get_env(:ash_typescript, :validate_endpoint)
+      run_endpoint =
+        case Application.get_env(:ash_typescript, :run_endpoint) do
+          endpoint when is_binary(endpoint) -> endpoint
+          _ -> "/rpc/run"
+        end
+
+      validate_endpoint =
+        case Application.get_env(:ash_typescript, :validate_endpoint) do
+          endpoint when is_binary(endpoint) -> endpoint
+          _ -> "/rpc/validate"
+        end
 
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 

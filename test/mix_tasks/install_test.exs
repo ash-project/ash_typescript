@@ -39,4 +39,29 @@ defmodule Mix.Tasks.AshTypescript.InstallTest do
     assert config =~ ~s(run_endpoint: "/rpc/run")
     assert config =~ ~s(validate_endpoint: "/rpc/validate")
   end
+
+  test "adds rpc routes with default endpoints to router" do
+    router =
+      test_project()
+      |> Igniter.create_new_file("lib/test_web/router.ex", """
+      defmodule TestWeb.Router do
+        use Phoenix.Router
+
+        scope "/", TestWeb do
+          pipe_through :browser
+          get "/", PageController, :home
+        end
+      end
+      """)
+      |> Igniter.compose_task("ash_typescript.install", ["--yes"])
+      |> then(fn igniter ->
+        igniter.rewrite
+        |> Rewrite.source!("lib/test_web/router.ex")
+        |> Rewrite.Source.get(:content)
+      end)
+
+    assert router =~ ~s[post("/rpc/run", AshTypescriptRpcController, :run)]
+    assert router =~ ~s[post("/rpc/validate", AshTypescriptRpcController, :validate)]
+    refute router =~ ~s[post("", AshTypescriptRpcController)]
+  end
 end
