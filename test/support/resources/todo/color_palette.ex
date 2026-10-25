@@ -16,19 +16,11 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
   @impl true
   def cast_input(nil, _), do: {:ok, nil}
 
-  # Accept atom keys
+  # Input arrives with atom keys: ash_rpc maps the declared fields' client
+  # names to them before Ash casts.
   def cast_input(%{primary: primary, secondary: secondary, accent: accent} = value, _)
       when is_binary(primary) and is_binary(secondary) and is_binary(accent) do
     {:ok, value}
-  end
-
-  # Accept string keys (from client input without field constraints)
-  def cast_input(
-        %{"primary" => primary, "secondary" => secondary, "accent" => accent},
-        _
-      )
-      when is_binary(primary) and is_binary(secondary) and is_binary(accent) do
-    {:ok, %{primary: primary, secondary: secondary, accent: accent}}
   end
 
   def cast_input(_, _), do: {:error, "must be a map with primary, secondary, and accent colors"}

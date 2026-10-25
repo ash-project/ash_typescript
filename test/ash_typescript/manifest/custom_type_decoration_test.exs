@@ -34,8 +34,11 @@ defmodule AshTypescript.Manifest.CustomTypeDecorationTest do
 
   defmodule Swatch do
     @moduledoc false
-    # Declared only by a manifest `map` entry.
+    # Declared only by a manifest `map` entry, whose fields' `client_name`s are
+    # the only names it takes: `typescript_field_names/0` isn't read.
     use MapStorage
+
+    def typescript_field_names, do: [hex: "colour", display_name: "ignored"]
   end
 
   defmodule Pair do
@@ -160,7 +163,7 @@ defmodule AshTypescript.Manifest.CustomTypeDecorationTest do
       assert Enum.map(fields, & &1.name) == [:currency, :amount]
     end
 
-    test "a route argument declared by a manifest map entry is a type_ref with its client names",
+    test "a route argument declared by a manifest map entry is a type_ref named by the entry alone",
          %{manifest: manifest} do
       route = Custom.route(manifest, T.Session, :paint)
       [%{name: :swatch, type: type}] = route.inputs
@@ -174,6 +177,27 @@ defmodule AshTypescript.Manifest.CustomTypeDecorationTest do
                hex: "hex",
                display_name: "label"
              }
+    end
+
+    test "two fields of a manifest map entry with the same client_name are a name collision" do
+      body =
+        quote do
+          custom_types do
+            map AshTypescript.Manifest.CustomTypeDecorationTest.Swatch do
+              field :hex, :string, client_name: "tone"
+              field :display_name, :string, client_name: "tone"
+            end
+          end
+        end
+
+      # ash_rpc's NameCollisionError, wrapped by Spark for the transformer.
+      error =
+        assert_raise RuntimeError, fn ->
+          compile_manifest!(CollidingManifest, [typed_controllers: [T.Session]], body)
+        end
+
+      assert Exception.message(error) =~
+               ~s{Client name collision in type "Swatch" (AshTypescript.Manifest.CustomTypeDecorationTest.Swatch): :display_name and :hex both map to "tone"}
     end
 
     test "a route returning a composite type returns a type_ref", %{manifest: manifest} do

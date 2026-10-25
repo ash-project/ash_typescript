@@ -19,12 +19,10 @@ defmodule AshTypescript.Test.GeoPoint do
   @impl true
   def cast_input(nil, _), do: {:ok, nil}
 
+  # Input arrives with atom keys: ash_rpc maps the declared fields' client
+  # names to them before Ash casts.
   def cast_input(%{lat: lat, lng: lng} = value, _) when is_number(lat) and is_number(lng) do
     {:ok, value}
-  end
-
-  def cast_input(%{"lat" => lat, "lng" => lng}, _) when is_number(lat) and is_number(lng) do
-    {:ok, %{lat: lat, lng: lng}}
   end
 
   def cast_input(_, _), do: {:error, "must be a map with numeric lat and lng"}

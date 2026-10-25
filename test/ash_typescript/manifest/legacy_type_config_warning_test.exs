@@ -52,8 +52,6 @@ defmodule AshTypescript.Manifest.LegacyTypeConfigWarningTest do
       {AshTypescript.Test.CustomIdentifier, "Overridden"}
     ])
 
-    _ = compile_manifest(T.NotRead)
-
     # The test manifest's `scalar` entry maps it.
     assert AshTypescript.Codegen.get_ts_type(%{
              type: AshTypescript.Test.CustomIdentifier,

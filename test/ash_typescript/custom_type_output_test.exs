@@ -92,6 +92,7 @@ defmodule AshTypescript.CustomTypeOutputTest do
 
   @moduletag :ash_typescript
 
+  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Test.CustomTypeOutput.{Channel, Item, Session}
   alias AshTypescript.TypedChannel.PayloadFormatter
   alias AshTypescript.TypedController.RequestHandler
@@ -132,6 +133,49 @@ defmodule AshTypescript.CustomTypeOutputTest do
       typed_controllers: [Session],
       typed_channels: [Channel]
     )
+  end
+
+  describe "generated TypeScript" do
+    # The route result and channel payload types codegen emits: Money is an
+    # object of its declared fields, not an alias or a record.
+    test "a route result types a declared custom type by its fields" do
+      route = AshTypescript.Manifest.Custom.route(manifest(), Session, :reply)
+
+      result =
+        AshTypescript.with_manifest(manifest(), fn ->
+          TypeMapper.map_route_result_type(route.returns)
+        end)
+
+      assert result =~ ~r/price\??: \{currency: string, amount: Decimal\}/
+      refute result =~ "Money"
+    end
+
+    test "a channel payload types a declared custom type by its fields" do
+      publication =
+        AshTypescript.Manifest.Custom.publication(
+          manifest(),
+          Channel,
+          Item,
+          "custom_output_created"
+        )
+
+      payload =
+        AshTypescript.with_manifest(manifest(), fn ->
+          TypeMapper.map_channel_payload_type(publication.returns)
+        end)
+
+      # Nested typed containers in a payload keep the field-selection metadata
+      # map_type/3 gives them; only the top level is a plain object.
+      assert payload =~ ~r/price\??: \{currency: string, amount: Decimal, __type: "TypedMap"/
+      refute payload =~ "Money"
+
+      assert AshTypescript.with_manifest(manifest(), fn ->
+               TypeMapper.map_channel_payload_type(%Ash.Info.Manifest.Type{
+                 kind: :type_ref,
+                 module: AshMoney.Types.Money
+               })
+             end) == "{currency: string, amount: Decimal}"
+    end
   end
 
   test "a typed route result sends declared fields only" do

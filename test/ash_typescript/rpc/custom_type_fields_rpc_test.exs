@@ -165,6 +165,8 @@ defmodule AshTypescript.Rpc.CustomTypeFieldsRpcTest do
 
         assert %{"success" => false, "errors" => [error]} = result
         assert error["type"] == "unknown_input"
+        assert error["fields"] == ["hex_code"]
+        assert error["path"] == ["swatch"]
       end)
     end
   end
