@@ -187,10 +187,20 @@ defmodule AshTypescript.Codegen.TypeAliases do
           Ash.Resource.Info.embedded?(type) ->
         ""
 
+      # A declared custom type is mapped through its `:type_ref`, from its fields.
+      declared_custom_type?(type) ->
+        ""
+
       true ->
         TypeMapper.raise_unsupported_type!(type)
     end
   end
+
+  defp declared_custom_type?(type),
+    do:
+      AshTypescript.type_lookup()
+      |> Ash.Info.Manifest.get_type(type)
+      |> AshRpc.Manifest.Custom.custom_type?()
 
   defp get_type_mapping_override(type) when is_atom(type) do
     type_mapping_overrides = AshTypescript.type_mapping_overrides()

@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :title,
           :priority_score,
           # other custom type
-          :color_palette,
+          %{color_palette: [:primary, :secondary, :accent]},
           # regular attribute
           :completed,
           # aggregate
@@ -45,10 +45,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                :id,
                :title,
                :priority_score,
-               :color_palette,
                :completed,
                :comment_count,
-               :is_overdue
+               :is_overdue,
+               color_palette: [:primary, :secondary, :accent]
              ]
     end
 
@@ -63,18 +63,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   end
 
   describe "complex structured custom types" do
-    test "processes color_palette custom type as simple attribute" do
+    test "processes color_palette custom type as a typed map with sub-field selection" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
           :id,
           :title,
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
-      # Even complex custom types are selected like regular attributes
+      # A custom type with declared fields is a typed map: sub-fields are selected
       assert select == [:id, :title, :color_palette]
       assert load == []
-      assert extraction_template == [:id, :title, :color_palette]
+
+      assert extraction_template == [
+               :id,
+               :title,
+               {:color_palette, [:primary, :secondary, :accent]}
+             ]
     end
 
     test "processes color_palette in different action types" do
@@ -82,33 +87,49 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :create, [
           :id,
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:id, :color_palette]
       assert load == []
-      assert extraction_template == [:id, :color_palette]
+      assert extraction_template == [:id, {:color_palette, [:primary, :secondary, :accent]}]
 
       # Test in update action
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :update, [
           :id,
-          :color_palette,
+          %{color_palette: [:primary, :secondary, :accent]},
           :priority_score
         ])
 
       assert select == [:id, :color_palette, :priority_score]
       assert load == []
-      assert extraction_template == [:id, :color_palette, :priority_score]
+
+      assert extraction_template == [
+               :id,
+               :priority_score,
+               color_palette: [:primary, :secondary, :accent]
+             ]
     end
 
-    test "rejects color_palette with nested field selection" do
-      {:error, error} =
+    test "selects a subset of color_palette's fields" do
+      {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
           %{color_palette: [:primary, :secondary]}
         ])
 
-      assert error == {:field_does_not_support_nesting, :color_palette, []}
+      assert select == [:color_palette]
+      assert load == []
+      assert extraction_template == [color_palette: [:primary, :secondary]]
+    end
+
+    test "rejects color_palette selected without its fields" do
+      {:error, error} =
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :color_palette
+        ])
+
+      assert {:requires_field_selection, _, :color_palette, []} = error
     end
 
     test "rejects color_palette with complex nested structure" do
@@ -121,7 +142,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, :color_palette, []}
+      assert error ==
+               {:unsupported_field_combination, :relationship, :color_palette,
+                %{primary: [:invalid]}, []}
     end
   end
 
@@ -132,7 +155,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :id,
           # custom types
           :priority_score,
-          :color_palette,
+          %{color_palette: [:primary, :secondary, :accent]},
           # relationship
           %{user: [:id, :name]},
           # calculation with args
@@ -154,8 +177,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       assert extraction_template == [
                :id,
                :priority_score,
-               :color_palette,
                :is_overdue,
+               color_palette: [:primary, :secondary, :accent],
                user: [:id, :name],
                self: [:title, :description]
              ]
@@ -172,7 +195,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 :title,
                 # Include custom types in calculation field selection
                 :priority_score,
-                :color_palette
+                %{color_palette: [:primary, :secondary, :accent]}
               ]
             }
           }
@@ -180,7 +203,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
       assert select == [:id]
       assert load == [{:self, {%{prefix: "test"}, [:title, :priority_score, :color_palette]}}]
-      assert extraction_template == [:id, self: [:title, :priority_score, :color_palette]]
+
+      assert extraction_template == [
+               :id,
+               self: [:title, :priority_score, {:color_palette, [:primary, :secondary, :accent]}]
+             ]
     end
 
     test "processes custom types with complex aggregates" do
@@ -190,7 +217,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :priority_score,
           # Use simple aggregate instead
           :comment_count,
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:id, :priority_score, :color_palette]
@@ -200,7 +227,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                :id,
                :priority_score,
                :comment_count,
-               :color_palette
+               color_palette: [:primary, :secondary, :accent]
              ]
     end
 
@@ -218,7 +245,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                   :title,
                   # Custom types in nested relationship
                   :priority_score,
-                  :color_palette
+                  %{color_palette: [:primary, :secondary, :accent]}
                 ]
               }
             ]
@@ -233,7 +260,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
       assert extraction_template == [
                :id,
-               user: [:id, :name, todos: [:id, :title, :priority_score, :color_palette]]
+               user: [
+                 :id,
+                 :name,
+                 todos: [
+                   :id,
+                   :title,
+                   :priority_score,
+                   {:color_palette, [:primary, :secondary, :accent]}
+                 ]
+               ]
              ]
     end
   end
@@ -261,12 +297,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       assert error == {:duplicate_field, :priority_score, []}
     end
 
-    test "rejects mixed atom and map for same custom type" do
+    test "rejects the same custom type selected twice" do
       {:error, error} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
-          # Simple custom type
-          :color_palette,
-          # Same custom type with nested structure - should be rejected
+          # Custom type with declared fields
+          %{color_palette: [:primary, :secondary, :accent]},
+          # Same custom type selected again - should be rejected
           %{color_palette: []}
         ])
 
@@ -301,14 +337,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
               args: %{prefix: "test"},
               fields: [
                 :title,
-                # Try to use custom type with nested selection in calculation
-                %{color_palette: [:primary]}
+                # Try to select a field color_palette doesn't declare
+                %{color_palette: [:primary, :unknown]}
               ]
             }
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, :color_palette, [:self]}
+      assert error == {:unknown_field, :unknown, "map", [:self, :color_palette]}
     end
   end
 
@@ -317,12 +353,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
           :priority_score,
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:priority_score, :color_palette]
       assert load == []
-      assert extraction_template == [:priority_score, :color_palette]
+
+      assert extraction_template == [
+               :priority_score,
+               {:color_palette, [:primary, :secondary, :accent]}
+             ]
     end
 
     test "handles custom types with empty request" do
@@ -352,12 +392,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, action, [
             :id,
             :priority_score,
-            :color_palette
+            %{color_palette: [:primary, :secondary, :accent]}
           ])
 
         assert select == [:id, :priority_score, :color_palette]
         assert load == []
-        assert extraction_template == [:id, :priority_score, :color_palette]
+
+        assert extraction_template == [
+                 :id,
+                 :priority_score,
+                 {:color_palette, [:primary, :secondary, :accent]}
+               ]
       end
     end
   end
@@ -370,7 +415,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :priority_score,
           # union attribute with simple type
           %{content: [:note]},
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:id, :priority_score, :content, :color_palette]
@@ -379,8 +424,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       assert extraction_template == [
                :id,
                :priority_score,
-               :color_palette,
-               content: [:note]
+               content: [:note],
+               color_palette: [:primary, :secondary, :accent]
              ]
     end
 
@@ -391,7 +436,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :priority_score,
           # embedded resource
           %{metadata: [:category, :estimated_hours]},
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:id, :priority_score, :metadata, :color_palette]
@@ -400,8 +445,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       assert extraction_template == [
                :id,
                :priority_score,
-               :color_palette,
-               metadata: [:category, :estimated_hours]
+               metadata: [:category, :estimated_hours],
+               color_palette: [:primary, :secondary, :accent]
              ]
     end
 
@@ -412,7 +457,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :priority_score,
           # typed struct
           %{timestamp_info: [:created_by, :created_at]},
-          :color_palette
+          %{color_palette: [:primary, :secondary, :accent]}
         ])
 
       assert select == [:id, :priority_score, :timestamp_info, :color_palette]
@@ -421,8 +466,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
       assert extraction_template == [
                :id,
                :priority_score,
-               :color_palette,
-               timestamp_info: [:created_by, :created_at]
+               timestamp_info: [:created_by, :created_at],
+               color_palette: [:primary, :secondary, :accent]
              ]
     end
   end

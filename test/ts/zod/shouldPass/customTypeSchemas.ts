@@ -20,9 +20,10 @@ function createValidTodoData() {
 // ─── Storage-derived fallback ────────────────────────────────────────────────
 //
 // A hand-rolled `use Ash.Type` module with no override derives its schema from
-// `storage_type/1`: PriorityScore stores `:integer` so it validates as a number,
-// ColorPalette stores `:map` so it validates as a record. Both previously
-// collapsed to `z.string()` and rejected their own valid values.
+// `storage_type/1`: PriorityScore stores `:integer` so it validates as a number
+// (it previously collapsed to `z.string()` and rejected its own valid values).
+// ColorPalette declares its fields (`typescript_fields/0`), so it validates as
+// an object of them.
 
 export function testColorPaletteObjectAccepted() {
   const validated = createTodoZodSchema.parse({

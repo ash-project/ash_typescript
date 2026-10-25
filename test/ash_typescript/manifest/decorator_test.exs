@@ -187,12 +187,12 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       manifest: spec
     } do
       type_lookup = Ash.Info.Manifest.type_lookup(spec)
-      color_palette = type_lookup[AshTypescript.Test.Todo.ColorPalette]
 
-      if color_palette do
-        assert Custom.type_name(color_palette) ==
-                 AshTypescript.Test.Todo.ColorPalette.typescript_type_name()
-      end
+      # ColorPalette declares fields (a custom-type definition) and no
+      # typescript_type_name/0; Percentage is a NewType that exports one.
+      color_palette = type_lookup[AshTypescript.Test.Todo.ColorPalette]
+      assert AshRpc.Manifest.Custom.custom_type?(color_palette)
+      assert Custom.type_name(color_palette) == nil
     end
   end
 

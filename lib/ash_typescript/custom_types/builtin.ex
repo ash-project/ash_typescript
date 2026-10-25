@@ -42,6 +42,10 @@ defmodule AshTypescript.CustomTypes.Builtin do
     ]
   end
 
+  @doc "The built-in entries keyed by module."
+  @spec by_module() :: %{module() => Scalar.t() | MapType.t()}
+  def by_module, do: Map.new(entries(), &{&1.module, &1})
+
   @doc "Ltree's TypeScript: `string[]` with `escape?: true`, else `string | string[]`."
   @spec ltree_typescript(Keyword.t()) :: String.t()
   def ltree_typescript(constraints),

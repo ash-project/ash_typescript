@@ -37,7 +37,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   def transform(dsl_state) do
     module = Transformer.get_persisted(dsl_state, :module)
     entries = Transformer.get_entities(dsl_state, [:custom_types])
-    builtin = Map.new(Builtin.entries(), &{&1.module, &1})
+    builtin = Builtin.by_module()
 
     with :ok <- check_duplicates(entries),
          declared = Map.new(entries, &{&1.module, &1}),

@@ -38,9 +38,9 @@ defmodule AshTypescript.CustomTypesTest do
       assert function_exported?(PriorityScore, :storage_type, 1)
     end
 
-    test "complex custom type has typescript callbacks" do
-      assert function_exported?(ColorPalette, :typescript_type_name, 0)
-      assert ColorPalette.typescript_type_name() == "CustomTypes.ColorPalette"
+    test "complex custom type declares its fields instead of a TypeScript name" do
+      assert function_exported?(ColorPalette, :typescript_fields, 0)
+      refute function_exported?(ColorPalette, :typescript_type_name, 0)
     end
   end
 
@@ -87,9 +87,17 @@ defmodule AshTypescript.CustomTypesTest do
       assert result == "Array<CustomTypes.PriorityScore>"
     end
 
-    test "complex custom type with map storage generates precise TypeScript" do
-      result = Codegen.get_ts_type(%{type: ColorPalette, constraints: []})
-      assert result == "CustomTypes.ColorPalette"
+    test "complex custom type with map storage generates a typed map from its fields" do
+      field =
+        AshTypescript.resource_lookup()
+        |> Map.fetch!(AshTypescript.Test.Todo)
+        |> Map.fetch!(:fields)
+        |> Map.fetch!(:color_palette)
+
+      assert %Ash.Info.Manifest.Type{kind: :type_ref, module: ColorPalette} = field.type
+
+      assert Codegen.get_ts_type(field) ==
+               ~s({primary: string, secondary: string, accent: string, __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"})
     end
 
     test "complex custom type no longer generates type definition (it is imported)" do
@@ -117,7 +125,8 @@ defmodule AshTypescript.CustomTypesTest do
           AshTypescript.Test.Todo
         ])
 
-      assert schema =~ "colorPalette: CustomTypes.ColorPalette | null"
+      assert schema =~
+               ~s(colorPalette: {primary: string, secondary: string, accent: string, __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"} | null)
     end
 
     test "full TypeScript generation includes import statements" do

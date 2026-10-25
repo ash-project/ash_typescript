@@ -8,6 +8,11 @@ defmodule AshTypescript.RpcMappingSource do
   `typescript` resource DSL (`field_names`, `argument_names`), types'
   `typescript_field_names/0`, and the `typescript_rpc` domain DSL.
 
+  `custom_type_fields/1` is the stateless form of
+  `AshTypescript.CustomTypes.fields_for/3`: built-in entries and type
+  callbacks, no manifest `custom_types` entries. The manifest module passes
+  its entries to decoration as a `custom_type_fields:` closure instead.
+
   The output formatter and `not_found_error?` are read while the manifest compiles;
   `AshTypescript.Manifest` tracks them with `Application.compile_env/3`.
   """
@@ -45,6 +50,19 @@ defmodule AshTypescript.RpcMappingSource do
   def type_field_names(module) do
     if Helpers.has_typescript_field_names?(module), do: Helpers.typescript_field_names(module)
   end
+
+  @impl true
+  def custom_type_fields(module),
+    do:
+      AshTypescript.CustomTypes.fields_for(
+        module,
+        %{},
+        AshTypescript.CustomTypes.Builtin.by_module()
+      )
+
+  @impl true
+  def custom_type_fields_hint(module),
+    do: AshTypescript.CustomTypes.hint(module, %{}, AshTypescript.CustomTypes.Builtin.by_module())
 
   @impl true
   def entrypoint(

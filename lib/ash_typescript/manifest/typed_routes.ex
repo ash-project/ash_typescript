@@ -5,22 +5,30 @@
 defmodule AshTypescript.Manifest.TypedRoutes do
   @moduledoc false
   # Decorates typed controller route and typed channel publication types with
-  # `AshRpc.Manifest.Decorator.decorate_type/3`, computes client names and
+  # `AshRpc.Manifest.Decorator.decorate_type/4`, computes client names and
   # reverse maps, and stores the structs under `manifest.custom.ash_typescript`.
-  # Runs after `AshRpc.Manifest.Decorator.decorate/3`. Named types live in
-  # `manifest.types` (decorated there), and `decorate_type/3` leaves the
-  # `type_ref`/resource nodes that point at them unchanged. Before that, every
-  # route argument, route `returns` and publication `returns` goes through
-  # `AshRpc.Introspection.find_untyped_root/2`, and an untyped struct raises a
-  # `Spark.Error.DslError`. RPC entrypoints (ash_rpc's decorator) and typed
-  # queries (`AshTypescript.Manifest.Decorator`) raise
-  # `AshRpc.Manifest.UntypedStructError` instead.
+  # Runs after `AshRpc.Manifest.Decorator.decorate/3`, which got the same
+  # `custom_type_fields:` closure and these types as `extra_types:` (`types/2`).
+  # Named types live in `manifest.types` (decorated there), and
+  # `decorate_type/4` leaves the `type_ref`/resource nodes that point at them
+  # unchanged; a declared custom type becomes a `type_ref` to its definition
+  # there. Then every decorated route argument, route `returns` and
+  # publication `returns` goes through `AshRpc.Introspection.find_untyped_root/2`,
+  # and an untyped struct raises a `Spark.Error.DslError`. RPC entrypoints
+  # (ash_rpc's decorator) and typed queries (`AshTypescript.Manifest.Decorator`)
+  # raise `AshRpc.Manifest.UntypedStructError` instead.
 
   alias Ash.Info.Manifest
+  alias AshTypescript.CustomTypes
   alias AshTypescript.Manifest.{Publication, Route, RouteArgument}
 
-  @spec decorate(Manifest.t(), [Route.t()], [Publication.t()]) :: Manifest.t()
-  def decorate(%Manifest{} = manifest, routes, publications) do
+  @spec decorate(Manifest.t(), [Route.t()], [Publication.t()], CustomTypes.fields_fun()) ::
+          Manifest.t()
+  def decorate(%Manifest{} = manifest, routes, publications, fields_fun) do
+    formatter = AshRpc.Manifest.output_formatter(manifest)
+    routes = Enum.map(routes, &build_route(&1, formatter, fields_fun))
+    publications = Enum.map(publications, &build_publication(&1, formatter, fields_fun))
+
     lookups = %{
       resource_lookup: AshRpc.Manifest.resource_lookup(manifest),
       type_lookup: AshRpc.Manifest.type_lookup(manifest)
@@ -29,15 +37,9 @@ defmodule AshTypescript.Manifest.TypedRoutes do
     Enum.each(routes, &reject_untyped_route!(&1, lookups))
     Enum.each(publications, &reject_untyped_publication!(&1, lookups))
 
-    formatter = AshRpc.Manifest.output_formatter(manifest)
-
     data = %{
-      routes: Map.new(routes, &{{&1.source_module, &1.name}, build_route(&1, formatter)}),
-      publications:
-        Map.new(
-          publications,
-          &{{&1.channel_module, &1.resource, &1.event}, build_publication(&1, formatter)}
-        )
+      routes: Map.new(routes, &{{&1.source_module, &1.name}, &1}),
+      publications: Map.new(publications, &{{&1.channel_module, &1.resource, &1.event}, &1})
     }
 
     custom = Map.update(manifest.custom, :ash_typescript, data, &Map.merge(&1, data))
@@ -45,7 +47,8 @@ defmodule AshTypescript.Manifest.TypedRoutes do
   end
 
   @doc false
-  # Re-runs `decorate/3` over the structs already stored (for formatter variants in tests).
+  # Re-runs `decorate/4` over the structs already stored (for formatter variants in tests),
+  # with the closure over the stored `custom_types`.
   @spec redecorate(Manifest.t()) :: Manifest.t()
   def redecorate(%Manifest{} = manifest) do
     data = Map.get(manifest.custom, :ash_typescript, %{})
@@ -53,18 +56,30 @@ defmodule AshTypescript.Manifest.TypedRoutes do
     decorate(
       manifest,
       data |> Map.get(:routes, %{}) |> Map.values(),
-      data |> Map.get(:publications, %{}) |> Map.values()
+      data |> Map.get(:publications, %{}) |> Map.values(),
+      CustomTypes.fields_fun(Map.get(data, :custom_types))
     )
   end
 
-  @spec build_route(Route.t(), AshRpc.MappingSource.formatter()) :: Route.t()
-  def build_route(%Route{} = route, formatter) do
+  @doc false
+  # The undecorated route argument, route `returns` and publication `returns`
+  # types, for ash_rpc's `extra_types:`.
+  @spec types([Route.t()], [Publication.t()]) :: [Manifest.Type.t()]
+  def types(routes, publications) do
+    Enum.flat_map(routes, &[&1.returns | Enum.map(&1.inputs, fn input -> input.type end)])
+    |> Kernel.++(Enum.map(publications, & &1.returns))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @spec build_route(Route.t(), AshRpc.MappingSource.formatter(), CustomTypes.fields_fun()) ::
+          Route.t()
+  def build_route(%Route{} = route, formatter, fields_fun) do
     inputs =
       Enum.map(route.inputs, fn %RouteArgument{} = input ->
         %RouteArgument{
           input
           | client_name: AshRpc.FieldFormatter.format_field_name(input.name, formatter),
-            type: decorate_type(input.type, formatter)
+            type: decorate_type(input.type, formatter, fields_fun)
         }
       end)
 
@@ -75,15 +90,19 @@ defmodule AshTypescript.Manifest.TypedRoutes do
       | inputs: inputs,
         client_input_names: Map.new(inputs, &{&1.client_name, &1.name}),
         path_input_names: Map.new(inputs, &{Atom.to_string(&1.name), &1.name}),
-        returns: route.returns && decorate_type(route.returns, formatter)
+        returns: route.returns && decorate_type(route.returns, formatter, fields_fun)
     }
   end
 
-  @spec build_publication(Publication.t(), AshRpc.MappingSource.formatter()) :: Publication.t()
-  def build_publication(%Publication{} = publication, formatter),
+  @spec build_publication(
+          Publication.t(),
+          AshRpc.MappingSource.formatter(),
+          CustomTypes.fields_fun()
+        ) :: Publication.t()
+  def build_publication(%Publication{} = publication, formatter, fields_fun),
     do: %Publication{
       publication
-      | returns: publication.returns && decorate_type(publication.returns, formatter)
+      | returns: publication.returns && decorate_type(publication.returns, formatter, fields_fun)
     }
 
   defp reject_untyped_route!(%Route{} = route, lookups) do
@@ -115,8 +134,11 @@ defmodule AshTypescript.Manifest.TypedRoutes do
     end
   end
 
-  defp decorate_type(type, formatter),
-    do: AshRpc.Manifest.Decorator.decorate_type(type, formatter, AshTypescript.RpcMappingSource)
+  defp decorate_type(type, formatter, fields_fun),
+    do:
+      AshRpc.Manifest.Decorator.decorate_type(type, formatter, AshTypescript.RpcMappingSource,
+        custom_type_fields: fields_fun
+      )
 
   defp check_collisions!(route, inputs) do
     duplicates =

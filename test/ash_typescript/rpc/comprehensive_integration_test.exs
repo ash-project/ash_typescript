@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "createdAt",
           %{"metadata" => ["category", "priorityScore"]},
           "priorityScore",
-          "colorPalette",
+          %{"colorPalette" => ["primary", "secondary", "accent"]},
           %{"timestampInfo" => ["createdBy", "createdAt", "updatedBy", "updatedAt"]},
           %{
             "statistics" => [
@@ -129,7 +129,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert todo_data["metadata"]["category"] == "work"
       assert todo_data["metadata"]["priorityScore"] == 85
 
-      # Assert custom type data (no nesting)
+      # Assert custom type data (a custom type with declared fields is a typed map)
       assert todo_data["priorityScore"] == 85
       assert todo_data["colorPalette"]["primary"] == "#FF5733"
       assert todo_data["colorPalette"]["secondary"] == "#33FF57"
@@ -636,7 +636,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "title",
           %{"metadata" => ["category", "priorityScore", "tags", "deadline", "estimatedHours"]},
           "priorityScore",
-          "colorPalette",
+          %{"colorPalette" => ["primary", "secondary", "accent"]},
           %{"timestampInfo" => ["createdBy", "createdAt", "updatedBy", "updatedAt"]},
           %{
             "statistics" => [

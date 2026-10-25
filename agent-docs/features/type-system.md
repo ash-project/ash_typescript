@@ -191,6 +191,26 @@ Custom types provide their TypeScript type name via `typescript_type_name/0` cal
 def typescript_type_name, do: "CustomTypes.MyType"
 ```
 
+### Declared Fields (map-like custom types)
+
+A custom type that declares fields becomes a typed map: decoration turns it into a
+`:type_ref` to a `kind: :map` definition in `manifest.types`
+(`AshRpc.Manifest.Custom.custom_type?/1`), and codegen, selection, input and output
+go through the typed-map paths. Fields come from, in order
+(`AshTypescript.CustomTypes.fields_for/3`): a `map` entry in the manifest module's
+`custom_types` section, the type's `typescript_fields/0` (named by
+`typescript_field_names/0`), a built-in entry (`AshTypescript.CustomTypes.Builtin`:
+`AshMoney.Types.Money`), the subtype's for a NewType, then `composite_types/1`.
+Clients select their fields (`{colorPalette: ["primary", ...]}`); a bare selection is
+`requires_field_selection`. A `typescript_type_name/0` or `type_mapping_overrides`
+entry no longer applies to such a type (Money included).
+
+```elixir
+def typescript_fields do
+  [primary: [type: :string, allow_nil?: false], accent: [type: :string]]
+end
+```
+
 ### Import Configuration
 
 External type imports configured under the **`:ash_typescript`** app (not your own
@@ -206,13 +226,12 @@ config :ash_typescript,
 
 ### Type Mapping Overrides
 
-For **dependency types** you can't modify (e.g., `AshUUID.UUID`, `AshMoney.Types.Money`), use `type_mapping_overrides` instead of the callback:
+For scalar **dependency types** you can't modify (e.g., `AshUUID.UUID`), use `type_mapping_overrides` instead of the callback:
 
 ```elixir
 config :ash_typescript,
   type_mapping_overrides: [
-    {AshUUID.UUID, "string"},
-    {AshMoney.Types.Money, "CustomTypes.MoneyType"}
+    {AshUUID.UUID, "string"}
   ]
 ```
 

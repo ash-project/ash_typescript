@@ -17,7 +17,7 @@ export const complexScenario = await getTodo({
     "isOverdue", // calculation via fields
     "commentCount", // aggregate via fields
     "helpfulCommentCount",
-    "colorPalette", // custom type in complex scenario
+    { colorPalette: ["primary", "secondary", "accent"] }, // custom type in complex scenario
     {
       user: ["id", "email"],
       comments: ["id", "content", { user: ["id", "name"] }],
@@ -31,7 +31,7 @@ export const complexScenario = await getTodo({
           "priority",
           "daysUntilDue", // calculation in nested self
           "helpfulCommentCount", // aggregate in nested self
-          "colorPalette", // custom type in nested self
+          { colorPalette: ["primary", "secondary", "accent"] }, // custom type in nested self
           {
             user: ["id", "name", "email"],
             comments: ["id", "authorName", "rating"],
@@ -42,7 +42,7 @@ export const complexScenario = await getTodo({
               fields: [
                 "tags",
                 "createdAt",
-                "colorPalette", // custom type in deeply nested self
+                { colorPalette: ["primary", "secondary", "accent"] }, // custom type in deeply nested self
                 {
                   metadata: ["category", "isUrgent"],
                   comments: ["id", "isHelpful", { user: ["id"] }],

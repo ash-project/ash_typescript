@@ -24,19 +24,26 @@ what ash_typescript feeds into them, and what a client sees as a result.
 
 ```elixir
 manifest
-|> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource)  # writes custom.ash_rpc
-|> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications)   # custom.ash_typescript.routes / .publications
+|> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
+  custom_type_fields: fields_fun,                                      # writes custom.ash_rpc
+  extra_types: TypedRoutes.types(routes, publications))
+|> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications, fields_fun) # custom.ash_typescript.routes / .publications
 |> AshTypescript.Manifest.Decorator.decorate()                         # writes custom.ash_typescript
 |> AshRpc.Manifest.put_lookups()                                       # rebuilds custom.ash_rpc.lookups
 ```
 
+`fields_fun` (`AshTypescript.CustomTypes.fields_fun/1`) calls `fields_for/3` over the manifest's
+`custom_types` entries and the built-ins: a custom type with declared fields becomes
+a `:type_ref` to a `kind: :map` definition in `manifest.types`. Route and publication
+types go in as `extra_types:` so their custom types get definitions too.
+
 `TypedRoutes` decorates the typed controller routes and typed channel publications
 that `BuildManifest` persisted for the manifest module's `typed_controllers:` /
-`typed_channels:` (types through `AshRpc.Manifest.Decorator.decorate_type/3`, client
-names, reverse maps); see [typed-controller.md](typed-controller.md) and
-[typed-channel.md](typed-channel.md). The named types they reference are generator
-`always:` roots, so they're in `manifest.resources` / `manifest.types` and decorated
-like RPC types.
+`typed_channels:` (types through `AshRpc.Manifest.Decorator.decorate_type/4`, client
+names, reverse maps), then rejects untyped structs in the decorated types; see
+[typed-controller.md](typed-controller.md) and [typed-channel.md](typed-channel.md).
+The named types they reference are generator `always:` roots, so they're in
+`manifest.resources` / `manifest.types` and decorated like RPC types.
 
 **Access invariant:** route and publication data never changes what an RPC request can
 call or load. Entrypoints are identical with or without typed modules, an unknown

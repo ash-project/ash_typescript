@@ -31,7 +31,6 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Test.GeoPoint
-  alias AshTypescript.Test.Todo.ColorPalette
   alias AshTypescript.Test.Todo.PriorityScore
 
   defmodule IntegerStorageType do
@@ -82,6 +81,22 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     def typescript_type_name, do: "ArrayStorage"
   end
 
+  defmodule MapStorageType do
+    @moduledoc false
+    use Ash.Type
+
+    @impl true
+    def storage_type(_), do: :map
+    @impl true
+    def cast_input(v, _), do: {:ok, v}
+    @impl true
+    def cast_stored(v, _), do: {:ok, v}
+    @impl true
+    def dump_to_native(v, _), do: {:ok, v}
+
+    def typescript_type_name, do: "MapStorage"
+  end
+
   defmodule OpaqueStorageType do
     @moduledoc false
     use Ash.Type
@@ -110,8 +125,8 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
 
     test "a map-storage custom type validates as a record, not a string" do
-      assert zod(ColorPalette) == "z.record(z.string(), z.any())"
-      assert valibot(ColorPalette) == "v.record(v.string(), v.any())"
+      assert zod(MapStorageType) == "z.record(z.string(), z.any())"
+      assert valibot(MapStorageType) == "v.record(v.string(), v.any())"
     end
 
     test "derives from storage for datetime-backed types" do
@@ -204,7 +219,8 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       content: content
     } do
       assert content =~ "priorityScore: z.number().int()"
-      assert content =~ "colorPalette: z.record(z.string(), z.any())"
+      # ColorPalette declares its fields, so it is an object of them.
+      assert content =~ "colorPalette: z.object("
       refute content =~ "priorityScore: z.string()"
       refute content =~ "colorPalette: z.string()"
     end

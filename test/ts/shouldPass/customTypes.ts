@@ -22,10 +22,10 @@ if (customTypeTest.success && customTypeTest.data?.priorityScore) {
 // Test 0.1: ColorPalette custom type field selection
 export const colorPaletteTest = await getTodo({
   input: { id: "00000000-0000-0000-0000-000000000001" },
-  fields: ["id", "title", "colorPalette"],
+  fields: ["id", "title", { colorPalette: ["primary", "secondary", "accent"] }],
 });
 
-// Type assertion: colorPalette should be ColorPalette type (custom type with complex structure)
+// Type assertion: colorPalette is a typed map of its declared fields
 if (colorPaletteTest.success && colorPaletteTest.data?.colorPalette) {
   const palette: { primary: string; secondary: string; accent: string } =
     colorPaletteTest.data.colorPalette;
@@ -49,7 +49,12 @@ export const createWithColorPalette = await createTodo({
       accent: "#3357FF",
     },
   },
-  fields: ["id", "title", "colorPalette", "createdAt"],
+  fields: [
+    "id",
+    "title",
+    { colorPalette: ["primary", "secondary", "accent"] },
+    "createdAt",
+  ],
 });
 
 // Type validation for created color palette todo

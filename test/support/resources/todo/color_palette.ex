@@ -5,8 +5,8 @@
 defmodule AshTypescript.Test.Todo.ColorPalette do
   @moduledoc """
   A custom type that represents a color palette stored as a map.
-  Demonstrates how custom types can provide precise TypeScript definitions
-  for complex data structures.
+  It declares its fields with `typescript_fields/0`, so decoration makes it a
+  typed map and its TypeScript is generated from the fields.
   """
   use Ash.Type
 
@@ -46,9 +46,12 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
   @impl true
   def apply_constraints(value, _constraints), do: {:ok, value}
 
-  # Custom callbacks for AshTypescript - provides TypeScript type information
-  @doc """
-  Returns the TypeScript type name for this custom type.
-  """
-  def typescript_type_name, do: "CustomTypes.ColorPalette"
+  @doc "The declared fields (ash_typescript's `typescript_fields/0` callback)."
+  def typescript_fields do
+    [
+      primary: [type: :string, allow_nil?: false],
+      secondary: [type: :string, allow_nil?: false],
+      accent: [type: :string, allow_nil?: false]
+    ]
+  end
 end

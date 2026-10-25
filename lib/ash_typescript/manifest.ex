@@ -27,6 +27,14 @@ defmodule AshTypescript.Manifest do
           otp_app: :ash_typescript,
           domains: [MyTest.InlineDomain]
       end
+
+  ## Custom types
+
+  The `custom_types` section declares fields (`map`) or TypeScript mappings
+  (`scalar`) for custom types the app doesn't own. Decoration also reads a
+  type's own `typescript_fields/0` and `composite_types/1`, and the manifest
+  recompiles when such a type module changes. Type modules consulted for
+  fields must never read the manifest at compile time: it depends on them.
   """
 
   use Spark.Dsl,

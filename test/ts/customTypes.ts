@@ -2,18 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-export type ColorPalette = {
-  primary: string;
-  secondary: string;
-  accent: string;
-};
-
-export type ColorPaletteValidationErrors = {
-  primary?: string[];
-  secondary?: string[];
-  accent?: string[];
-};
-
 export type GeoPoint = {
   lat: number;
   lng: number;

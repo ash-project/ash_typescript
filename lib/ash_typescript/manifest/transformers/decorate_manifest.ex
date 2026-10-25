@@ -22,6 +22,12 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   and stores them under `custom.ash_typescript.routes` / `.publications`.
   The `custom_types` declarations and built-ins `NormalizeCustomTypes`
   persisted are stored beside them, under `custom.ash_typescript.custom_types`.
+
+  Both decorations get the same `custom_type_fields:` closure over those
+  declarations and built-ins (`AshTypescript.CustomTypes.fields_for/3`), and
+  the route and publication types go to ash_rpc's decorator as
+  `extra_types:`, so their declared custom types get definitions in
+  `manifest.types`.
   """
 
   use Spark.Dsl.Transformer
@@ -42,19 +48,25 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
         {:ok, dsl_state}
 
       manifest ->
+        custom_types = Transformer.get_persisted(dsl_state, :custom_types)
+        fields_fun = AshTypescript.CustomTypes.fields_fun(custom_types)
+        routes = Transformer.get_persisted(dsl_state, :typed_routes, [])
+        publications = Transformer.get_persisted(dsl_state, :typed_publications, [])
+
         decorated =
           manifest
-          |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource)
-          |> TypedRoutes.decorate(
-            Transformer.get_persisted(dsl_state, :typed_routes, []),
-            Transformer.get_persisted(dsl_state, :typed_publications, [])
+          |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
+            custom_type_fields: fields_fun,
+            extra_types: TypedRoutes.types(routes, publications)
           )
+          |> TypedRoutes.decorate(routes, publications, fields_fun)
           |> Decorator.decorate()
-          |> put_custom_types(Transformer.get_persisted(dsl_state, :custom_types))
+          |> put_custom_types(custom_types)
           |> AshRpc.Manifest.put_lookups()
 
         dsl_state =
           dsl_state
+          |> track_type_modules(decorated, custom_types)
           |> Transformer.persist(:manifest, decorated)
           |> Transformer.persist(:resource_lookup, AshRpc.Manifest.resource_lookup(decorated))
           |> Transformer.persist(:action_lookup, AshRpc.Manifest.action_lookup(decorated))
@@ -63,6 +75,18 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
 
         {:ok, dsl_state}
     end
+  end
+
+  # Each type module whose `typescript_fields/0` or `composite_types/1`
+  # supplied a declared custom type's fields gets a compile-time edge, so the
+  # manifest recompiles when it changes. Such modules must never read the
+  # manifest at compile time: it depends on them.
+  defp track_type_modules(dsl_state, manifest, %{declared: declared, builtin: builtin}) do
+    manifest
+    |> AshTypescript.CustomTypes.compile_dependencies(declared, builtin)
+    |> Enum.reduce(dsl_state, fn module, dsl_state ->
+      Transformer.eval(dsl_state, [], quote(do: _ = unquote(module).module_info(:md5)))
+    end)
   end
 
   # The `custom_types` declarations and built-ins `NormalizeCustomTypes`
