@@ -353,7 +353,7 @@ runtime.entrypoints["list_todos"]
 | **Typed channel main** | `lib/ash_typescript/typed_channel.ex` |
 | **Typed channel codegen** | `lib/ash_typescript/typed_channel/codegen.ex` |
 | **Typed channel verifier** | `lib/ash_typescript/typed_channel/verifiers/verify_typed_channel.ex` |
-| **Channel payload type mapper** | `lib/ash_typescript/codegen/type_mapper.ex` (`map_channel_payload_type/2`) |
+| **Channel payload type mapper** | `lib/ash_typescript/codegen/type_mapper.ex` (`map_channel_payload_type/1`) |
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |

@@ -164,9 +164,10 @@ defmodule AshTypescript.CustomTypeOutputTest do
           TypeMapper.map_channel_payload_type(publication.returns)
         end)
 
-      # Nested typed containers in a payload keep the field-selection metadata
-      # map_type/3 gives them; only the top level is a plain object.
-      assert payload =~ ~r/price\??: \{currency: string, amount: Decimal, __type: "TypedMap"/
+      # A pushed payload has no field selection: nested typed containers are
+      # plain objects too, without the TypedMap metadata, as in route results.
+      assert payload =~ ~r/price\??: \{currency: string, amount: Decimal\}/
+      refute payload =~ "__type"
       refute payload =~ "Money"
 
       assert AshTypescript.with_manifest(manifest(), fn ->

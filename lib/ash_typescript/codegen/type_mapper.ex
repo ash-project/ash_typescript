@@ -465,41 +465,23 @@ defmodule AshTypescript.Codegen.TypeMapper do
   Maps a typed channel publication's decorated `returns` type (from the manifest
   publication) to a TypeScript type for channel event payloads.
 
-  Like `map_type/3` with `:output` direction, but typed containers (maps/structs
-  with `:fields` constraint) generate plain object types without the
-  `__type`/`__primitiveFields` metadata that the RPC field-selection system needs.
-  Field names come from the type's decoration, so they match the pushed payload.
+  A pushed payload has no field selection, so it maps like a route result
+  (`map_route_result_type/1`): typed containers, nested ones and array items
+  included, are plain object types without the `__type`/`__primitiveFields`
+  metadata RPC output types carry. Field names come from the types'
+  decoration, so they match the pushed payload.
   """
   @spec map_channel_payload_type(Type.t()) :: String.t()
-  def map_channel_payload_type(%Type{kind: :type_ref, module: module}),
-    do: module |> Introspection.named_type_definition() |> map_channel_payload_type()
-
-  def map_channel_payload_type(%Type{kind: kind} = type_info)
-      when kind in [:map, :keyword, :tuple] do
-    case Type.get_fields(type_info) do
-      [] -> AshTypescript.untyped_map_type()
-      fields -> plain_object_type(type_info, fields, &map_type(&1, [], :output))
-    end
-  end
-
-  def map_channel_payload_type(%Type{kind: :struct} = type_info) do
-    case Type.get_fields(type_info) do
-      [] -> map_type(type_info, [], :output)
-      fields -> plain_object_type(type_info, fields, &map_type(&1, [], :output))
-    end
-  end
-
-  def map_channel_payload_type(%Type{} = type_info), do: map_type(type_info, [], :output)
+  def map_channel_payload_type(%Type{} = type), do: map_plain_output_type(type)
 
   @doc """
   Maps a typed controller route's decorated `returns` type (from the manifest
   route) to a TypeScript type.
 
-  Route handlers send their response body as-is, so — like channel payloads —
-  typed containers map to plain object types without the field-selection
-  metadata RPC output types carry, and containers without `fields` constraints
-  map to the untyped map type. Unlike `map_channel_payload_type/2`, this
-  recurses through arrays and nested typed containers.
+  Route handlers send their response body as-is, so typed containers map to
+  plain object types without the field-selection metadata RPC output types
+  carry, recursing through arrays and nested typed containers, and
+  containers without `fields` constraints map to the untyped map type.
 
   Field names come from each type's decoration (read through
   `Codegen.ClientNames`), so they are the names the runtime sends.

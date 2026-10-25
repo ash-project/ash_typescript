@@ -327,7 +327,7 @@ The TypeScript payload type is derived from the publication's `returns` type. Wh
 | `:map` with `fields` | `{fieldName: type, ...}` | `calculate :my_calc, :auto, expr(%{id: id, name: name})` or explicit `returns: :map` with `constraints` |
 | Not set | `unknown` | Missing `transform :calc` and no explicit `returns` |
 
-Map types with `:fields` constraints generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
+Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
 
 ### Multi-Channel Payload Deduplication
 
