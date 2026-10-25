@@ -252,16 +252,18 @@ defmodule AshTypescript.CustomTypes do
   defp name_spec(other, _names), do: other
 
   # A field typed by a module with a `scalar` entry (declared, else built-in)
-  # gets the entry's constraints under its own, the field winning per key
-  # (under `items:` for an array), as a DSL `map` field does. Fields without
-  # one are left as declared.
+  # gets the entry's constraints under its own, as a DSL `map` field does
+  # (`resolve_field_type/3`). Fields it doesn't change are left as declared.
   defp merge_scalar_constraints(specs, declared, builtin) when is_list(specs) do
+    entry_of = &entry(&1, declared, builtin)
+
     Enum.map(specs, fn
       {name, opts} = spec when is_list(opts) ->
         with true <- Keyword.keyword?(opts),
              {:ok, type} <- Keyword.fetch(opts, :type),
-             merged when not is_nil(merged) <-
-               merged_constraints(type, opts[:constraints] || [], declared, builtin) do
+             constraints = opts[:constraints] || [],
+             {:ok, _base, merged} when merged != constraints <-
+               resolve_field_type(type, constraints, entry_of) do
           {name, put_constraints(opts, merged)}
         else
           _ -> spec
@@ -274,26 +276,30 @@ defmodule AshTypescript.CustomTypes do
 
   defp merge_scalar_constraints(specs, _declared, _builtin), do: specs
 
-  # The merged constraints, or nil when no scalar entry changes them.
-  defp merged_constraints({:array, inner}, constraints, declared, builtin)
-       when is_list(constraints) do
-    case merged_constraints(inner, Keyword.get(constraints, :items, []), declared, builtin) do
-      nil -> nil
-      items -> Keyword.put(constraints, :items, items)
+  @doc false
+  # The type to check a field's constraints against, and the constraints it
+  # carries: a module with a `scalar` entry (`entry_of.(module)`) resolves to
+  # the entry's base type, with the entry's constraints merged under the
+  # field's (`Keyword.merge/2`, the field winning per key; under `items:` for
+  # an array). `:map` for a module with a `map` entry, and `{:error, type}`
+  # for a module that is neither an entry nor an Ash type.
+  @spec resolve_field_type(term(), keyword(), (term() -> Scalar.t() | MapType.t() | nil)) ::
+          {:ok, term(), keyword()} | :map | {:error, term()}
+  def resolve_field_type({:array, inner}, constraints, entry_of) do
+    case resolve_field_type(inner, Keyword.get(constraints, :items, []), entry_of) do
+      {:ok, base, []} -> {:ok, {:array, base}, constraints}
+      {:ok, base, items} -> {:ok, {:array, base}, Keyword.put(constraints, :items, items)}
+      other -> other
     end
   end
 
-  defp merged_constraints(type, constraints, declared, builtin)
-       when is_atom(type) and is_list(constraints) do
-    with %Scalar{constraints: [_ | _] = scalar} <- entry(type, declared, builtin),
-         merged when merged != constraints <- Keyword.merge(scalar, constraints) do
-      merged
-    else
-      _ -> nil
+  def resolve_field_type(type, constraints, entry_of) do
+    case entry_of.(type) do
+      %Scalar{} = scalar -> {:ok, scalar.type, Keyword.merge(scalar.constraints, constraints)}
+      %MapType{} -> :map
+      nil -> if Ash.Type.ash_type?(type), do: {:ok, type, constraints}, else: {:error, type}
     end
   end
-
-  defp merged_constraints(_type, _constraints, _declared, _builtin), do: nil
 
   defp put_constraints(opts, constraints) do
     if Keyword.has_key?(opts, :constraints),

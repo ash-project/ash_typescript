@@ -26,6 +26,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
   use Spark.Dsl.Transformer
 
+  alias AshTypescript.CustomTypes
   alias AshTypescript.CustomTypes.{Builtin, Field, MapType, Scalar}
   alias Spark.Dsl.Transformer
 
@@ -121,38 +122,20 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     path = [:map, map.module, :field, field.name]
     subject = "field #{inspect(field.name)} of #{inspect(map.module)}"
 
-    case resolve(field.type, field.constraints, by_module) do
+    case CustomTypes.resolve_field_type(field.type, field.constraints, &Map.get(by_module, &1)) do
       {:ok, base, constraints} ->
         with :ok <- init(field, path, base, constraints, subject) do
           {:ok, %{field | constraints: constraints}}
         end
 
-      :unchecked ->
+      # A field typed by a `map` entry isn't checked.
+      :map ->
         {:ok, field}
 
       {:error, type} ->
         {:error,
          {field, path,
           "The type #{inspect(type)} of #{subject} is not an Ash type and has no scalar or map entry."}}
-    end
-  end
-
-  # The type to validate `constraints` against and the constraints to persist:
-  # a declared scalar resolves to its base type, its constraints merged under
-  # the field's; a `map` entry isn't checked.
-  defp resolve({:array, inner}, constraints, by_module) do
-    case resolve(inner, Keyword.get(constraints, :items, []), by_module) do
-      {:ok, base, []} -> {:ok, {:array, base}, constraints}
-      {:ok, base, items} -> {:ok, {:array, base}, Keyword.put(constraints, :items, items)}
-      other -> other
-    end
-  end
-
-  defp resolve(type, constraints, by_module) do
-    case Map.get(by_module, type) do
-      %Scalar{} = scalar -> {:ok, scalar.type, Keyword.merge(scalar.constraints, constraints)}
-      %MapType{} -> :unchecked
-      nil -> if Ash.Type.ash_type?(type), do: {:ok, type, constraints}, else: {:error, type}
     end
   end
 
