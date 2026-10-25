@@ -114,7 +114,21 @@ locations; `TypeMapper` raises `unsupported type ... AshTypescript cannot map it
 to a TypeScript type.` as a backstop. Fix by implementing `typescript_type_name/0`
 on the type module, adding a `scalar` entry to the manifest's `custom_types`
 section, or using a supported type. A scoped or inline manifest declares its own
-entries (`InlineManifest.build!(body: InlineManifest.app_custom_types())` in tests).
+entries: `InlineManifest.build!/1` defaults `body:` to the test manifest's
+(`InlineManifest.app_custom_types/0`); pass `body: nil` for none.
+
+### "undeclared custom type" / "Map-like custom types that declare a TypeScript type"
+A `storage_type :map` or composite custom type gets its TypeScript from declared
+fields. Undeclared, it is rejected when the manifest compiles: on an RPC action,
+typed query, route or publication with "returns/accepts an undeclared custom
+type, Mod, at <path>" (ash_rpc's `UntypedStructError`, or a `DslError` for
+routes and publications), elsewhere under `VerifyMappableTypes`'
+"Undeclared map-like custom types found". The hint lists the ways to declare
+fields and what to remove. A declared or map-like type that still exports
+`typescript_type_name/0` or has a `scalar` entry is listed under "Map-like custom
+types that declare a TypeScript type". Test fixtures over the whole test app
+reach `GeoPoint`, so they need the test manifest's entries (the
+`InlineManifest.build!/1` default).
 
 ### Codegen `ArgumentError` "no client name for …" / "is not in the manifest" / "is not decorated"
 Raised by `AshTypescript.Codegen.ClientNames`: codegen asked for a client name

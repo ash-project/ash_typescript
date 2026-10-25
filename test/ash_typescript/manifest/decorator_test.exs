@@ -196,6 +196,92 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     end
   end
 
+  describe "type_name of declared custom types" do
+    defmodule NamedFields do
+      @moduledoc false
+      # A declared custom type whose fields have TypeScript names.
+      use Ash.Type
+
+      def typescript_fields, do: [is_on?: [type: :boolean]]
+      def typescript_field_names, do: [is_on?: "isOn"]
+
+      @impl true
+      def storage_type(_), do: :map
+      @impl true
+      def cast_input(value, _), do: {:ok, value}
+      @impl true
+      def cast_stored(value, _), do: {:ok, value}
+      @impl true
+      def dump_to_native(value, _), do: {:ok, value}
+    end
+
+    defmodule NamedFieldsMap do
+      @moduledoc false
+      # A NewType over :map with field names: still gets a type_name.
+      use Ash.Type.NewType, subtype_of: :map, constraints: [fields: [is_on?: [type: :boolean]]]
+
+      def typescript_field_names, do: [is_on?: "isOn"]
+    end
+
+    defmodule NamedFieldsHolder do
+      @moduledoc false
+      use Ash.Resource,
+        domain: nil,
+        data_layer: Ash.DataLayer.Ets,
+        extensions: [AshTypescript.Resource]
+
+      typescript do
+        type_name "NamedFieldsHolder"
+      end
+
+      attributes do
+        uuid_primary_key :id
+      end
+
+      actions do
+        action :get_named, NamedFields do
+          run fn _input, _context -> {:ok, %{is_on?: true}} end
+        end
+
+        action :get_named_map, NamedFieldsMap do
+          run fn _input, _context -> {:ok, %{is_on?: true}} end
+        end
+      end
+    end
+
+    defmodule NamedFieldsDomain do
+      @moduledoc false
+      use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+      typescript_rpc do
+        resource NamedFieldsHolder do
+          rpc_action :get_named, :get_named
+          rpc_action :get_named_map, :get_named_map
+        end
+      end
+
+      resources do
+        resource NamedFieldsHolder
+      end
+    end
+
+    test "a declared custom type gets no type_name, a NewType with field names does" do
+      type_lookup =
+        [domains: [NamedFieldsDomain]]
+        |> AshTypescript.Test.InlineManifest.build!()
+        |> Ash.Info.Manifest.type_lookup()
+
+      declared = type_lookup[NamedFields]
+      assert AshRpc.Manifest.Custom.custom_type?(declared)
+      assert AshRpc.Manifest.Custom.type_field_names(declared) == %{is_on?: "isOn"}
+      refute Map.has_key?(declared.custom, :ash_typescript)
+
+      named_map = type_lookup[NamedFieldsMap]
+      refute AshRpc.Manifest.Custom.custom_type?(named_map)
+      assert Map.has_key?(named_map.custom, :ash_typescript)
+    end
+  end
+
   describe "exposed_metadata_fields decoration" do
     test "show_metadata: nil exposes all action metadata names", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_all)

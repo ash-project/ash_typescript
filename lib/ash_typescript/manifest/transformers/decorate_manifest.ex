@@ -27,7 +27,10 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   declarations and built-ins (`AshTypescript.CustomTypes.fields_for/3`), and
   the route and publication types go to ash_rpc's decorator as
   `extra_types:`, so their declared custom types get definitions in
-  `manifest.types`.
+  `manifest.types`. The rejection of an undeclared map-like custom type (RPC
+  actions, typed queries, routes and publications) carries the hint closed
+  over the same declarations (`AshTypescript.CustomTypes.hint_fun/1`), so it
+  also says to remove a `scalar` entry that covers the type.
   """
 
   use Spark.Dsl.Transformer
@@ -50,6 +53,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
       manifest ->
         custom_types = Transformer.get_persisted(dsl_state, :custom_types)
         fields_fun = AshTypescript.CustomTypes.fields_fun(custom_types)
+        hint_fun = AshTypescript.CustomTypes.hint_fun(custom_types)
         routes = Transformer.get_persisted(dsl_state, :typed_routes, [])
         publications = Transformer.get_persisted(dsl_state, :typed_publications, [])
 
@@ -57,10 +61,11 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
           manifest
           |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
             custom_type_fields: fields_fun,
+            custom_type_fields_hint: hint_fun,
             extra_types: TypedRoutes.types(routes, publications)
           )
-          |> TypedRoutes.decorate(routes, publications, fields_fun)
-          |> Decorator.decorate()
+          |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
+          |> Decorator.decorate(hint: hint_fun)
           |> put_custom_types(custom_types)
           |> AshRpc.Manifest.put_lookups()
 

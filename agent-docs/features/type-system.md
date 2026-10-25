@@ -273,6 +273,18 @@ TypeScript type or it is a **compile-time error**. Three layers:
    Unsupported types found — AshTypescript cannot map them to TypeScript:
    ```
 
+   The same error has two more headings for custom types whose TypeScript
+   comes from declared fields:
+   `Undeclared map-like custom types found` (a map-like `:unknown` use,
+   `AshRpc.Introspection.map_like_custom_type?/2`, with no fields; ash_rpc
+   rejects wire uses first, so these are off the wire, e.g. an attribute of a
+   resource whose only RPC action is generic), listed with the declaration
+   hint; and `Map-like custom types that declare a TypeScript type` (a
+   declared custom type definition, `AshRpc.Manifest.Custom.custom_type?/1`, or
+   a map-like `:unknown` use, whose module exports `typescript_type_name/0` or
+   has a `scalar` entry, the manifest's or a built-in), each with the
+   migration message.
+
 3. **Backstop raise** — `TypeMapper.raise_unsupported_type!/1` for paths that
    bypass the manifest:
 
@@ -300,6 +312,8 @@ Custom types integrate at multiple levels:
 
 ### Custom Type Issues
 - **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type_name/0` or a `custom_types` `scalar` entry for each listed module
+- **`Undeclared map-like custom types found`** / **`returns an undeclared custom type`**: a `storage_type :map` or composite custom type with no declared fields. Declare them (a `map` entry, `typescript_fields/0`, or `composite?/1` + `composite_types/1`)
+- **`Map-like custom types that declare a TypeScript type`**: remove `typescript_type_name/0` (or turn the `scalar` entry into a `map` one); the TypeScript is generated from the fields
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
 - **Type not detected**: Ensure `typescript_type_name/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)

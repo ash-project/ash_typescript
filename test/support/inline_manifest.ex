@@ -13,15 +13,17 @@ defmodule AshTypescript.Test.InlineManifest do
   module fails to compile.
 
   `body:` is quoted DSL for the module body (a `custom_types` section);
-  the other options go to `use AshTypescript.Manifest`. A manifest over the
-  whole test app needs the test manifest's `custom_types` entries
-  (`app_custom_types/0`) for codegen to map its custom types.
+  the other options go to `use AshTypescript.Manifest`. It defaults to the
+  test manifest's `custom_types` entries (`app_custom_types/0`): a manifest
+  over the test app reaches its custom types (`GeoPoint`, `CustomIdentifier`,
+  `ExternalCode`), which decoration and codegen can't map without them.
+  Pass `body: nil` for a manifest without a `custom_types` section.
   """
 
   @spec build!(keyword()) :: Ash.Info.Manifest.t()
   def build!(opts) do
     module = module_for(opts)
-    {body, opts} = Keyword.pop(opts, :body)
+    {body, opts} = Keyword.pop(opts, :body, app_custom_types())
     opts = Keyword.put_new(opts, :otp_app, :ash_typescript)
 
     # The lock id is `{resource, requester}`: a per-process requester, so

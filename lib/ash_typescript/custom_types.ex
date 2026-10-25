@@ -59,6 +59,15 @@ defmodule AshTypescript.CustomTypes do
   def fields_fun(nil), do: fields_fun(%{declared: %{}, builtin: Builtin.by_module()})
 
   @doc """
+  The hint closure over persisted `custom_types` (`%{declared: …, builtin: …}`),
+  or over the built-ins alone for `nil`: `hint/3` as a function of the module,
+  for ash_rpc's `custom_type_fields_hint:` and `hint:` options.
+  """
+  @spec hint_fun(%{declared: entries(), builtin: entries()} | nil) :: (module() -> String.t())
+  def hint_fun(%{declared: declared, builtin: builtin}), do: &hint(&1, declared, builtin)
+  def hint_fun(nil), do: hint_fun(%{declared: %{}, builtin: Builtin.by_module()})
+
+  @doc """
   The type modules whose `typescript_fields/0` or `composite_types/1`
   supplied the fields of a declared custom type in `manifest.types`
   (`AshRpc.Manifest.Custom.custom_type?/1`), plus a NewType's subtype when the

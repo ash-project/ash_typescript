@@ -19,6 +19,18 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   `kind: :unknown` types without a module (e.g. generic actions without a
   declared return type) are skipped — there is nothing to map or to point at.
 
+  Custom types whose values are maps or structs get their TypeScript from
+  declared fields, so the same error also lists, under their own headings:
+
+    * map-like `:unknown` uses (`AshRpc.Introspection.map_like_custom_type?/2`)
+      without declared fields. ash_rpc rejects those that RPC actions reach
+      when it decorates the manifest; this covers the rest (for example an
+      attribute of a resource whose only RPC action is generic);
+    * declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`
+      definitions) and map-like `:unknown` uses whose module exports
+      `typescript_type_name/0` or is covered by a `scalar` entry (the
+      manifest's or a built-in), with the migration message.
+
   Walks the top level of each definition site: resource fields, entrypoint
   action inputs/returns/metadata, and standalone type definitions in
   `manifest.types` (including embedded resources). Nested references to named
@@ -31,6 +43,9 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.TypeMapper
+  alias AshTypescript.CustomTypes
+  alias AshTypescript.CustomTypes.Scalar
+  alias AshTypescript.Manifest.Custom
   alias Spark.Dsl.Verifier
 
   @impl true
@@ -52,7 +67,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
     case offenders do
       [] -> :ok
-      _ -> {:error, build_error(offenders, module)}
+      _ -> {:error, build_error(offenders, manifest, module)}
     end
   end
 
@@ -99,8 +114,15 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
         collect_from_resource(resource)
 
       %Type{name: name, module: mod} = type ->
-        walk(type, "type #{name} (#{inspect(mod)})")
+        context = "type #{name} (#{inspect(mod)})"
+        declared_type_offenders(type, context) ++ walk(type, context)
     end)
+  end
+
+  defp declared_type_offenders(%Type{module: mod} = type, context) do
+    if AshRpc.Manifest.Custom.custom_type?(type) and declares_typescript?(mod),
+      do: [{:declares_typescript, mod, context}],
+      else: []
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -109,9 +131,17 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
   defp walk(%Type{kind: :unknown, module: mod} = type, context)
        when is_atom(mod) and not is_nil(mod) do
-    case TypeMapper.unknown_module_mapping(type) do
-      {:ok, _ts} -> []
-      :unsupported -> [{mod, context}]
+    cond do
+      AshRpc.Introspection.map_like_custom_type?(mod, type.constraints) ->
+        if declares_typescript?(mod),
+          do: [{:declares_typescript, mod, context}],
+          else: [{:undeclared, mod, context}]
+
+      match?({:ok, _ts}, TypeMapper.unknown_module_mapping(type)) ->
+        []
+
+      true ->
+        [{:unsupported, mod, context}]
     end
   end
 
@@ -131,37 +161,101 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   # independently via `collect_from_types`/`collect_from_resources`.
   defp walk(_type, _context), do: []
 
+  # A TypeScript type declared for a type whose TypeScript comes from its
+  # fields: `typescript_type_name/0`, or a `scalar` entry (the manifest's, else
+  # a built-in).
+  defp declares_typescript?(mod) do
+    (Code.ensure_loaded?(mod) and function_exported?(mod, :typescript_type_name, 0)) or
+      match?(%Scalar{}, Custom.custom_type_entry(nil, mod))
+  end
+
   # ─────────────────────────────────────────────────────────────────
   # Error formatting
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_error(offenders, module) do
-    listing =
-      offenders
-      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
-      |> Enum.sort_by(fn {mod, _} -> inspect(mod) end)
-      |> Enum.map_join("\n\n", fn {mod, contexts} ->
-        locations =
-          contexts
-          |> Enum.uniq()
-          |> Enum.sort()
-          |> Enum.map_join("\n", &"      - #{&1}")
+  defp build_error(offenders, manifest, module) do
+    groups = Enum.group_by(offenders, &elem(&1, 0), &Tuple.delete_at(&1, 0))
 
-        "  • #{inspect(mod)}\n#{locations}"
-      end)
+    message =
+      [
+        unsupported_section(groups[:unsupported]),
+        undeclared_section(groups[:undeclared], manifest),
+        declares_typescript_section(groups[:declares_typescript])
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join("\n\n")
 
     Spark.Error.DslError.exception(
       module: module,
       path: [:typescript_rpc],
-      message: """
-      Unsupported types found — AshTypescript cannot map them to TypeScript:
-
-      #{listing}
-
-      To fix this, either:
-        - implement the `typescript_type_name/0` callback on the type module, or
-        - declare it in the manifest module's `custom_types` section (`scalar TheModule, :string`)
-      """
+      message: message <> "\n"
     )
+  end
+
+  defp unsupported_section(nil), do: nil
+
+  defp unsupported_section(offenders) do
+    """
+    Unsupported types found — AshTypescript cannot map them to TypeScript:
+
+    #{listing(offenders, fn _mod -> nil end)}
+
+    To fix this, either:
+      - implement the `typescript_type_name/0` callback on the type module, or
+      - declare it in the manifest module's `custom_types` section (`scalar TheModule, :string`)\
+    """
+  end
+
+  defp undeclared_section(nil, _manifest), do: nil
+
+  defp undeclared_section(offenders, manifest) do
+    hint = manifest.custom |> get_in([:ash_typescript, :custom_types]) |> CustomTypes.hint_fun()
+
+    """
+    Undeclared map-like custom types found — their values are maps or structs \
+    (`storage_type :map` / composite), but no fields are declared for them:
+
+    #{listing(offenders, hint)}\
+    """
+  end
+
+  defp declares_typescript_section(nil), do: nil
+
+  defp declares_typescript_section(offenders) do
+    """
+    Map-like custom types that declare a TypeScript type:
+
+    #{listing(offenders, &declares_typescript_message/1)}\
+    """
+  end
+
+  defp declares_typescript_message(mod) do
+    "`#{inspect(mod)}` is map-like (`storage_type :map` / composite) or declares fields, " <>
+      "so its TypeScript type is generated from its fields and can't be declared. " <>
+      "Remove `typescript_type_name/0`, or turn the `scalar` declaration into a `map` one. " <>
+      "Declare its fields (a `map` entry in the manifest's `custom_types`, " <>
+      "`typescript_fields/0`, or `composite?/1` + `composite_types/1`). " <>
+      "For more precise member types, use scalar custom types with their own TS mapping " <>
+      "as field types (for example a NewType over `:string` with `typescript_type_name/0`)."
+  end
+
+  # One bullet per module with its sorted locations, then the module's note
+  # (when `note.(mod)` isn't `nil`).
+  defp listing(offenders, note) do
+    offenders
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.sort_by(fn {mod, _} -> inspect(mod) end)
+    |> Enum.map_join("\n\n", fn {mod, contexts} ->
+      locations =
+        contexts
+        |> Enum.uniq()
+        |> Enum.sort()
+        |> Enum.map_join("\n", &"      - #{&1}")
+
+      case note.(mod) do
+        nil -> "  • #{inspect(mod)}\n#{locations}"
+        text -> "  • #{inspect(mod)}\n#{locations}\n\n    #{text}"
+      end
+    end)
   end
 end

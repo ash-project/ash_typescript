@@ -93,8 +93,6 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       defmodule CompositeTypeWithMappings do
         use Ash.Type
 
-        def typescript_type_name, do: "CompositeWithMappings"
-
         @impl true
         def storage_type(_), do: :map
 
@@ -362,8 +360,6 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       defmodule CompositeWithTypedStructField do
         use Ash.Type
 
-        def typescript_type_name, do: "PointHolder"
-
         @impl true
         def storage_type(_), do: :map
         @impl true
@@ -441,8 +437,6 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
 
       defmodule CompositeWithPlainStructField do
         use Ash.Type
-
-        def typescript_type_name, do: "PlainPointHolder"
 
         @impl true
         def storage_type(_), do: :map
@@ -523,8 +517,6 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       defmodule CompositeWithTypedStructEntry do
         use Ash.Type
 
-        def typescript_type_name, do: "TypedStructEntryHolder"
-
         @impl true
         def storage_type(_), do: :map
         @impl true
@@ -579,7 +571,9 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       assert :ok = silent_verify_for_domains([TestDomainCompositeWithTypedStructEntry])
     end
 
-    test "a custom type's typed_struct_fields/0 isn't read" do
+    # typed_struct_fields/0 isn't read, so this map-storage type declares no
+    # fields: ash_rpc rejects it with the declaration hint.
+    test "a custom type with only typed_struct_fields/0 is rejected as undeclared" do
       defmodule CustomTypeWithTypedStructFields do
         use Ash.Type
 
@@ -634,7 +628,178 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      assert :ok = silent_verify_for_domains([TestDomainCustomTypedStructFields])
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainCustomTypedStructFields])
+        end
+
+      message = Exception.message(error)
+
+      assert message =~
+               ~s[Entrypoint "get_custom" (#{inspect(TestResourceCustomTypedStructFields)}, ] <>
+                 "action :get_custom) returns an undeclared custom type, " <>
+                 "#{inspect(CustomTypeWithTypedStructFields)}, at returns."
+
+      assert message =~
+               "Declare its fields with a `map` entry in your manifest module's " <>
+                 "`custom_types` section, a `typescript_fields/0` callback on the type, or " <>
+                 "`composite?/1` + `composite_types/1`. Remove `typescript_type_name/0`: " <>
+                 "a map-like type's TypeScript is generated from its fields."
+    end
+  end
+
+  describe "verify/1 - declared custom types" do
+    defmodule MapStorage do
+      @moduledoc false
+      defmacro __using__(_) do
+        quote do
+          use Ash.Type
+
+          @impl true
+          def storage_type(_), do: :map
+          @impl true
+          def cast_input(value, _), do: {:ok, value}
+          @impl true
+          def cast_stored(value, _), do: {:ok, value}
+          @impl true
+          def dump_to_native(value, _), do: {:ok, value}
+        end
+      end
+    end
+
+    defmodule BadlyNamedFields do
+      @moduledoc false
+      use MapStorage
+
+      def typescript_fields, do: [label: [type: :string]]
+      def typescript_field_names, do: [label: "label_1"]
+    end
+
+    defmodule EntryDeclared do
+      @moduledoc false
+      # Declared by a manifest `map` entry.
+      use MapStorage
+    end
+
+    defmodule BadPoint do
+      @moduledoc false
+      use Ash.TypedStruct
+
+      typed_struct do
+        field :x_1, :float
+      end
+    end
+
+    defmodule CompositeWithBadPoint do
+      @moduledoc false
+      use MapStorage
+
+      @impl true
+      def composite?(_), do: true
+      @impl true
+      def composite_types(_), do: [{:point, BadPoint, []}]
+    end
+
+    defmodule DeclaredHolder do
+      @moduledoc false
+      use Ash.Resource,
+        domain: nil,
+        data_layer: Ash.DataLayer.Ets,
+        extensions: [AshTypescript.Resource]
+
+      typescript do
+        type_name "DeclaredHolder"
+      end
+
+      attributes do
+        uuid_primary_key :id
+      end
+
+      actions do
+        action :get_badly_named, BadlyNamedFields do
+          run fn _input, _context -> {:ok, %{label: "a"}} end
+        end
+
+        action :get_entry, EntryDeclared do
+          run fn _input, _context -> {:ok, %{label: "a"}} end
+        end
+
+        action :get_point, CompositeWithBadPoint do
+          run fn _input, _context -> {:ok, %{}} end
+        end
+      end
+    end
+
+    defmodule DeclaredHolderDomain do
+      @moduledoc false
+      use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+      typescript_rpc do
+        resource DeclaredHolder do
+          rpc_action :get_badly_named, :get_badly_named
+          rpc_action :get_entry, :get_entry
+          rpc_action :get_point, :get_point
+        end
+      end
+
+      resources do
+        resource DeclaredHolder
+      end
+    end
+
+    setup do
+      %{message: verify_with_entry!(quote(do: field(:label, :string, client_name: "label_1")))}
+    end
+
+    defp verify_with_entry!(field) do
+      opts = [
+        domains: [DeclaredHolderDomain],
+        body:
+          quote do
+            custom_types do
+              map AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest.EntryDeclared do
+                unquote(field)
+              end
+            end
+          end
+      ]
+
+      AshTypescript.Test.InlineManifest.build!(opts)
+
+      assert {:error, message} =
+               opts
+               |> AshTypescript.Test.InlineManifest.module_for()
+               |> AshTypescript.Manifest.run_verifiers()
+
+      message
+    end
+
+    defp context(message, rpc_name) do
+      [_, rest] =
+        String.split(message, "Invalid field names in return type of RPC action #{rpc_name} ",
+          parts: 2
+        )
+
+      rest |> String.split("\n\n") |> hd()
+    end
+
+    test "a bad field name from typescript_field_names/0 in declared fields", %{message: message} do
+      assert context(message, "get_badly_named") =~ "field label -> label"
+    end
+
+    test "a bad client_name in a manifest map entry", %{message: message} do
+      assert context(message, "get_entry") =~ "field label -> label"
+    end
+
+    test "a TypedStruct inside a composite-derived field is name-checked", %{message: message} do
+      assert context(message, "get_point") =~ "struct_field x_1 -> x1"
+    end
+
+    test "a valid client_name in a manifest map entry passes" do
+      message = verify_with_entry!(quote(do: field(:label, :string, client_name: "label")))
+
+      refute message =~ "get_entry"
+      assert message =~ "get_badly_named"
     end
   end
 

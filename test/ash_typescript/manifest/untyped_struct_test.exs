@@ -4,9 +4,11 @@
 
 defmodule AshTypescript.Manifest.UntypedStructTest do
   # Typed route arguments, route `returns`, publication `returns` and typed
-  # queries that reach untyped structs (`:struct` without `fields`) are
-  # rejected when the manifest module compiles. RPC actions are rejected by
-  # ash_rpc's decorator.
+  # queries that reach untyped structs (`:struct` without `fields`) or
+  # undeclared map-like custom types are rejected when the manifest module
+  # compiles. RPC actions are rejected by ash_rpc's decorator. Undeclared
+  # custom types get the declaration hint, closed over the manifest's
+  # `custom_types` entries.
   use ExUnit.Case, async: false
 
   alias AshTypescript.Manifest.UntypedStructTest, as: T
@@ -34,6 +36,38 @@ defmodule AshTypescript.Manifest.UntypedStructTest do
     @impl true
     def composite_types(_),
       do: [{:token, :struct, [instance_of: AshTypescript.Manifest.UntypedStructTest.PlainToken]}]
+  end
+
+  defmodule Blob do
+    @moduledoc false
+    # Map storage and no declared fields.
+    use Ash.Type
+
+    @impl true
+    def storage_type(_), do: :map
+    @impl true
+    def cast_input(value, _), do: {:ok, value}
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
+  end
+
+  defmodule NamedBlob do
+    @moduledoc false
+    # Map storage, no declared fields, and a TypeScript type name.
+    use Ash.Type
+
+    def typescript_type_name, do: "NamedBlob"
+
+    @impl true
+    def storage_type(_), do: :map
+    @impl true
+    def cast_input(value, _), do: {:ok, value}
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
   end
 
   defp compile_manifest!(name, typed_controllers, typed_channels) do
@@ -346,6 +380,226 @@ defmodule AshTypescript.Manifest.UntypedStructTest do
                ~s[Entrypoint "probe_by_token" (AshTypescript.Manifest.UntypedStructTest.ArgProbe, ] <>
                  "action :search) accepts an untyped struct, " <>
                  "AshTypescript.Manifest.UntypedStructTest.PlainToken, at argument :token."
+    end
+  end
+
+  describe "undeclared map-like custom types" do
+    @hint "Declare its fields with a `map` entry in your manifest module's `custom_types` " <>
+            "section, a `typescript_fields/0` callback on the type, or " <>
+            "`composite?/1` + `composite_types/1`."
+
+    defp undeclared(module, at),
+      do:
+        "an undeclared custom type, #{inspect(module)}, at #{at}.\n\n" <>
+          "Its values are maps or structs (`storage_type :map` / composite), but no fields " <>
+          "are declared for it, so their keys have no client names.\n\n"
+
+    defp compile_raising!(name, opts, body) do
+      ExUnit.CaptureIO.with_io(:stderr, fn ->
+        Module.create(
+          Module.concat(T, name),
+          quote do
+            use AshTypescript.Manifest, unquote([otp_app: :ash_typescript] ++ opts)
+            unquote(body)
+          end,
+          Macro.Env.location(__ENV__)
+        )
+      end)
+    end
+
+    test "an RPC action gets the hint with the manifest's scalar declaration" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule BlobAction do
+          @moduledoc false
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
+
+          typescript do
+            type_name "BlobAction"
+          end
+
+          attributes do
+            uuid_primary_key :id
+          end
+
+          actions do
+            action :get_blob, T.Blob do
+              run fn _input, _context -> {:ok, %{}} end
+            end
+          end
+        end
+
+        defmodule BlobActionDomain do
+          @moduledoc false
+          use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+          typescript_rpc do
+            resource AshTypescript.Manifest.UntypedStructTest.BlobAction do
+              rpc_action :get_blob, :get_blob
+            end
+          end
+
+          resources do
+            resource AshTypescript.Manifest.UntypedStructTest.BlobAction
+          end
+        end
+      end)
+
+      # Spark wraps the decorator's AshRpc.Manifest.UntypedStructError.
+      error =
+        assert_raise RuntimeError, fn ->
+          compile_raising!(
+            BlobActionManifest,
+            [domains: [T.BlobActionDomain]],
+            quote do
+              custom_types do
+                scalar AshTypescript.Manifest.UntypedStructTest.Blob, :string
+              end
+            end
+          )
+        end
+
+      assert Exception.message(error) =~
+               ~s[Entrypoint "get_blob" (#{inspect(T.BlobAction)}, action :get_blob) returns ] <>
+                 undeclared(T.Blob, "returns") <>
+                 @hint <>
+                 " Remove the `scalar` declaration: a map-like type's TypeScript is " <>
+                 "generated from its fields."
+    end
+
+    test "a typed query gets the hint" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule BlobQuery do
+          @moduledoc false
+          use Ash.Resource,
+            domain: AshTypescript.Manifest.UntypedStructTest.BlobQueryDomain,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
+
+          typescript do
+            type_name "BlobQuery"
+          end
+
+          attributes do
+            uuid_primary_key :id, public?: true
+            attribute :blob, T.NamedBlob, public?: true
+          end
+
+          actions do
+            read :search
+          end
+        end
+
+        defmodule BlobQueryDomain do
+          @moduledoc false
+          use Ash.Domain, validate_config_inclusion?: false, extensions: [AshTypescript.Rpc]
+
+          typescript_rpc do
+            resource AshTypescript.Manifest.UntypedStructTest.BlobQuery do
+              typed_query :blob_list, :search do
+                ts_fields_const_name "blobList"
+                ts_result_type_name "BlobListResult"
+                fields [:id, :blob]
+              end
+            end
+          end
+
+          resources do
+            resource AshTypescript.Manifest.UntypedStructTest.BlobQuery
+          end
+        end
+      end)
+
+      message = assert_typed_query_rejected(T.BlobQueryDomain)
+
+      assert message =~
+               ~s[Entrypoint "blob_list" (#{inspect(T.BlobQuery)}, action :search) returns ] <>
+                 undeclared(T.NamedBlob, "#{inspect(T.BlobQuery)} records → blob") <>
+                 @hint <>
+                 " Remove `typescript_type_name/0`: a map-like type's TypeScript is " <>
+                 "generated from its fields."
+    end
+
+    test "a typed controller route gets the hint" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule BlobSession do
+          @moduledoc false
+          use AshTypescript.TypedController
+
+          typed_controller do
+            module_name AshTypescript.Manifest.UntypedStructTest.BlobController
+
+            get :blob do
+              returns T.NamedBlob
+              run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+            end
+          end
+        end
+      end)
+
+      message = assert_rejected(BlobRouteManifest, [T.BlobSession], [])
+
+      assert message =~
+               "#{inspect(T.BlobSession)} route :blob returns " <>
+                 undeclared(T.NamedBlob, "returns") <>
+                 @hint <>
+                 " Remove `typescript_type_name/0`: a map-like type's TypeScript is " <>
+                 "generated from its fields."
+    end
+
+    test "a typed channel publication gets the hint" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule BlobFeed do
+          @moduledoc false
+          use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+          pub_sub do
+            module AshTypescript.Test.TestEndpoint
+            prefix "blob_feed"
+
+            publish :create, [:id],
+              event: "blob_pushed",
+              public?: true,
+              returns: AshTypescript.Manifest.UntypedStructTest.Blob,
+              transform: fn _ -> nil end
+          end
+
+          attributes do
+            uuid_primary_key :id
+          end
+
+          actions do
+            defaults [:read, :create]
+          end
+        end
+
+        defmodule BlobFeedChannel do
+          @moduledoc false
+          use Phoenix.Channel
+          use AshTypescript.TypedChannel
+
+          typed_channel do
+            topic "blob_feed:*"
+
+            resource AshTypescript.Manifest.UntypedStructTest.BlobFeed do
+              publish :blob_pushed
+            end
+          end
+
+          def join(_topic, _payload, socket), do: {:ok, socket}
+        end
+      end)
+
+      message = assert_rejected(BlobPublicationManifest, [], [T.BlobFeedChannel])
+
+      assert message =~
+               "#{inspect(T.BlobFeedChannel)} publication " <>
+                 ~s("blob_pushed" of #{inspect(T.BlobFeed)} returns ) <>
+                 undeclared(T.Blob, "returns") <> @hint
+
+      refute message =~ "Remove"
     end
   end
 

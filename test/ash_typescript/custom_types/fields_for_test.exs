@@ -421,6 +421,24 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     end
   end
 
+  describe "hint_fun/1" do
+    test "closes over persisted declarations and built-ins" do
+      declared = %{T.Scalarish => %Scalar{module: T.Scalarish, type: Ash.Type.String}}
+      hint = CustomTypes.hint_fun(%{declared: declared, builtin: %{}})
+
+      assert hint.(T.Scalarish) == CustomTypes.hint(T.Scalarish, declared, %{})
+      assert hint.(AshDoubleEntry.ULID) == CustomTypes.hint(AshDoubleEntry.ULID, declared, %{})
+      refute hint.(AshDoubleEntry.ULID) =~ "Remove the `scalar` declaration"
+    end
+
+    test "uses the built-ins alone for nil" do
+      hint = CustomTypes.hint_fun(nil)
+
+      assert hint.(AshDoubleEntry.ULID) == CustomTypes.hint(AshDoubleEntry.ULID, %{}, builtin())
+      assert hint.(AshDoubleEntry.ULID) =~ "Remove the `scalar` declaration"
+    end
+  end
+
   describe "AshTypescript.RpcMappingSource" do
     test "custom_type_fields/1 uses the built-ins and the type's callbacks, no manifest entries" do
       for module <- [

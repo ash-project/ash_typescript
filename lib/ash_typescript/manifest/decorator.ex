@@ -18,16 +18,18 @@ defmodule AshTypescript.Manifest.Decorator do
       `kind: :embedded_resource` type entry.
 
     * `manifest.types[i].custom.ash_typescript` — the `type_name` for type
-      modules that export `typescript_field_names/0` or `typescript_type_name/0`.
+      modules that export `typescript_field_names/0` or `typescript_type_name/0`,
+      except declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`).
 
     * `manifest.entrypoints[i].custom.ash_typescript` — mirrors the
       `config.ash_typescript` payload that `RpcConfigCollector` passed into
       `Ash.Info.Manifest.Generator.generate/1`, plus pre-computed metadata
       field-name mappings derived from `rpc_action.metadata_field_names` and the
       off-wire `AshRpc.Entrypoint` for typed queries. Each typed query goes
-      through `AshRpc.Manifest.Decorator.check_untyped_structs!/3` (ash_rpc
+      through `AshRpc.Manifest.Decorator.check_untyped_structs!/4` (ash_rpc
       checks only wire entrypoints), which raises
-      `AshRpc.Manifest.UntypedStructError` when it reaches an untyped struct.
+      `AshRpc.Manifest.UntypedStructError` when it reaches an untyped struct
+      or an undeclared map-like custom type (with the `hint:` option's text).
 
   Runtime callers should read decorated data via `AshTypescript.Manifest.Custom`
   rather than poking at `:custom` directly.
@@ -45,19 +47,25 @@ defmodule AshTypescript.Manifest.Decorator do
 
   @doc """
   Returns a decorated copy of `manifest`.
+
+  Options: `hint:`, the text for an undeclared map-like custom type a typed
+  query reaches (`t:AshRpc.Manifest.UntypedStructError.hint/0`), passed to
+  `AshRpc.Manifest.Decorator.check_untyped_structs!/4`.
   """
-  @spec decorate(Manifest.t()) :: Manifest.t()
-  def decorate(%Manifest{} = manifest) do
+  @spec decorate(Manifest.t(), hint: AshRpc.Manifest.UntypedStructError.hint()) :: Manifest.t()
+  def decorate(%Manifest{} = manifest, opts \\ []) do
     lookups = %{
       resource_lookup: AshRpc.Manifest.resource_lookup(manifest),
       type_lookup: AshRpc.Manifest.type_lookup(manifest)
     }
 
+    hint = Keyword.get(opts, :hint)
+
     %Manifest{
       manifest
       | resources: Enum.map(manifest.resources, &decorate_resource/1),
         types: Enum.map(manifest.types, &decorate_type/1),
-        entrypoints: Enum.map(manifest.entrypoints, &decorate_entrypoint(&1, lookups))
+        entrypoints: Enum.map(manifest.entrypoints, &decorate_entrypoint(&1, lookups, hint))
     }
   end
 
@@ -95,11 +103,14 @@ defmodule AshTypescript.Manifest.Decorator do
 
   # Only types whose effective module exports `typescript_field_names/0` or
   # `typescript_type_name/0` get decorated (codegen reads `type_name`). Field
-  # name overrides live under `custom.ash_rpc`.
+  # name overrides live under `custom.ash_rpc`. A declared custom type
+  # (`AshRpc.Manifest.Custom.custom_type?/1`) gets none: its TypeScript comes
+  # from its fields, and `VerifyMappableTypes` rejects a `typescript_type_name/0`.
   defp build_type_custom(%Manifest.Type{} = type) do
     module = Manifest.Type.effective_module(type)
 
-    if Helpers.has_typescript_field_names?(module) or type_name_exported?(module) do
+    if not AshRpc.Manifest.Custom.custom_type?(type) and
+         (Helpers.has_typescript_field_names?(module) or type_name_exported?(module)) do
       %{type_name: resolve_type_module_name(module)}
     end
   end
@@ -120,7 +131,8 @@ defmodule AshTypescript.Manifest.Decorator do
 
   defp decorate_entrypoint(
          %Manifest.Entrypoint{config: %{ash_typescript: ts}} = entrypoint,
-         lookups
+         lookups,
+         hint
        ) do
     typed_query_entrypoint = AshTypescript.RpcMappingSource.typed_query_entrypoint(entrypoint)
 
@@ -129,7 +141,8 @@ defmodule AshTypescript.Manifest.Decorator do
         AshRpc.Manifest.Decorator.check_untyped_structs!(
           entrypoint,
           typed_query_entrypoint,
-          lookups
+          lookups,
+          hint: hint
         )
 
     custom_payload =
@@ -145,7 +158,7 @@ defmodule AshTypescript.Manifest.Decorator do
     %Manifest.Entrypoint{entrypoint | custom: put_namespace(entrypoint.custom, custom_payload)}
   end
 
-  defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint, _lookups), do: entrypoint
+  defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint, _lookups, _hint), do: entrypoint
 
   defp exposed_metadata_fields(%{rpc_action: rpc_action}, action) when not is_nil(rpc_action) do
     AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(

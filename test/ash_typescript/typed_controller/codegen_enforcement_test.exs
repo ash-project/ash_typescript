@@ -92,8 +92,7 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
       manifest =
         AshTypescript.Test.InlineManifest.build!(
           typed_controllers: [RouteOnlyTypes],
-          typed_channels: [],
-          body: AshTypescript.Test.InlineManifest.app_custom_types()
+          typed_channels: []
         )
 
       assert {:ok, files} = CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)

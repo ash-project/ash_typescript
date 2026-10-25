@@ -26,11 +26,18 @@ what ash_typescript feeds into them, and what a client sees as a result.
 manifest
 |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
   custom_type_fields: fields_fun,                                      # writes custom.ash_rpc
+  custom_type_fields_hint: hint_fun,
   extra_types: TypedRoutes.types(routes, publications))
-|> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications, fields_fun) # custom.ash_typescript.routes / .publications
-|> AshTypescript.Manifest.Decorator.decorate()                         # writes custom.ash_typescript
+|> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications, fields_fun, hint_fun) # custom.ash_typescript.routes / .publications
+|> AshTypescript.Manifest.Decorator.decorate(hint: hint_fun)           # writes custom.ash_typescript
 |> AshRpc.Manifest.put_lookups()                                       # rebuilds custom.ash_rpc.lookups
 ```
+
+`hint_fun` (`AshTypescript.CustomTypes.hint_fun/1`) is the text every rejection
+of an undeclared map-like custom type carries (RPC actions in ash_rpc's
+decorator, typed queries through `check_untyped_structs!/4`, routes and
+publications through `UntypedStructError.details/3`). It closes over the same
+entries, so it also says to remove a `scalar` entry that covers the type.
 
 `fields_fun` (`AshTypescript.CustomTypes.fields_fun/1`) calls `fields_for/3` over the manifest's
 `custom_types` entries and the built-ins: a custom type with declared fields becomes

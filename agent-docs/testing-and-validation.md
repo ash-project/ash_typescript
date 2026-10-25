@@ -254,9 +254,11 @@ manifest = AshTypescript.Test.InlineManifest.build!(typed_controllers: [MyTest.S
 AshTypescript.with_manifest(manifest, fn -> ... end)
 ```
 
-`body:` adds quoted DSL to the module, such as a `custom_types` section. A manifest
-over the whole test app that runs codegen needs the test manifest's `scalar` entries:
-`build!(..., body: AshTypescript.Test.InlineManifest.app_custom_types())`.
+`body:` adds quoted DSL to the module, such as a `custom_types` section. It defaults
+to the test manifest's entries (`AshTypescript.Test.InlineManifest.app_custom_types/0`),
+which a manifest over the whole test app needs: decoration rejects `GeoPoint`
+without its `map` entry, and codegen can't map the `scalar` ones without theirs.
+Pass `body: nil` for a module without a `custom_types` section.
 
 ## Asserting on Generated TypeScript in Elixir Tests
 
