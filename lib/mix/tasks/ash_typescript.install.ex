@@ -31,6 +31,8 @@ if Code.ensure_loaded?(Igniter) do
     use Igniter.Mix.Task
 
     alias AshTypescript.Installer.{Esbuild, Framework, Inertia, Layout, PackageJson, Vite}
+    @default_run_endpoint "/rpc/run"
+    @default_validate_endpoint "/rpc/validate"
 
     @impl Igniter.Mix.Task
     def info(argv, _source) do
@@ -269,13 +271,13 @@ if Code.ensure_loaded?(Igniter) do
         "config.exs",
         :ash_typescript,
         [:run_endpoint],
-        "/rpc/run"
+        @default_run_endpoint
       )
       |> Igniter.Project.Config.configure_new(
         "config.exs",
         :ash_typescript,
         [:validate_endpoint],
-        "/rpc/validate"
+        @default_validate_endpoint
       )
       |> Igniter.Project.Config.configure_new(
         "config.exs",
@@ -395,8 +397,10 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp add_rpc_routes(igniter, web_module) do
-      run_endpoint = Application.get_env(:ash_typescript, :run_endpoint)
-      validate_endpoint = Application.get_env(:ash_typescript, :validate_endpoint)
+      run_endpoint = Application.get_env(:ash_typescript, :run_endpoint, @default_run_endpoint)
+
+      validate_endpoint =
+        Application.get_env(:ash_typescript, :validate_endpoint, @default_validate_endpoint)
 
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
