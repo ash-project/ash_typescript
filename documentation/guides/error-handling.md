@@ -56,9 +56,8 @@ export type AshRpcError = {
 
 ### Correlation IDs
 
-When an Ash error has no `AshRpc.Error` implementation, or a request fails
-with any other term AshTypescript doesn't recognise that isn't a map (a bare
-tuple or a string, for example), the client gets an `internal_error` with the
+When an Ash error (such as your own `Splode` error module) has no
+`AshRpc.Error` implementation, the client gets an `internal_error` with the
 details withheld — the full error goes to the server log instead, keyed by a
 generated UUID. That UUID is sent as `errorId` (and also appears in
 `message`), so you can show it to the user and match their report to the log
@@ -73,8 +72,9 @@ if (!result.success) {
 }
 ```
 
-Other unexpected failures — a plain exception such as `RuntimeError`, a plain
-map, a struct that isn't an exception, or a term inside a Reactor step error —
+Other unexpected failures — a plain exception such as `RuntimeError`, an error
+string or tuple your action returns (`{:error, "boom"}`), a plain map, a struct
+that isn't an exception, or a term inside a Reactor step error —
 come back as `unknown_error` ("Something went wrong") without an `errorId`.
 Their details are withheld too.
 
