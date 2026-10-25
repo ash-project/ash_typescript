@@ -233,13 +233,30 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
       }
     end
 
-    test "non-map payloads pass through unchanged" do
+    test "each typed event is formatted by its own publication returns type" do
       assert {:noreply, _socket} =
                AshTypescript.with_manifest(manifest(), fn ->
-                 WireChannel.handle_out("wire_item_touched", 42, socket("wire:1"))
+                 WireChannel.handle_out("wire_item_touched", %{touch_count: 42}, socket("wire:1"))
                end)
 
-      assert_receive %Phoenix.Socket.Message{event: "wire_item_touched", payload: 42}
+      assert_receive %Phoenix.Socket.Message{
+        event: "wire_item_touched",
+        payload: %{"touchCount" => 42}
+      }
+    end
+
+    test "typed events reach the wire through Phoenix's JSON serializer" do
+      json_socket = %{socket("wire:1") | serializer: Phoenix.Socket.V2.JSONSerializer}
+
+      assert {:noreply, _socket} =
+               AshTypescript.with_manifest(manifest(), fn ->
+                 WireChannel.handle_out("wire_item_touched", %{touch_count: 3}, json_socket)
+               end)
+
+      assert_receive {:socket_push, :text, json}
+
+      assert ["1", nil, "wire:1", "wire_item_touched", %{"touchCount" => 3}] =
+               json |> IO.iodata_to_binary() |> Jason.decode!()
     end
 
     test "a developer clause for a typed event wins over the injected one" do
@@ -261,10 +278,17 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
     test "typed events the developer does not handle still get injected clauses" do
       assert {:noreply, _socket} =
                AshTypescript.with_manifest(manifest(), fn ->
-                 OwnHandleOutChannel.handle_out("wire_item_touched", 7, socket("wire_own:1"))
+                 OwnHandleOutChannel.handle_out(
+                   "wire_item_touched",
+                   %{touch_count: 7},
+                   socket("wire_own:1")
+                 )
                end)
 
-      assert_receive %Phoenix.Socket.Message{event: "wire_item_touched", payload: 7}
+      assert_receive %Phoenix.Socket.Message{
+        event: "wire_item_touched",
+        payload: %{"touchCount" => 7}
+      }
     end
 
     test "user-defined handle_out clauses still run for their own events" do

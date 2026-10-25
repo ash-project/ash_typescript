@@ -94,6 +94,14 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
   end
 
+  # A non-scalar struct whose `Jason.Encoder` hides a field: it must reach the
+  # serializer untouched, so the encoder (not the formatter) decides what is sent.
+  defmodule EncoderHiddenCredentials do
+    @moduledoc false
+    @derive {Jason.Encoder, only: [:public_part]}
+    defstruct [:public_part, :password]
+  end
+
   # Arguments and results whose client-facing names depend on the configured
   # formatters and on `typescript_field_names` mappings. Kept out of the shared
   # Session so the generated snapshots are unaffected.
@@ -132,6 +140,22 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
             user_id: "u1",
             metadata: %{field_1: "a", is_active?: true, line_2: nil},
             items: [%{tag_name: "x"}]
+          })
+        end
+      end
+
+      # Untyped data is sent as produced, so the struct reaches Jason untouched
+      post :reply_with_terms do
+        returns :map
+        constraints fields: [credentials: [type: :term]]
+
+        run fn conn, _params ->
+          AshTypescript.TypedController.json(conn, %{
+            credentials:
+              %AshTypescript.TypedController.RequestHandlerTest.EncoderHiddenCredentials{
+                public_part: "visible",
+                password: "hunter2"
+              }
           })
         end
       end
@@ -519,6 +543,13 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
                "metadata" => %{"field1" => "a", "isActive" => true, "line2" => nil},
                "items" => [%{"tagName" => "x"}]
              }
+    end
+
+    test "leaves non-scalar structs under :term to their own Jason.Encoder" do
+      conn = call(FormattingSession, :reply_with_terms, %{})
+
+      refute conn.resp_body =~ "hunter2"
+      assert json_body(conn) == %{"credentials" => %{"public_part" => "visible"}}
     end
 
     test "raises (and so fails the request) on a route without returns" do

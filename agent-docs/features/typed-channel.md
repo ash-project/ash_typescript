@@ -358,6 +358,7 @@ Channel entries are collected once and reused for both steps.
 | `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation, payload type conflict detection |
 | `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, the non-public warning |
 | `test/ash_typescript/typed_channel/interception_test.exs` | Injected `handle_out/3`, payload formatting, unlisted-channel warning |
+| `test/ash_typescript/typed_channel/payload_formatter_test.exs` | Keyword, tuple, struct and map NewType payloads through Phoenix's JSON serializer; typed scalar structs; `:term` values sent as produced |
 | `test/ash_typescript/manifest/publications_test.exs` | Stored `%Publication{}` data per channel |
 | `test/ash_typescript/manifest/plain_data_test.exs` | The plain-data rule for publication (and route) `returns`, at manifest compile |
 

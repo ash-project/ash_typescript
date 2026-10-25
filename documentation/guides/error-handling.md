@@ -56,11 +56,11 @@ export type AshRpcError = {
 
 ### Correlation IDs
 
-When an error has no `AshRpc.Error` implementation, the details are
-withheld from the client — the full exception and stacktrace go to the server
-log instead, keyed by a generated UUID. That UUID is sent as `errorId` (and also
-appears in `message`), so you can show it to the user and match their report to
-the log entry:
+When an error has no `AshRpc.Error` implementation, or is any other term
+AshTypescript doesn't recognise, the details are withheld from the client — the
+full error goes to the server log instead, keyed by a generated UUID. That UUID
+is sent as `errorId` (and also appears in `message`), so you can show it to the
+user and match their report to the log entry:
 
 ```typescript
 if (!result.success) {
@@ -90,6 +90,7 @@ implement the protocol for your own error types and set one yourself.
 | `load_denied` | Requested field in `denied_loads` |
 | `unknown_field` | Unknown or inaccessible field |
 | `unknown_error` | Unexpected error |
+| `internal_error` | Error details withheld; see `errorId` in the server log |
 | `authentication_failed` | Sign-in failed (requires `ash_authentication`) |
 | `invalid_token` | Token was missing, expired or revoked (requires `ash_authentication`) |
 
