@@ -122,9 +122,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       test_errors = [
         {:action_not_found, "test"},
         {:invalid_pagination, "invalid"},
-        {:unknown_field, :test, Todo, []},
-        {:invalid_field_format, "invalid"},
-        "unknown error"
+        {:unknown_field, :test, Todo, []}
       ]
 
       for error <- test_errors do

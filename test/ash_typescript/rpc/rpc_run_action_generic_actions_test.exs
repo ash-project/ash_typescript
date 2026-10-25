@@ -388,6 +388,42 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     end
   end
 
+  describe "untyped return type actions (ping)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "runs without fields", %{conn: conn} do
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{"action" => "ping_todo"})
+
+      assert result["success"] == true
+    end
+
+    test "rejects string field names", %{conn: conn} do
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
+          "action" => "ping_todo",
+          "input" => %{},
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert [%{"type" => "invalid_field_selection"}] = result["errors"]
+    end
+
+    test "rejects nested field selection", %{conn: conn} do
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
+          "action" => "ping_todo",
+          "fields" => [%{"user" => ["id"]}]
+        })
+
+      assert result["success"] == false
+      assert [%{"type" => "invalid_field_selection"}] = result["errors"]
+    end
+  end
+
   describe "action validation" do
     setup do
       conn = TestHelpers.build_rpc_conn()

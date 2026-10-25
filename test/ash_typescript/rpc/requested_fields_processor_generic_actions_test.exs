@@ -160,8 +160,24 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
   end
 
   describe "unknown return types" do
-    # Future: Test actions with no return type specified (returns :any)
-    # This would be tested when we have actions without explicit return types
+    test "processes empty field list for actions without returns" do
+      assert {:ok, {[], [], []}} =
+               RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :ping, [])
+    end
+
+    test "rejects field selection for actions without returns" do
+      for fields <- [[:id], ["id"], [%{user: [:id]}], [%{"user" => ["id"]}], [nil]] do
+        assert {:error,
+                {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :any},
+                 ^fields, []}} =
+                 RequestedFieldsProcessor.process(
+                   rpc_runtime(),
+                   AshTypescript.Test.Todo,
+                   :ping,
+                   fields
+                 )
+      end
+    end
   end
 
   describe "complex return type validation" do
