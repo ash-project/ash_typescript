@@ -192,9 +192,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   # `custom_fields?` is true for a member of a declared custom type's
-  # definition (Decision 36): a scalar entry's base mapping then uses the
-  # member's own constraints. It follows arrays, and nested containers set
-  # their own.
+  # definition: a scalar entry's base mapping then uses the member's own
+  # constraints. It follows arrays, and nested containers set their own.
   defp map_type_info(%Type{} = type_info, direction, custom_fields?) do
     case type_info.kind do
       :type_ref ->
@@ -239,53 +238,68 @@ defmodule AshTypescript.Codegen.TypeMapper do
   This is the single accept-list for unclassified (`kind: :unknown`) type
   modules, shared by `map_type/3`, `AshTypescript.Codegen.TypeAliases`, and
   the compile-time `AshTypescript.Manifest.Verifiers.VerifyMappableTypes`
-  verifier. The first of these that applies (Decision 20):
+  verifier. The first of these that applies:
 
-    1. a `scalar` entry in the manifest's `custom_types` section;
+    1. the `typescript` of a `scalar` entry in the manifest's `custom_types`
+       section;
     2. `typescript_type_name/0` on the type (or a `type_name` decorated in the
        manifest);
-    3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`).
+    3. the `typescript` of a built-in `scalar` entry
+       (`AshTypescript.CustomTypes.Builtin`), when the manifest has no
+       `scalar` entry for the module (a manifest entry replaces the built-in);
+    4. the base type of the manifest's `scalar` entry, else of the built-in's.
 
   An entry's `typescript` string is used as given, and its MFA is called as
-  `apply(m, f, [constraints | a])` with the node's constraints. Without
-  `typescript`, the entry maps as its base type with the entry's
-  constraints, or with the node's when `custom_fields?: true` (a member of a
-  declared custom type's definition). Entries are read from the configured
-  manifest (`AshTypescript.with_manifest/2` applies).
+  `apply(m, f, [constraints | a])` with the node's constraints. The base type
+  maps with the entry's constraints, or with the node's when
+  `custom_fields?: true` (a member of a declared custom type's definition).
+  Entries are read from the configured manifest
+  (`AshTypescript.with_manifest/2` applies).
 
   Options: `:direction` (`:output`, the default, or `:input`) and
   `:custom_fields?` (default `false`).
   """
   @spec unknown_module_mapping(Type.t(), keyword()) :: {:ok, String.t()} | :unsupported
   def unknown_module_mapping(%Type{module: module} = type_info, opts \\ []) do
-    cond do
-      match?(%Scalar{}, entry = Custom.declared_custom_type(nil, module)) ->
-        {:ok, scalar_mapping(entry, type_info, opts)}
+    declared = scalar_entry(Custom.declared_custom_type(nil, module))
+    builtin = scalar_entry(Custom.builtin_custom_type(nil, module))
 
+    case declared && typescript_mapping(declared, type_info) do
+      ts when is_binary(ts) -> {:ok, ts}
+      _ -> callback_or_base(module, type_info, declared, builtin, opts)
+    end
+  end
+
+  # Steps 2-4: a manifest scalar without `typescript` replaces the built-in.
+  defp callback_or_base(module, type_info, declared, builtin, opts) do
+    cond do
       Introspection.is_custom_type?(module) ->
         {:ok, Custom.type_name(type_info) || module.typescript_type_name()}
 
-      match?(%Scalar{}, entry = Custom.builtin_custom_type(nil, module)) ->
-        {:ok, scalar_mapping(entry, type_info, opts)}
+      declared ->
+        {:ok, base_mapping(declared, type_info, opts)}
+
+      builtin ->
+        {:ok, typescript_mapping(builtin, type_info) || base_mapping(builtin, type_info, opts)}
 
       true ->
         :unsupported
     end
   end
 
-  defp scalar_mapping(%Scalar{} = entry, type_info, opts) do
-    case AshTypescript.CustomTypes.mapping(entry, :typescript, type_info.constraints) do
-      nil ->
-        entry
-        |> AshTypescript.CustomTypes.base_type(
-          type_info.constraints,
-          Keyword.get(opts, :custom_fields?, false)
-        )
-        |> map_type([], Keyword.get(opts, :direction, :output))
+  defp scalar_entry(%Scalar{} = entry), do: entry
+  defp scalar_entry(_), do: nil
 
-      ts ->
-        ts
-    end
+  defp typescript_mapping(%Scalar{} = entry, type_info),
+    do: AshTypescript.CustomTypes.mapping(entry, :typescript, type_info.constraints)
+
+  defp base_mapping(%Scalar{} = entry, type_info, opts) do
+    entry
+    |> AshTypescript.CustomTypes.base_type(
+      type_info.constraints,
+      Keyword.get(opts, :custom_fields?, false)
+    )
+    |> map_type([], Keyword.get(opts, :direction, :output))
   end
 
   @doc """

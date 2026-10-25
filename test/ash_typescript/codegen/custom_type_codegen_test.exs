@@ -92,10 +92,30 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
 
     test "a manifest scalar without typescript maps as its base type" do
-      entry = %Scalar{module: PriorityScore, type: Ash.Type.Boolean}
+      # CustomIdentifier has no typescript_type_name/0.
+      entry = %Scalar{module: CustomIdentifier, type: Ash.Type.Boolean}
+
+      with_entries(:declared, &Map.put(&1, CustomIdentifier, entry), fn ->
+        assert ts(CustomIdentifier) == "boolean"
+      end)
+    end
+
+    test "typescript_type_name/0 beats a manifest scalar without typescript" do
+      entry = %Scalar{module: PriorityScore, type: Ash.Type.Boolean, zod: "z.boolean()"}
 
       with_entries(:declared, &Map.put(&1, PriorityScore, entry), fn ->
-        assert ts(PriorityScore) == "boolean"
+        assert ts(PriorityScore) == "CustomTypes.PriorityScore"
+      end)
+    end
+
+    test "a manifest scalar without typescript replaces a built-in's typescript" do
+      builtin = %Scalar{module: CustomIdentifier, type: Ash.Type.String, typescript: "BuiltinId"}
+      declared = %Scalar{module: CustomIdentifier, type: Ash.Type.Boolean}
+
+      with_entries(:builtin, &Map.put(&1, CustomIdentifier, builtin), fn ->
+        with_entries(:declared, &Map.put(&1, CustomIdentifier, declared), fn ->
+          assert ts(CustomIdentifier) == "boolean"
+        end)
       end)
     end
 
