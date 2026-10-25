@@ -201,10 +201,12 @@ and then the manifest. If you still suspect staleness, `mix compile --force`.
 - "No publication with event X found": Event name doesn't match any `event:` or action name in the resource's `pub_sub` block
 - "Duplicate event names found": Same event name across multiple resources in one channel — use unique event names
 - "Payload type name conflict": Same event name across different channels maps to different TypeScript types — rename events or ensure same `returns` type
-- `unknown` payload type: Publication has no `returns` — use `transform :some_calc` with an `:auto`-typed calculation (recommended, lets Ash derive the type), or add an explicit `returns: SomeAshType`. Suppress with `config :ash_typescript, warn_on_missing_channel_returns: false`
+- Manifest compile error "publication ... has no `returns`": use `transform :some_calc` with an `:auto` map calculation (recommended, lets Ash derive the type), or add an explicit `returns: :map` with `constraints`
+- Manifest compile error "publication ... returns X, which is not a typed map" or "returns untyped data": channel payloads are typed maps (Phoenix only pushes JSON objects) — use `returns: :map` with `fields` and put the value in a field
+- Manifest compile error "... returns a resource / an embedded resource / a union / a recursive type, at <path>" (route results and channel payloads): declare a typed map built from the record (`%{email: user.email}` with `fields: [email: [type: :string]]`), a field per union variant, or a fixed depth for recursion (`AshTypescript.Manifest.PlainData`)
 - Warning about a non-`public?` publication: set `public? true` on the publication, or suppress with `config :ash_typescript, warn_on_non_public_publications: false`
 - Channel types missing from output: the channel isn't in the manifest module's `typed_channels:` option (codegen warns about it)
-- Channel payload pushed unformatted, with a "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option" warning: the manifest has no `%Publication{}` for `{channel_module, resource, event}` (channel not listed, or a stale manifest). An event whose publication has no `returns` is pushed unformatted without a warning
+- Channel payload pushed unformatted, with a "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option" warning: the manifest has no `%Publication{}` for `{channel_module, resource, event}` (channel not listed, or a stale manifest)
 - Channel functions not generated: `typed_channels_output_file` not set in application config
 
 ## Validation Workflow

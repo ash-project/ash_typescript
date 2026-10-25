@@ -2,54 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-# Publication fixtures for the manifest publication and access-invariant tests.
-# They are listed in no manifest module option, so the generated snapshots are
-# unaffected; tests reach them through inline manifests.
-
-defmodule AshTypescript.Test.PublicationFixtures.Exposed do
-  @moduledoc false
-  use Ash.Resource,
-    domain: nil,
-    data_layer: Ash.DataLayer.Ets,
-    extensions: [AshTypescript.Resource]
-
-  typescript do
-    type_name "PublicationsTestExposed"
-    field_names is_hot?: "isHot"
-  end
-
-  ets do
-    private? true
-  end
-
-  attributes do
-    uuid_primary_key :id
-    attribute :is_hot?, :boolean, public?: true
-    attribute :display_name, :string, public?: true
-  end
-
-  actions do
-    defaults [:read]
-  end
-end
-
-defmodule AshTypescript.Test.PublicationFixtures.Plain do
-  @moduledoc false
-  use Ash.Resource, domain: nil, data_layer: Ash.DataLayer.Ets
-
-  ets do
-    private? true
-  end
-
-  attributes do
-    uuid_primary_key :id
-    attribute :display_name, :string, public?: true
-  end
-
-  actions do
-    defaults [:read]
-  end
-end
+# Publication fixtures for the manifest publication tests. They are listed in
+# no manifest module option, so the generated snapshots are unaffected; tests
+# reach them through inline manifests. Publications that the manifest rejects
+# (resources, unions, no `returns`, ...) live in
+# test/ash_typescript/manifest/plain_data_test.exs.
 
 defmodule AshTypescript.Test.PublicationFixtures.Feed do
   @moduledoc false
@@ -60,20 +17,18 @@ defmodule AshTypescript.Test.PublicationFixtures.Feed do
     prefix "feed"
 
     publish :create, [:id],
-      event: "exposed_pushed",
+      event: "item_pushed",
       public?: true,
-      returns: :struct,
-      constraints: [instance_of: AshTypescript.Test.PublicationFixtures.Exposed],
-      transform: fn _ -> nil end
+      returns: :map,
+      constraints: [fields: [id: [type: :uuid, allow_nil?: false]]],
+      transform: fn notification -> %{id: notification.data.id} end
 
     publish :update, [:id],
-      event: "plain_pushed",
+      event: "count_pushed",
       public?: true,
-      returns: :struct,
-      constraints: [instance_of: AshTypescript.Test.PublicationFixtures.Plain],
-      transform: fn _ -> nil end
-
-    publish :destroy, [:id], event: "untyped_pushed", public?: true
+      returns: :keyword,
+      constraints: [fields: [count: [type: :integer, allow_nil?: false]]],
+      transform: fn _ -> [count: 1] end
   end
 
   attributes do
@@ -94,9 +49,8 @@ defmodule AshTypescript.Test.PublicationFixtures.FeedChannel do
     topic "feed:*"
 
     resource AshTypescript.Test.PublicationFixtures.Feed do
-      publish :exposed_pushed
-      publish :plain_pushed
-      publish :untyped_pushed
+      publish :item_pushed
+      publish :count_pushed
     end
   end
 

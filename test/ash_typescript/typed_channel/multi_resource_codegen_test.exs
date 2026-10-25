@@ -43,8 +43,9 @@ defmodule AshTypescript.Test.TypedChannel.ConflictItemB do
     publish :create, [:id],
       event: "item_created",
       public?: true,
-      returns: :string,
-      transform: fn n -> n.data.id end
+      returns: :map,
+      constraints: [fields: [key: [type: :string]]],
+      transform: fn n -> %{key: n.data.id} end
   end
 
   attributes do
@@ -118,12 +119,14 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
       assert content =~ "export type ArticlePublishedPayload = {id: UUID, title: string | null};"
     end
 
-    test "generates string payload type for article_updated (:string)", %{content: content} do
-      assert content =~ "export type ArticleUpdatedPayload = string;"
+    test "generates map payload type with a string field for article_updated", %{content: content} do
+      assert content =~ "export type ArticleUpdatedPayload = {title: string};"
     end
 
-    test "generates number payload type for review_submitted (:integer)", %{content: content} do
-      assert content =~ "export type ReviewSubmittedPayload = number;"
+    test "generates map payload type with a number field for review_submitted", %{
+      content: content
+    } do
+      assert content =~ "export type ReviewSubmittedPayload = {rating: number};"
     end
 
     test "generates events map with all three events", %{content: content} do
@@ -195,12 +198,16 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
       assert content =~ "export type ModerationChannel = {"
     end
 
-    test "generates boolean payload type for article_archived", %{content: content} do
-      assert content =~ "export type ArticleArchivedPayload = boolean;"
+    test "generates map payload type with a boolean field for article_archived", %{
+      content: content
+    } do
+      assert content =~ "export type ArticleArchivedPayload = {archived: boolean};"
     end
 
-    test "generates boolean payload type for review_approved", %{content: content} do
-      assert content =~ "export type ReviewApprovedPayload = boolean;"
+    test "generates map payload type with a boolean field for review_approved", %{
+      content: content
+    } do
+      assert content =~ "export type ReviewApprovedPayload = {approved: boolean};"
     end
 
     test "generates map payload type for alert_sent (:map)", %{content: content} do
@@ -272,20 +279,20 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
       assert content =~ "export type ArticlePublishedPayload = {id: UUID, title: string | null};"
     end
 
-    test "article_updated maps :string → string", %{content: content} do
-      assert content =~ "export type ArticleUpdatedPayload = string;"
+    test "article_updated maps a :string field → string", %{content: content} do
+      assert content =~ "export type ArticleUpdatedPayload = {title: string};"
     end
 
-    test "article_archived maps :boolean → boolean", %{content: content} do
-      assert content =~ "export type ArticleArchivedPayload = boolean;"
+    test "article_archived maps a :boolean field → boolean", %{content: content} do
+      assert content =~ "export type ArticleArchivedPayload = {archived: boolean};"
     end
 
-    test "review_submitted maps :integer → number", %{content: content} do
-      assert content =~ "export type ReviewSubmittedPayload = number;"
+    test "review_submitted maps an :integer field → number", %{content: content} do
+      assert content =~ "export type ReviewSubmittedPayload = {rating: number};"
     end
 
-    test "review_approved maps :boolean → boolean", %{content: content} do
-      assert content =~ "export type ReviewApprovedPayload = boolean;"
+    test "review_approved maps a :boolean field → boolean", %{content: content} do
+      assert content =~ "export type ReviewApprovedPayload = {approved: boolean};"
     end
 
     test "alert_sent maps :map → object type", %{content: content} do
@@ -293,8 +300,8 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
                "export type AlertSentPayload = {id: UUID, message: string | null, severity: string | null};"
     end
 
-    test "alert_cleared maps :utc_datetime → UtcDateTime", %{content: content} do
-      assert content =~ "export type AlertClearedPayload = UtcDateTime;"
+    test "alert_cleared maps a :utc_datetime field → UtcDateTime", %{content: content} do
+      assert content =~ "export type AlertClearedPayload = {clearedAt: UtcDateTime};"
     end
 
     test "generates events map with all seven events", %{content: content} do
@@ -493,15 +500,15 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
       assert types_content =~
                "export type ArticlePublishedPayload = {id: UUID, title: string | null};"
 
-      assert types_content =~ "export type ArticleUpdatedPayload = string;"
-      assert types_content =~ "export type ArticleArchivedPayload = boolean;"
-      assert types_content =~ "export type ReviewSubmittedPayload = number;"
-      assert types_content =~ "export type ReviewApprovedPayload = boolean;"
+      assert types_content =~ "export type ArticleUpdatedPayload = {title: string};"
+      assert types_content =~ "export type ArticleArchivedPayload = {archived: boolean};"
+      assert types_content =~ "export type ReviewSubmittedPayload = {rating: number};"
+      assert types_content =~ "export type ReviewApprovedPayload = {approved: boolean};"
 
       assert types_content =~
                "export type AlertSentPayload = {id: UUID, message: string | null, severity: string | null};"
 
-      assert types_content =~ "export type AlertClearedPayload = UtcDateTime;"
+      assert types_content =~ "export type AlertClearedPayload = {clearedAt: UtcDateTime};"
     end
 
     test "factories and subscription functions are in typed channels file",

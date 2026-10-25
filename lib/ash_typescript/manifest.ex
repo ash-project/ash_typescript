@@ -120,8 +120,8 @@ defmodule AshTypescript.Manifest do
 
   # Config keys that were removed, with what replaces each. Nothing reads them,
   # so a leftover setting would silently drop typed controllers or channels
-  # from the manifest, or change the generated types. The read happens at
-  # macro-expansion time on purpose: it feeds a warning only.
+  # from the manifest, change the generated types, or stop doing what it did.
+  # The read happens at macro-expansion time on purpose: it feeds a warning only.
   @legacy_config_keys [
     typed_controllers:
       "List the modules on the manifest module instead: " <>
@@ -137,7 +137,9 @@ defmodule AshTypescript.Manifest do
         "`scalar MyType, :string, zod: \"<zod schema>\"` (or `map MyType do ... zod ... end`)",
     valibot_mapping_overrides:
       "Give these types a `valibot` schema in your manifest module's `custom_types` section: " <>
-        "`scalar MyType, :string, valibot: \"<valibot schema>\"` (or `map MyType do ... valibot ... end`)"
+        "`scalar MyType, :string, valibot: \"<valibot schema>\"` (or `map MyType do ... valibot ... end`)",
+    warn_on_missing_channel_returns:
+      "A typed channel publication without `returns` is now a compile error."
   ]
 
   defp warn_on_legacy_config do

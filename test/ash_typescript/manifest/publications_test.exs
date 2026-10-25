@@ -7,7 +7,7 @@ defmodule AshTypescript.Manifest.PublicationsTest do
 
   alias AshTypescript.Manifest.{Custom, Publication}
   alias AshTypescript.Test.InlineManifest
-  alias AshTypescript.Test.PublicationFixtures.{Exposed, Feed, FeedChannel, Plain}
+  alias AshTypescript.Test.PublicationFixtures.{Feed, FeedChannel}
 
   @moduletag :ash_typescript
 
@@ -29,29 +29,22 @@ defmodule AshTypescript.Manifest.PublicationsTest do
              )
   end
 
-  test "a declared event without returns is stored with returns: nil", %{manifest: m} do
-    assert %Publication{channel_module: FeedChannel, event: "untyped_pushed", returns: nil} =
-             Custom.publication(m, FeedChannel, Feed, "untyped_pushed")
+  # A declared event without `returns`, or with a resource payload, is
+  # rejected when the manifest compiles: see plain_data_test.exs.
+  test "declared events are stored with their returns type", %{manifest: m} do
+    assert %Publication{
+             channel_module: FeedChannel,
+             event: "item_pushed",
+             returns: %Ash.Info.Manifest.Type{kind: :map}
+           } = Custom.publication(m, FeedChannel, Feed, "item_pushed")
 
-    assert %Publication{returns: %Ash.Info.Manifest.Type{}} =
-             Custom.publication(m, FeedChannel, Feed, "exposed_pushed")
+    assert %Publication{returns: %Ash.Info.Manifest.Type{kind: :keyword}} =
+             Custom.publication(m, FeedChannel, Feed, "count_pushed")
   end
 
   test "undeclared publications are not stored", %{manifest: m} do
     refute Enum.any?(Custom.publications(m), &(&1.resource == Feed and &1.event == "create"))
-    assert length(Custom.publications(m)) == 3
-  end
-
-  test "a domain resource referenced only by a publication is in manifest.resources", %{
-    manifest: m
-  } do
-    lookup = AshRpc.Manifest.resource_lookup(m)
-    exposed = Map.fetch!(lookup, Exposed)
-    plain = Map.fetch!(lookup, Plain)
-
-    assert AshRpc.Manifest.Custom.exposed?(exposed)
-    assert AshRpc.Manifest.Custom.client_field_names(exposed)["isHot"] == :is_hot?
-    refute AshRpc.Manifest.Custom.exposed?(plain)
+    assert length(Custom.publications(m)) == 2
   end
 
   test "publications/1 order is deterministic", %{manifest: m} do

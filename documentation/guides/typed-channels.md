@@ -60,7 +60,7 @@ defmodule MyApp.Post do
       public? true
     end
 
-    calculate :post_title, :auto, expr(title) do
+    calculate :post_title, :auto, expr(%{title: title}) do
       public? true
     end
   end
@@ -68,6 +68,12 @@ defmodule MyApp.Post do
   # ... attributes, actions, etc.
 end
 ```
+
+Every publication a typed channel declares needs a `returns` type, and it must be
+a typed map: Phoenix only pushes JSON objects, so a payload is an object whose
+fields are declared. A `:auto` calculation over a map expression (like the two
+above) gives one. A scalar calculation (`expr(title)`) doesn't: wrap the value in a
+map (`expr(%{title: title})`).
 
 You can also use explicit `returns` with an anonymous function transform, but
 this requires manually keeping the type and transform in sync:
@@ -252,8 +258,8 @@ export type OrgChannel = {
 
 // Payload type aliases (one per event)
 export type PostCreatedPayload = {id: UUID, title: string | null};
-export type PostUpdatedPayload = string;
-export type CommentCreatedPayload = unknown;
+export type PostUpdatedPayload = {title: string | null};
+export type CommentCreatedPayload = {id: UUID, body: string | null};
 
 // Events map - maps event names to payload types
 export type OrgChannelEvents = {
@@ -317,15 +323,23 @@ Wildcard topics require a `suffix` parameter that replaces the `*`. The factory 
 
 The TypeScript payload type is derived from the publication's `returns` type. When using `transform :some_calc`, Ash auto-populates `returns` from the calculation's type. You can also set `returns` explicitly.
 
-| `returns` Value | TypeScript Type | How to Get It |
-|----------------|-----------------|---------------|
-| `:string` | `string` | `calculate :my_calc, :auto, expr(name)` or explicit `returns: :string` |
-| `:integer` | `number` | `calculate :my_calc, :auto, expr(priority)` or explicit `returns: :integer` |
-| `:boolean` | `boolean` | `calculate :my_calc, :auto, expr(active == true)` or explicit `returns: :boolean` |
-| `:uuid` | `UUID` | `calculate :my_calc, :auto, expr(id)` or explicit `returns: :uuid` |
-| `:utc_datetime` | `UtcDateTime` | Explicit `returns: :utc_datetime` |
-| `:map` with `fields` | `{fieldName: type, ...}` | `calculate :my_calc, :auto, expr(%{id: id, name: name})` or explicit `returns: :map` with `constraints` |
-| Not set | `unknown` | Missing `transform :calc` and no explicit `returns` |
+Payloads are plain data, checked when the manifest module compiles (which raises
+with the channel, event and path to the offending type):
+
+| `returns` Value | Result |
+|----------------|--------|
+| `:map` with `fields` | `{fieldName: type, ...}` (`calculate :my_calc, :auto, expr(%{id: id, name: name})`, or explicit `returns: :map` with `constraints`) |
+| `:struct`, `:keyword` or `:tuple` with `fields`, an `Ash.TypedStruct`, or a NewType of a typed map | An object type with those fields |
+| Not set (no `transform :calc` and no explicit `returns`) | Rejected: set `returns:` with `constraints`, or `transform:` a calculation typed as a map |
+| A scalar, an enum, an array (even of typed maps), or a custom type that isn't declared as a `map` | Rejected: Phoenix only pushes JSON objects. Put the value in a field of a typed map |
+| `:term` or `:map` without `fields` | Rejected: declare the `fields` |
+| A resource, an embedded resource (or `:struct` with `instance_of` a resource), or a union, at any depth | Rejected: declare a typed map and build it from the record (`%{email: user.email}` with `fields: [email: [type: :string]]`); for a union, a typed map with a field per variant (all `allow_nil?: true`) |
+| A named type that contains itself | Rejected: payload types are expanded inline. Expand it to a fixed depth or use an untyped `:map` field |
+
+Fields inside a payload may be anything a typed field can be, untyped ones (`:term`,
+`:map` without `fields`) included; only resources, unions and recursion are rejected
+at every depth, including inside NewTypes and custom types declared in the manifest
+module's `custom_types` section.
 
 Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
 
@@ -352,7 +366,6 @@ Things to know:
 - If you do write your own `handle_out/3` for a declared event, add it to your own `intercept/1` list as well. Phoenix checks the intercept list at definition time, before AshTypescript merges the typed events in, so it otherwise prints a spurious "An intercept for event ... has not yet been defined" warning. Listing it twice is harmless — the lists are deduplicated.
 - Intercepting disables Phoenix's fastlane optimization for the declared events: payloads are encoded once per subscriber instead of once per broadcast. This is the standard cost of `Phoenix.Channel.intercept/1` and is usually negligible.
 - The payload type comes from the manifest. A channel that isn't listed in the manifest module's `typed_channels:` option pushes its payloads unformatted and logs a warning naming the channel, event and resource.
-- An event whose publication has no `returns` is pushed unformatted, without a warning, and its generated payload type is `unknown`.
 - Because the interception must live in the channel that serves the topic, the DSL module must itself be a Phoenix channel — a compile warning is emitted otherwise, and payloads would reach clients unformatted.
 
 ## Frontend Usage Patterns
@@ -374,7 +387,7 @@ channel.off("post_created", ref);
 ```typescript
 const refs = onOrgChannelMessages(channel, {
   post_created: (payload) => addPostToList(payload),
-  post_updated: (payload) => updatePostTitle(payload),
+  post_updated: (payload) => updatePostTitle(payload.title),
   comment_created: (payload) => showNotification(payload),
 });
 
@@ -410,7 +423,9 @@ The DSL verifier checks your configuration at compile time:
 | Event exists | Error | Declared event doesn't match any publication on the resource |
 | Unique events | Error | Same event name used across multiple resources in one channel |
 | `public?: true` | Warning | Publication not marked as public |
-| `returns` set | Warning | Publication missing `returns` — no `transform :calc` or explicit `returns:` (payload type becomes `unknown`) |
+
+The payload rules above (`returns` required, a typed map, plain data) are checked
+when the manifest module compiles, not by this verifier.
 
 ## Configuration
 

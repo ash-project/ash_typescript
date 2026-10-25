@@ -351,29 +351,6 @@ defmodule AshTypescript do
   end
 
   @doc """
-  Gets whether to warn about typed channel publications that have no `returns` type.
-
-  When enabled, during typed channel verification, a warning is displayed for any
-  publication referenced by a `typed_channel` that has no `returns` set (whose
-  TypeScript payload type therefore falls back to `unknown`). Disable it if the
-  `unknown` payload is intentional.
-
-  ## Configuration
-
-      # Disable warnings (silent)
-      config :ash_typescript, warn_on_missing_channel_returns: false
-
-      # Enable warnings (default)
-      config :ash_typescript, warn_on_missing_channel_returns: true
-
-  ## Returns
-  A boolean indicating whether to display warnings, defaulting to `true`.
-  """
-  def warn_on_missing_channel_returns? do
-    Application.get_env(:ash_typescript, :warn_on_missing_channel_returns, true)
-  end
-
-  @doc """
   Gets whether to warn about typed controllers and typed channels the manifest doesn't list.
 
   When enabled, codegen warns about every module of the app that uses

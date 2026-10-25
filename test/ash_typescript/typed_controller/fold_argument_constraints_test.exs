@@ -156,83 +156,8 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
     assert error.message =~ "Invalid type for argument `code`"
   end
 
-  describe "returns type restrictions" do
-    # Handlers decide what they send, so the caller cannot select fields of a
-    # resource; unions only have field-selection output shapes. Both are
-    # rejected at any depth.
-
-    test "rejects a resource" do
-      error =
-        assert_raise Spark.Error.DslError, fn ->
-          defmodule ControllerReturningResource do
-            use AshTypescript.TypedController
-
-            typed_controller do
-              module_name AshTypescript.Test.ReturningResourceController
-
-              get :todo do
-                run fn conn, _params -> conn end
-                returns :struct
-                constraints instance_of: AshTypescript.Test.Todo
-              end
-            end
-          end
-        end
-
-      assert error.message =~ "Unsupported `returns` type for route `todo`"
-      assert error.message =~ "resource AshTypescript.Test.Todo is not supported"
-    end
-
-    test "rejects an embedded resource nested inside a typed map array" do
-      error =
-        assert_raise Spark.Error.DslError, fn ->
-          defmodule ControllerReturningNestedEmbedded do
-            use AshTypescript.TypedController
-
-            typed_controller do
-              module_name AshTypescript.Test.ReturningNestedEmbeddedController
-
-              get :tasks do
-                run fn conn, _params -> conn end
-                returns {:array, :map}
-
-                constraints items: [
-                              fields: [metadata: [type: AshTypescript.Test.TaskMetadata]]
-                            ]
-              end
-            end
-          end
-        end
-
-      assert error.message =~ "at `[].metadata`"
-      assert error.message =~ "resource AshTypescript.Test.TaskMetadata is not supported"
-    end
-
-    test "rejects a union" do
-      error =
-        assert_raise Spark.Error.DslError, fn ->
-          defmodule ControllerReturningUnion do
-            use AshTypescript.TypedController
-
-            typed_controller do
-              module_name AshTypescript.Test.ReturningUnionController
-
-              get :value do
-                run fn conn, _params -> conn end
-                returns :union
-
-                constraints types: [
-                              text: [type: :string],
-                              number: [type: :integer]
-                            ]
-              end
-            end
-          end
-        end
-
-      assert error.message =~ "union types are not supported"
-    end
-  end
+  # The `returns` plain-data rule is checked when the manifest compiles:
+  # test/ash_typescript/manifest/plain_data_test.exs.
 
   test "returns constraints are folded, including nested field constraints" do
     route =

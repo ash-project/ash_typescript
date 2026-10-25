@@ -172,9 +172,10 @@ defmodule AshTypescript.TypedController.Dsl do
       required: false,
       doc: """
       The Ash type of the JSON response body, used to generate a TypeScript result
-      type (and a fetch function for GET routes). Plain data only — no resources or
-      unions. The handler still sends the body; use `AshTypescript.TypedController.json/2`
-      to format it to match.
+      type (and a fetch function for GET routes). Plain data only: resources,
+      embedded resources, unions and recursive types are rejected at any depth
+      when the manifest module compiles. The handler still sends the body; use
+      `AshTypescript.TypedController.json/2` to format it to match.
       """
     ],
     constraints: [

@@ -15,13 +15,17 @@ defmodule AshTypescript.Manifest.TypedRoutes do
   # there. Then every decorated route argument, route `returns` and
   # publication `returns` goes through `AshRpc.Introspection.find_untyped_root/2`,
   # and an untyped struct or undeclared map-like custom type raises a
-  # `Spark.Error.DslError` (the latter with the declaration hint). RPC entrypoints
-  # (ash_rpc's decorator) and typed queries (`AshTypescript.Manifest.Decorator`)
-  # raise `AshRpc.Manifest.UntypedStructError` instead.
+  # `Spark.Error.DslError` (the latter with the declaration hint; resources
+  # aren't offered as an alternative). Then route and publication `returns`
+  # go through `AshTypescript.Manifest.PlainData`, which raises the same way
+  # for anything that isn't plain data (and for publications, a missing or
+  # non-map `returns`). RPC entrypoints (ash_rpc's decorator) and typed queries
+  # (`AshTypescript.Manifest.Decorator`) raise
+  # `AshRpc.Manifest.UntypedStructError` instead.
 
   alias Ash.Info.Manifest
   alias AshTypescript.CustomTypes
-  alias AshTypescript.Manifest.{Publication, Route, RouteArgument}
+  alias AshTypescript.Manifest.{PlainData, Publication, Route, RouteArgument}
 
   @spec decorate(
           Manifest.t(),
@@ -40,8 +44,15 @@ defmodule AshTypescript.Manifest.TypedRoutes do
       type_lookup: AshRpc.Manifest.type_lookup(manifest)
     }
 
-    Enum.each(routes, &reject_untyped_route!(&1, lookups, hint))
-    Enum.each(publications, &reject_untyped_publication!(&1, lookups, hint))
+    Enum.each(routes, fn route ->
+      reject_untyped_route!(route, lookups, hint)
+      PlainData.check_route!(route, lookups)
+    end)
+
+    Enum.each(publications, fn publication ->
+      reject_untyped_publication!(publication, lookups, hint)
+      PlainData.check_publication!(publication, lookups)
+    end)
 
     data = %{
       routes: Map.new(routes, &{{&1.source_module, &1.name}, &1}),
@@ -124,7 +135,10 @@ defmodule AshTypescript.Manifest.TypedRoutes do
         path: [:typed_controller, route.name],
         message:
           "#{inspect(route.source_module)} route #{inspect(route.name)} #{verb} " <>
-            AshRpc.Manifest.UntypedStructError.details(type, path, hint: hint)
+            AshRpc.Manifest.UntypedStructError.details(type, path,
+              hint: hint,
+              allow_resource?: false
+            )
     end
   end
 
@@ -138,7 +152,10 @@ defmodule AshTypescript.Manifest.TypedRoutes do
         message:
           "#{inspect(publication.channel_module)} publication #{inspect(publication.event)} " <>
             "of #{inspect(publication.resource)} #{verb} " <>
-            AshRpc.Manifest.UntypedStructError.details(type, path, hint: hint)
+            AshRpc.Manifest.UntypedStructError.details(type, path,
+              hint: hint,
+              allow_resource?: false
+            )
     end
   end
 

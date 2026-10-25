@@ -10,20 +10,20 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
   1. All declared events exist as publications on their respective resources.
   2. Event names are unique across all resources in the channel.
   3. Publications are marked `public?: true` (warning if not).
-  4. Publications have `returns` set — either auto-derived via `transform :calc`
-     or explicitly declared (warning if not — TypeScript type falls back to `unknown`).
 
-  Checks 1 and 2 are hard errors. Checks 3 and 4 write to stderr and are each
-  gated by an application-level toggle (mirroring `VerifyRpcWarnings`):
+  Checks 1 and 2 are hard errors. Check 3 writes to stderr and is gated by an
+  application-level toggle (mirroring `VerifyRpcWarnings`):
 
     * `config :ash_typescript, warn_on_non_public_publications: true` (default)
-    * `config :ash_typescript, warn_on_missing_channel_returns: true` (default)
 
-  Checks 3 and 4 deliberately use `IO.puts(:stderr, ...)` rather than `IO.warn/1`.
+  Check 3 deliberately uses `IO.puts(:stderr, ...)` rather than `IO.warn/1`.
   This verifier runs during compilation of the channel module, where `IO.warn/1`
   would register a compiler diagnostic and so fail `mix compile
-  --warnings-as-errors`. A non-`public?` publication or a missing `returns` may
-  well be intentional, so it must not break the build.
+  --warnings-as-errors`. A non-`public?` publication may well be intentional,
+  so it must not break the build.
+
+  A publication's `returns` (required, a typed map) is checked when the
+  manifest compiles (`AshTypescript.Manifest.PlainData`).
   """
 
   use Spark.Dsl.Verifier
@@ -36,7 +36,7 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
 
     with :ok <- verify_events_exist(channel_resources),
          :ok <- verify_unique_event_names(channel_resources) do
-      warn_missing_returns(channel_resources)
+      warn_non_public(channel_resources)
       :ok
     end
   end
@@ -99,50 +99,29 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
     end
   end
 
-  defp warn_missing_returns(channel_resources) do
-    warn_non_public? = AshTypescript.warn_on_non_public_publications?()
-    warn_missing_returns? = AshTypescript.warn_on_missing_channel_returns?()
-
-    if warn_non_public? or warn_missing_returns? do
-      {non_public, missing_returns} = collect_publication_warnings(channel_resources)
-
-      if warn_non_public? and non_public != [] do
-        IO.puts(:stderr, build_non_public_warning(non_public))
-      end
-
-      if warn_missing_returns? and missing_returns != [] do
-        IO.puts(:stderr, build_missing_returns_warning(missing_returns))
+  defp warn_non_public(channel_resources) do
+    if AshTypescript.warn_on_non_public_publications?() do
+      case non_public_publications(channel_resources) do
+        [] -> :ok
+        non_public -> IO.puts(:stderr, build_non_public_warning(non_public))
       end
     end
 
     :ok
   end
 
-  # Walks every declared publication once and buckets the offenders by warning
-  # kind, so each kind can be reported as a single grouped block rather than one
-  # line per publication.
-  defp collect_publication_warnings(channel_resources) do
-    Enum.reduce(channel_resources, {[], []}, fn channel_resource, acc ->
+  # Every declared publication that isn't `public?`, so they can be reported as
+  # a single grouped block rather than one line per publication.
+  defp non_public_publications(channel_resources) do
+    Enum.reduce(channel_resources, [], fn channel_resource, acc ->
       resource_module = channel_resource.module
       publications = Ash.Notifier.PubSub.Info.publications(resource_module)
 
-      Enum.reduce(channel_resource.publications, acc, fn pub, {non_public, missing_returns} ->
+      Enum.reduce(channel_resource.publications, acc, fn pub, non_public ->
         case Info.find_publication(publications, to_string(pub.event)) do
-          nil ->
-            {non_public, missing_returns}
-
-          matching_pub ->
-            non_public =
-              if matching_pub.public?,
-                do: non_public,
-                else: [{resource_module, pub.event} | non_public]
-
-            missing_returns =
-              if is_nil(matching_pub.returns),
-                do: [{resource_module, pub.event} | missing_returns],
-                else: missing_returns
-
-            {non_public, missing_returns}
+          nil -> non_public
+          %{public?: true} -> non_public
+          _not_public -> [{resource_module, pub.event} | non_public]
         end
       end)
     end)
@@ -158,21 +137,6 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
         "   Consider adding `public?: true` to the publication.",
         "",
         "   Otherwise, you can ignore this warning."
-      ]
-    )
-  end
-
-  defp build_missing_returns_warning(entries) do
-    build_warning_block(
-      "⚠️  Found typed channel publications with no `returns` type:",
-      entries,
-      [
-        "   Each publication listed above does not have `returns` set, so its",
-        "   generated TypeScript payload type falls back to `unknown`.",
-        "",
-        "   Use `transform :some_calc` with an `:auto`-typed calculation",
-        "   (recommended), or add explicit `returns: SomeAshType` to get a typed",
-        "   payload."
       ]
     )
   end

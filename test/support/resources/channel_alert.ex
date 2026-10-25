@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ChannelAlert do
   @moduledoc """
   Test resource for TypedChannel multi-resource stress testing.
 
-  Declares two publications: a map type (alert_sent) and utc_datetime (alert_cleared).
+  Declares two map publications: alert_sent and alert_cleared (a utc_datetime field).
   """
   use Ash.Resource,
     domain: nil,
@@ -38,8 +38,9 @@ defmodule AshTypescript.Test.ChannelAlert do
     publish :destroy, [:id],
       event: "alert_cleared",
       public?: true,
-      returns: :utc_datetime,
-      transform: fn _notification -> DateTime.utc_now() end
+      returns: :map,
+      constraints: [fields: [cleared_at: [type: :utc_datetime, allow_nil?: false]]],
+      transform: fn _notification -> %{cleared_at: DateTime.utc_now()} end
   end
 
   attributes do

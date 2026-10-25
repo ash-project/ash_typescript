@@ -24,7 +24,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
       };
 
       // Payload types
-      export type ItemCreatedPayload = string;
+      export type ItemCreatedPayload = {id: UUID, name: string | null};
 
       // Events map
       export type OrgChannelEvents = { item_created: ItemCreatedPayload; };
@@ -185,8 +185,8 @@ defmodule AshTypescript.TypedChannel.Codegen do
     end)
   end
 
-  # `nil` returns (the publication declares none) and a channel missing from
-  # the manifest both give `unknown`.
+  # A channel missing from the manifest gives `unknown`. Every stored
+  # publication has a typed-map `returns` (`AshTypescript.Manifest.PlainData`).
   defp payload_type(channel_module, resource_module, event_str) do
     case AshTypescript.Manifest.Custom.publication(
            nil,
@@ -194,9 +194,6 @@ defmodule AshTypescript.TypedChannel.Codegen do
            resource_module,
            event_str
          ) do
-      %AshTypescript.Manifest.Publication{returns: nil} ->
-        "unknown"
-
       %AshTypescript.Manifest.Publication{returns: returns} ->
         TypeMapper.map_channel_payload_type(returns)
 

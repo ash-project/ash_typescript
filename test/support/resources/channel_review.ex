@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ChannelReview do
   @moduledoc """
   Test resource for TypedChannel multi-resource stress testing.
 
-  Declares two publications covering integer and boolean return types.
+  Declares two map publications whose fields cover integer and boolean types.
   """
   use Ash.Resource,
     domain: nil,
@@ -19,14 +19,16 @@ defmodule AshTypescript.Test.ChannelReview do
     publish :create, [:id],
       event: "review_submitted",
       public?: true,
-      returns: :integer,
-      transform: fn _notification -> 0 end
+      returns: :map,
+      constraints: [fields: [rating: [type: :integer, allow_nil?: false]]],
+      transform: fn _notification -> %{rating: 0} end
 
     publish :update, [:id],
       event: "review_approved",
       public?: true,
-      returns: :boolean,
-      transform: fn _notification -> true end
+      returns: :map,
+      constraints: [fields: [approved: [type: :boolean, allow_nil?: false]]],
+      transform: fn _notification -> %{approved: true} end
   end
 
   attributes do

@@ -10,7 +10,7 @@ SPDX-License-Identifier: MIT
 
 The `AshTypescript.TypedChannel` DSL generates typed TypeScript event subscriptions from Ash PubSub publications. It reads the `returns` type from each declared publication and generates branded channel types, typed payload aliases, event maps, and subscription helper functions.
 
-**Recommended approach**: Use `transform :some_calc` on publications to reference a resource calculation. When the calculation uses `:auto` typing, Ash automatically derives the `returns` type from the expression, so AshTypescript gets full type information without any manual `returns` declarations. This keeps the type and the transform logic in sync via a single source of truth (the calculation). You can also use explicit `returns: :type` with an anonymous function transform, but this requires manually keeping the type and transform in sync.
+**Recommended approach**: Use `transform :some_calc` on publications to reference a resource calculation. When the calculation uses `:auto` typing, Ash automatically derives the `returns` type from the expression, so AshTypescript gets full type information without any manual `returns` declarations. This keeps the type and the transform logic in sync via a single source of truth (the calculation). You can also use explicit `returns:` (a typed map, with `constraints`) with an anonymous function transform, but this requires manually keeping the type and transform in sync. Every declared publication needs a `returns` that is a typed map (checked when the manifest compiles; see [Payloads are plain data](#payloads-are-plain-data-manifest-compile)).
 
 **Key distinction**: `AshTypescript.Rpc` with `generate_phx_channel_rpc_actions` is for request/response RPC over channels. `AshTypescript.TypedChannel` is for one-way push events (PubSub broadcasts) where the server pushes typed payloads to the client.
 
@@ -58,7 +58,7 @@ The Orchestrator appends channel types to the end of `ash_types.ts` after all re
 
 ### Type Mapping
 
-Channel payload types use `TypeMapper.map_channel_payload_type/1` instead of `map_type/3`. It takes the decorated `%Ash.Info.Manifest.Type{}` of the channel's manifest `%Publication{}` (the publication's `returns`, which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`), so field names match the pushed payload. A publication with `returns: nil` generates `unknown`. It maps like a typed controller route result (`map_route_result_type/1`, the same code): typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint, declared custom types included), at any depth and inside arrays, generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Other types (primitives, resources, unions) delegate to `map_type/3` with `:output` direction.
+Channel payload types use `TypeMapper.map_channel_payload_type/1` instead of `map_type/3`. It takes the decorated `%Ash.Info.Manifest.Type{}` of the channel's manifest `%Publication{}` (the publication's `returns`, which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`), so field names match the pushed payload. It maps like a typed controller route result (`map_route_result_type/1`, the same code): typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint, declared custom types included), at any depth and inside arrays, generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Other types (primitives, resources, unions) delegate to `map_type/3` with `:output` direction.
 
 ## DSL Reference
 
@@ -98,7 +98,7 @@ defmodule MyApp.Comment do
   end
 
   calculations do
-    calculate :comment_body, :auto, expr(body) do
+    calculate :comment_body, :auto, expr(%{body: body}) do
       public? true
     end
   end
@@ -171,9 +171,31 @@ The `VerifyTypedChannel` verifier runs at compile time:
 | Event exists | Error | — | Each declared event must match a publication on the resource |
 | Unique events | Error | — | Event names must be unique across all resources in a channel |
 | `public?: true` | Warning | `warn_on_non_public_publications` (default `true`) | Publications should be marked `public?: true` |
-| `returns` set | Warning | `warn_on_missing_channel_returns` (default `true`) | Publications without `returns` (no `transform :calc` or explicit `returns:`) produce `unknown` TypeScript type |
 
-Both warnings can be silenced independently via config; the two hard errors cannot.
+The warning can be silenced via config; the two hard errors cannot.
+
+### Payloads are plain data (manifest compile)
+
+`AshTypescript.Manifest.PlainData.check_publication!/2`, run from
+`TypedRoutes.decorate/5` right after the untyped-struct check, raises a
+`Spark.Error.DslError` (path `[:typed_channel]`; Spark sets `module` to the manifest
+module, the message names the channel, event and resource) when a listed channel's
+publication:
+
+- has no `returns` (no `transform :calc` and no explicit `returns:`);
+- reaches a resource, an embedded resource (a `:struct` `instance_of` a resource is a
+  resource node once decorated) or a union at any depth, through NewTypes and declared
+  `custom_types` included, or a named type that contains itself (walked with
+  `AshRpc.Introspection.find_type_root/4`, `cycles: :report`; codegen expands named
+  types inline);
+- is not a typed map at the top level after resolving `:type_ref`s: a scalar, an
+  enum, an array, an opaque custom type (all "not a typed map", since Phoenix only
+  pushes JSON objects), or untyped data (`:term`, `:map` without `fields`).
+
+Allowed: `:map`/`:struct`/`:keyword`/`:tuple` with `fields` (an `Ash.TypedStruct`, a
+declared `map` custom type, a NewType of one), with any fields inside, untyped ones
+included. The rule is on declared types: a typed map built from a record is fine.
+The `warn_on_missing_channel_returns` config key is gone (a legacy-key warning names it).
 
 ## Generated TypeScript
 
@@ -189,7 +211,7 @@ export type OrgChannel = {
 
 // Payload type aliases (deduplicated across channels)
 export type PostCreatedPayload = {id: UUID, title: string | null};
-export type CommentCreatedPayload = string;
+export type CommentCreatedPayload = {body: string | null};
 
 // Events map
 export type OrgChannelEvents = {
@@ -263,9 +285,8 @@ warning). `BuildManifest` reads every declared event of each listed channel with
   `channel_module`, `resource`, `event` and the decorated `returns`, keyed
   `{channel_module, resource, event}` under `custom.ash_typescript.publications`. Two
   channels declaring the same publication get one entry each
-- `returns: nil` when the publication declares no `returns`: no type is resolved or
-  decorated, the payload is pushed unformatted without a warning, and codegen emits
-  `unknown`
+- `returns` is always a typed map: a publication without one is rejected when the
+  manifest compiles (see [Payloads are plain data](#payloads-are-plain-data-manifest-compile))
 - Read with `AshTypescript.Manifest.Custom.publication/4` / `publications/1` (`nil`
   source reads the configured manifest and honours `AshTypescript.with_manifest/2`)
 - `PayloadFormatter.format_payload(channel_module, resource, event, payload)` and
@@ -278,7 +299,7 @@ warning). `BuildManifest` reads every declared event of each listed channel with
   never read the manifest at compile time
 - Codegen's channel set is `Orchestrator.channel_entries/0`: the unique
   `channel_module`s of `Custom.publications/0`, with topic and declared events from the
-  channel's DSL. A channel whose events all lack `returns` is still generated
+  channel's DSL
 - Codegen warns about typed channels (and typed controllers) among
   `Application.spec(otp_app, :modules)` that declare publications (routes) but have
   none in the manifest: `TypeDiscovery.build_unlisted_typed_modules_warning/3`, toggle
@@ -300,7 +321,6 @@ config :ash_typescript,
 |--------|------|---------|-------------|
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, no file is generated) |
 | `warn_on_non_public_publications` | `boolean` | `true` | Warn when a referenced publication is not `public?: true` |
-| `warn_on_missing_channel_returns` | `boolean` | `true` | Warn when a publication has no `returns` (payload types as `unknown`) |
 | `warn_on_unlisted_typed_modules` | `boolean` | `true` | Warn at codegen when a typed channel or controller isn't listed in the manifest |
 
 ## Orchestrator Integration
@@ -336,19 +356,20 @@ Channel entries are collected once and reused for both steps.
 |------|---------|
 | `test/ash_typescript/typed_channel/codegen_test.exs` | Single-channel codegen, static topic, deduplication, orchestrator integration |
 | `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation, payload type conflict detection |
-| `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, missing returns/public warnings |
+| `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, the non-public warning |
 | `test/ash_typescript/typed_channel/interception_test.exs` | Injected `handle_out/3`, payload formatting, unlisted-channel warning |
-| `test/ash_typescript/manifest/publications_test.exs` | Stored `%Publication{}` data per channel, `returns: nil` |
+| `test/ash_typescript/manifest/publications_test.exs` | Stored `%Publication{}` data per channel |
+| `test/ash_typescript/manifest/plain_data_test.exs` | The plain-data rule for publication (and route) `returns`, at manifest compile |
 
 ### Test Resources
 
 | File | Purpose |
 |------|---------|
-| `test/support/resources/channel_item.ex` | Resource with map, integer, string publications (explicit `returns:` + fn transforms) |
-| `test/support/resources/channel_article.ex` | Resource with map, string, boolean publications (explicit `returns:`) |
-| `test/support/resources/channel_review.ex` | Resource with integer, boolean publications (explicit `returns:`) |
-| `test/support/resources/channel_alert.ex` | Resource with map, utc_datetime publications (explicit `returns:`) |
-| `test/support/resources/channel_tracker.ex` | **Calculation-transform fixtures** (`transform :calc` + `:auto` calcs) — the recommended path. 10 publications covering string, aggregate, boolean, nested-map and relationship-loading calculations |
+| `test/support/resources/channel_item.ex` | Resource with typed-map publications whose fields are maps, integers and strings (explicit `returns:` + fn transforms) |
+| `test/support/resources/channel_article.ex` | Resource with typed-map publications with map, string and boolean fields (explicit `returns:`) |
+| `test/support/resources/channel_review.ex` | Resource with typed-map publications with integer and boolean fields (explicit `returns:`) |
+| `test/support/resources/channel_alert.ex` | Resource with typed-map publications, one with a utc_datetime field (explicit `returns:`) |
+| `test/support/resources/channel_tracker.ex` | **Calculation-transform fixtures** (`transform :calc` + `:auto` calcs) — the recommended path. 10 map publications whose fields cover string, aggregate, boolean, nested-map and relationship-loading expressions |
 | `test/support/resources/channel_tracker_author.ex` | Related resource loaded through tracker calculations |
 | `test/support/resources/channel_tracker_entry.ex` | Related resource behind tracker aggregate calculations |
 | `test/support/resources/org_channel.ex` | Single-resource channel (ChannelItem) |
@@ -361,9 +382,9 @@ Inline test resources (defined in test files to avoid compile-time warnings in C
 
 | File | Inline Modules | Purpose |
 |------|---------------|---------|
-| `codegen_test.exs` | `NoReturnsItem`, `NoReturnsChannel`, `StaticTopicChannel` | Unknown payload type, static topic factory |
+| `codegen_test.exs` | `StaticTopicChannel` (in `test/support/resources/static_topic_channel.ex`) | Static topic factory |
 | `multi_resource_codegen_test.exs` | `ConflictItemA/B`, `ConflictChannelA/B` | Payload type conflict detection |
-| `verify_typed_channel_test.exs` | `VerifierNoReturnsItem/Channel`, `VerifierNotPublicItem/Channel`, `DuplicateEventItem`, `ChannelWithMissingEvent`, `ChannelWithDuplicateEvents` | Verifier error and warning paths |
+| `verify_typed_channel_test.exs` | `NoReturnsItem/Channel`, `NotPublicItem/Channel`, `DuplicateEventItem`, `ChannelWithMissingEvent`, `ChannelWithDuplicateEvents` | Verifier error and warning paths (a missing `returns` isn't the verifier's) |
 
 ### Running Tests
 
@@ -378,7 +399,9 @@ mix test test/ash_typescript/typed_channel/   # Typed channel tests
 | "No publication with event X found" | Event name doesn't match any publication on the resource | Check the `event:` option (or action name fallback) on the resource's `pub_sub` block |
 | "Duplicate event names found" | Same event name used across multiple resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TypeScript types | Rename conflicting events or ensure they return the same type |
-| `unknown` TypeScript payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
+| "publication ... has no `returns`" at manifest compile | Publication missing `returns` (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto` map calculation (recommended), or add explicit `returns:` with `constraints` |
+| "publication ... returns X, which is not a typed map" / "returns untyped data" | A scalar, enum, array, opaque custom type, `:term` or unconstrained `:map` payload | Return a typed map (`returns: :map` with `fields`) and put the value in a field |
+| "publication ... returns a resource / an embedded resource / a union / a recursive type" | Payloads are plain data | Declare a typed map built from the record; a field per union variant; a fixed depth for recursion |
 | Channel types not in output, codegen warning "not listed in the manifest" | Channel not in the manifest module's `typed_channels:` | Add it: `use AshTypescript.Manifest, ..., typed_channels: [...]` |
 | Payload pushed unformatted, warning "is not in the manifest" | Channel not in the manifest module's `typed_channels:`, or a stale manifest | List it on the manifest module and recompile |
 | Channel functions not generated | `typed_channels_output_file` not configured | Set `typed_channels_output_file:` in config |

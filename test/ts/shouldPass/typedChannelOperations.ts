@@ -68,18 +68,18 @@ const itemCreatedRef: number = onOrgChannelMessage(
   }
 );
 
-// Test 3: Single-event subscription - numeric payload
+// Test 3: Single-event subscription - map payload with a numeric field
 const itemUpdatedRef: number = onOrgChannelMessage(
   orgChannel,
   "item_updated",
   (payload) => {
-    const value: number = payload;
+    const value: number = payload.count;
   }
 );
 
-// Test 4: Single-event subscription - string payload
+// Test 4: Single-event subscription - map payload with a string field
 onOrgChannelMessage(orgChannel, "item_deleted", (payload) => {
-  const value: string = payload;
+  const value: string = payload.id;
 });
 
 // Test 5: Multi-event subscription
@@ -89,10 +89,10 @@ const orgRefs: OrgChannelRefs = onOrgChannelMessages(orgChannel, {
     const name: string | null = payload.name;
   },
   item_updated: (payload) => {
-    const count: number = payload;
+    const count: number = payload.count;
   },
   item_deleted: (payload) => {
-    const value: string = payload;
+    const value: string = payload.id;
   },
 });
 
@@ -122,21 +122,21 @@ onContentFeedChannelMessage(
   }
 );
 
-// Test 10: String payload
+// Test 10: Map payload with a string field
 onContentFeedChannelMessage(feedChannel, "article_updated", (payload) => {
-  const title: string = payload;
+  const title: string = payload.title;
 });
 
-// Test 11: Number payload
+// Test 11: Map payload with a number field
 onContentFeedChannelMessage(feedChannel, "review_submitted", (payload) => {
-  const rating: number = payload;
+  const rating: number = payload.rating;
 });
 
 // Test 12: Multi-event on content feed
 const feedRefs = onContentFeedChannelMessages(feedChannel, {
   article_published: (payload) => console.log(payload.title),
-  article_updated: (payload) => console.log(payload.toUpperCase()),
-  review_submitted: (payload) => console.log(payload.toFixed(2)),
+  article_updated: (payload) => console.log(payload.title.toUpperCase()),
+  review_submitted: (payload) => console.log(payload.rating.toFixed(2)),
 });
 
 unsubscribeContentFeedChannel(feedChannel, feedRefs);
@@ -156,10 +156,10 @@ const modRefs = onModerationChannelMessages(modChannel, {
     const severity: string | null = payload.severity;
   },
   article_archived: (payload) => {
-    const archived: boolean = payload;
+    const archived: boolean = payload.archived;
   },
   review_approved: (payload) => {
-    const approved: boolean = payload;
+    const approved: boolean = payload.approved;
   },
 });
 
@@ -179,16 +179,16 @@ const activityRefs = onFullActivityChannelMessages(activityChannel, {
     const title: string | null = payload.title;
   },
   article_updated: (payload) => {
-    const s: string = payload;
+    const s: string = payload.title;
   },
   article_archived: (payload) => {
-    const b: boolean = payload;
+    const b: boolean = payload.archived;
   },
   review_submitted: (payload) => {
-    const n: number = payload;
+    const n: number = payload.rating;
   },
   review_approved: (payload) => {
-    const b: boolean = payload;
+    const b: boolean = payload.approved;
   },
   alert_sent: (payload) => {
     const id: string = payload.id;
@@ -196,7 +196,7 @@ const activityRefs = onFullActivityChannelMessages(activityChannel, {
     const severity: string | null = payload.severity;
   },
   alert_cleared: (payload) => {
-    const dt: string = payload;
+    const dt: string = payload.clearedAt;
   },
 });
 
@@ -213,18 +213,18 @@ const singleRef = onFullActivityChannelMessage(
 
 // Test 16: Payload type aliases are usable standalone
 const myPayload: ItemCreatedPayload = { id: "abc" as any, name: "test" };
-const myUpdate: ItemUpdatedPayload = 42;
-const myDelete: ItemDeletedPayload = "some-id";
+const myUpdate: ItemUpdatedPayload = { count: 42 };
+const myDelete: ItemDeletedPayload = { id: "some-id" };
 const myArticle: ArticlePublishedPayload = { id: "abc" as any, title: "Hi" };
-const myArticleUpdate: ArticleUpdatedPayload = "new title";
-const myReview: ReviewSubmittedPayload = 5;
+const myArticleUpdate: ArticleUpdatedPayload = { title: "new title" };
+const myReview: ReviewSubmittedPayload = { rating: 5 };
 const myAlert: AlertSentPayload = {
   id: "abc" as any,
   message: "warning",
   severity: "high",
 };
-const myCleared: AlertClearedPayload = "2025-01-01T00:00:00Z";
-const myArchived: ArticleArchivedPayload = true;
-const myApproved: ReviewApprovedPayload = true;
+const myCleared: AlertClearedPayload = { clearedAt: "2025-01-01T00:00:00Z" };
+const myArchived: ArticleArchivedPayload = { archived: true };
+const myApproved: ReviewApprovedPayload = { approved: true };
 
 console.log("Typed channel operations tests should compile successfully!");

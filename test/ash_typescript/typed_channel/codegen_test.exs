@@ -5,78 +5,12 @@
 # `AshTypescript.Test.TypedChannel.StaticTopicChannel` (static topic, no wildcard)
 # lives in test/support/resources/static_topic_channel.ex.
 
-# The `NoReturnsItem`/`NoReturnsChannel` fixtures (intentionally missing `returns`
-# to exercise the `unknown` payload path) are shared by two describes, so they are
-# defined at load time with the `warn_on_missing_channel_returns` flag disabled
-# and stderr captured, so the verifier's expected notice doesn't leak into
-# `mix test` output.
-ExUnit.CaptureIO.capture_io(:stderr, fn ->
-  original = Application.get_env(:ash_typescript, :warn_on_missing_channel_returns)
-  Application.put_env(:ash_typescript, :warn_on_missing_channel_returns, false)
-
-  try do
-    defmodule AshTypescript.TypedChannel.CodegenTest.NoReturnsItem do
-      @moduledoc false
-      use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
-
-      pub_sub do
-        module AshTypescript.Test.TestEndpoint
-        prefix "no_returns_items"
-
-        publish :destroy, [:id],
-          event: "thing_removed",
-          public?: true
-
-        # intentionally no `returns` — payload type should be `unknown`
-      end
-
-      attributes do
-        uuid_primary_key :id
-      end
-
-      actions do
-        defaults [:destroy]
-      end
-    end
-
-    defmodule AshTypescript.TypedChannel.CodegenTest.NoReturnsChannel do
-      @moduledoc false
-      use Phoenix.Channel
-      use AshTypescript.TypedChannel
-
-      def join(_topic, _payload, socket), do: {:ok, socket}
-
-      typed_channel do
-        topic "things:*"
-
-        resource AshTypescript.TypedChannel.CodegenTest.NoReturnsItem do
-          publish :thing_removed
-        end
-      end
-    end
-  after
-    if is_nil(original) do
-      Application.delete_env(:ash_typescript, :warn_on_missing_channel_returns)
-    else
-      Application.put_env(:ash_typescript, :warn_on_missing_channel_returns, original)
-    end
-  end
-end)
-
 defmodule AshTypescript.TypedChannel.CodegenTest do
   use ExUnit.Case
 
   alias AshTypescript.TypedChannel.Codegen
 
   @moduletag :ash_typescript
-
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
-  setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :warn_on_missing_channel_returns
-    ])
-  end
 
   @org_topic "org:*"
 
@@ -97,12 +31,12 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       assert content =~ "export type ItemCreatedPayload = {id: UUID, name: string | null};"
     end
 
-    test "generates number payload type for item_updated (:integer)", %{content: content} do
-      assert content =~ "export type ItemUpdatedPayload = number;"
+    test "generates map payload type with a number field for item_updated", %{content: content} do
+      assert content =~ "export type ItemUpdatedPayload = {count: number};"
     end
 
-    test "generates string payload type for item_deleted (:string)", %{content: content} do
-      assert content =~ "export type ItemDeletedPayload = string;"
+    test "generates map payload type with a string field for item_deleted", %{content: content} do
+      assert content =~ "export type ItemDeletedPayload = {id: string};"
     end
 
     test "generates channel events map type", %{content: content} do
@@ -134,16 +68,6 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
     test "includes comment identifying the channel module", %{content: content} do
       assert content =~ "// Channel types for AshTypescript.Test.OrgChannel"
-    end
-  end
-
-  describe "generate_all_channel_types/1 — unknown payload type" do
-    setup do
-      %{content: Codegen.generate_all_channel_types([{__MODULE__.NoReturnsChannel, "things:*"}])}
-    end
-
-    test "generates unknown payload type for event without returns", %{content: content} do
-      assert content =~ "export type ThingRemovedPayload = unknown;"
     end
   end
 
@@ -282,10 +206,10 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       %{types_content: types_content, channels_content: channels_content}
     end
 
-    test "string calc transform payload types", %{types_content: content} do
-      assert content =~ "export type TrackerSummaryPayload = string;"
-      assert content =~ "export type TrackerLabelPayload = string;"
-      assert content =~ "export type TrackerStatusChangedPayload = string;"
+    test "map calc transform payload types wrapping string concat", %{types_content: content} do
+      assert content =~ "export type TrackerSummaryPayload = {summary: string};"
+      assert content =~ "export type TrackerLabelPayload = {label: string | null};"
+      assert content =~ "export type TrackerStatusChangedPayload = {status: string};"
     end
 
     test "map calc transform payload type with local fields and correct nullability", %{
@@ -307,15 +231,15 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
 
     test "integer calc payload type (count aggregate)", %{types_content: content} do
-      assert content =~ "export type TrackerEntryCountPayload = number;"
+      assert content =~ "export type TrackerEntryCountPayload = {count: number | null};"
     end
 
     test "boolean expression calc transform payload type", %{types_content: content} do
-      assert content =~ "export type TrackerIsActivePayload = boolean;"
+      assert content =~ "export type TrackerIsActivePayload = {active: boolean | null};"
     end
 
     test "integer aggregate calc payload type (max)", %{types_content: content} do
-      assert content =~ "export type TrackerTopScorePayload = number;"
+      assert content =~ "export type TrackerTopScorePayload = {score: number | null};"
     end
 
     test "map with nested relationship fields (first on related FK)", %{types_content: content} do
@@ -434,21 +358,6 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       AshTypescript.with_manifest(only_static, fn ->
         assert Orchestrator.channel_entries() ==
                  [{AshTypescript.Test.TypedChannel.StaticTopicChannel, "notifications"}]
-      end)
-    end
-
-    test "a channel whose declared events all lack returns is still generated, with unknown payloads" do
-      m =
-        AshTypescript.Test.InlineManifest.build!(
-          typed_controllers: [],
-          typed_channels: [__MODULE__.NoReturnsChannel]
-        )
-
-      AshTypescript.with_manifest(m, fn ->
-        assert [{__MODULE__.NoReturnsChannel, _topic}] = entries = Orchestrator.channel_entries()
-        content = Codegen.generate_all_channel_types(entries)
-        assert content =~ "export type ThingRemovedPayload = unknown;"
-        assert content =~ "NoReturnsChannel"
       end)
     end
   end

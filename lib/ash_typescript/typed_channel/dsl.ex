@@ -18,9 +18,10 @@ defmodule AshTypescript.TypedChannel.Dsl do
   emitted when `use Phoenix.Channel` is missing.
 
   The recommended way to get typed payloads is to use `transform :some_calc` on
-  publications, pointing to a resource calculation with `:auto` typing. Ash
-  auto-derives the `returns` type from the calculation expression. You can also
-  use explicit `returns:` with an anonymous function transform.
+  publications, pointing to a resource calculation with `:auto` typing over a map
+  expression. Ash auto-derives the `returns` type from the calculation expression.
+  You can also use explicit `returns:` with an anonymous function transform. Every
+  declared publication needs a typed-map `returns`.
 
   ## Usage
 
@@ -63,9 +64,12 @@ defmodule AshTypescript.TypedChannel.Dsl do
     Declare a PubSub event to intercept on this channel.
 
     The event name must match the `event` option (or action name fallback) of
-    a publication on the resource. The publication must have a `returns` type
-    for TypeScript type generation — either auto-derived via `transform :calc`
-    or explicitly set via `returns:`.
+    a publication on the resource. The publication must have a `returns` type,
+    either auto-derived via `transform :calc` or explicitly set via `returns:`,
+    and it must be a typed map: `:map`, `:struct`, `:keyword` or `:tuple` with
+    `fields` (or a NewType of one), since Phoenix only pushes JSON objects.
+    Resources, embedded resources and unions are rejected at any depth. These
+    rules are checked when the manifest module compiles.
     """,
     args: [:event],
     schema: [

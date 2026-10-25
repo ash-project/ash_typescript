@@ -620,13 +620,35 @@ if (response.ok) {
 | `:atom` with `one_of`, `Ash.Type.Enum` modules | String literal union (`"ok" \| "pending"`) |
 | `:map`, `:keyword`, `:tuple`, `:struct` **with** `fields` constraints | Object type with exactly those fields (`allow_nil?` fields become `T \| null`) |
 | `:map`, `:keyword`, `:tuple` **without** `fields` constraints | `Record<string, any>` (or your `untyped_map_type`) |
-| `:struct` **without** `fields` constraints (or with `fields: []`, unless `instance_of` is an Ash type) | Rejected when the manifest compiles (use an `Ash.TypedStruct`, `fields` constraints, `instance_of` an Ash resource or a plain `:map`) |
+| `:struct` **without** `fields` constraints (or with `fields: []`, unless `instance_of` is an Ash type) | Rejected when the manifest compiles (use an `Ash.TypedStruct`, `fields` constraints or a plain `:map`) |
 | `{:array, inner}` | `Array<inner>` |
 | `Ash.Type.NewType` of any of the above | Expanded inline |
 
-Resources and embedded resources are rejected at compile time. The handler decides
-what it loads, so the caller can't select fields the way RPC actions allow. Unions
-are rejected too. Model those results as typed maps instead.
+Resources, embedded resources (including `:struct` with `instance_of` a resource)
+and unions are rejected when the manifest compiles, at any depth, including inside
+NewTypes and custom types declared in the manifest module's `custom_types` section.
+The handler decides what it loads, so a resource's loaded fields, field policies and
+relationships can't be typed for the caller. A named type that contains itself is
+rejected too, since result types are expanded inline. The error names the route and
+the path to the offending type.
+
+Model those results as typed maps built from the record. The rule is on declared
+types, so a typed map filled from a resource is fine:
+
+```elixir
+get :current_user do
+  returns :map
+  constraints fields: [email: [type: :string], name: [type: :string]]
+
+  run fn conn, _params ->
+    user = conn.assigns.current_user
+    AshTypescript.TypedController.json(conn, %{email: user.email, name: user.name})
+  end
+end
+```
+
+For a union, use a typed map with a field per variant (all `allow_nil?: true`); for
+a recursive type, expand it to a fixed depth or send an untyped `:map` field.
 
 Field names inside `fields` constraints must be representable in TypeScript, since
 the body is sent as-is: names with a `?` or an underscore before a digit
@@ -1063,6 +1085,7 @@ AshTypescript validates typed controllers at compile time:
 - **Unique route names** — no duplicates within a module
 - **Handlers present** — every route must have a `run` handler
 - **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
+- **Plain-data `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
 - **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters
 - **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
 

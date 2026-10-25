@@ -323,7 +323,8 @@ unsubscribeOrgChannel(channel, refs);
 
 - Event names must be unique across all resources in a channel
 - Publications need `public?: true` (warning if missing — toggle with `warn_on_non_public_publications`)
-- Publications need `transform :some_calc` or an explicit `returns:` for typed payloads (warning if missing, falls back to `unknown` — toggle with `warn_on_missing_channel_returns`)
+- Publications need a `returns` that is a typed map: `transform :some_calc` with an `:auto` map calculation (`expr(%{id: id, title: title})`), or an explicit `returns: :map` with `fields` constraints. A missing `returns`, a scalar, enum, array or untyped payload is a compile error when the manifest compiles
+- Route `returns` and publication `returns` are plain data: resources, embedded resources, unions and recursive types are rejected at any depth. Declare a typed map and build it from the record (`%{email: user.email}`)
 - The branded channel type exposes `on`/`off`/`join`/`leave` — cast to Phoenix's `Channel` if you need anything else (e.g. `push`)
 - Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
 
@@ -437,7 +438,6 @@ config :ash_typescript,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
   warn_on_non_public_publications: true,
-  warn_on_missing_channel_returns: true,
   warn_on_unlisted_typed_modules: true,   # typed controllers/channels missing from the manifest
   # Dev codegen behavior
   always_regenerate: false,

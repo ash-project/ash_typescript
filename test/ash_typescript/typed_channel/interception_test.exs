@@ -34,8 +34,9 @@ defmodule AshTypescript.Test.TypedChannel.WireItem do
     publish :update, [:id],
       event: "wire_item_touched",
       public?: true,
-      returns: :integer,
-      transform: fn _notification -> 1 end
+      returns: :map,
+      constraints: [fields: [touch_count: [type: :integer, allow_nil?: false]]],
+      transform: fn _notification -> %{touch_count: 1} end
   end
 
   attributes do
@@ -348,27 +349,6 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
       assert log =~ ~s("wire_item_created")
       assert log =~ "AshTypescript.Test.TypedChannel.WireItem"
       assert log =~ "`typed_channels:` option"
-    end
-
-    test "an event stored with returns: nil is pushed unchanged without a warning" do
-      alias AshTypescript.Test.PublicationFixtures.{Feed, FeedChannel}
-
-      m =
-        AshTypescript.Test.InlineManifest.build!(
-          typed_controllers: [],
-          typed_channels: [FeedChannel]
-        )
-
-      log =
-        ExUnit.CaptureLog.capture_log(fn ->
-          assert AshTypescript.with_manifest(m, fn ->
-                   PayloadFormatter.format_payload(FeedChannel, Feed, "untyped_pushed", %{
-                     some_key: 1
-                   })
-                 end) == %{some_key: 1}
-        end)
-
-      assert log == ""
     end
 
     test "a direct call with an undeclared event is pushed unchanged and warns" do

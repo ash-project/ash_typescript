@@ -19,8 +19,8 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
 
   A route's `returns` constraints are folded the same way, so result type
   generation sees the same normalized shape as a generic action's `returns`.
-  The `returns` type is also restricted to plain data (no resources or unions,
-  at any depth), since the handler — not the caller — decides what it sends.
+  The `returns` type's plain-data rule is checked when the manifest compiles
+  (`AshTypescript.Manifest.PlainData`).
 
   Invalid constraints (typos, wrong option types) and types that aren't Ash
   types become compile-time errors, matching Ash's behavior for resource
@@ -29,8 +29,6 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
 
   use Spark.Dsl.Transformer
 
-  alias Ash.Info.Manifest.Generator.TypeResolver
-  alias Ash.Info.Manifest.Type
   alias AshTypescript.TypedController.Dsl.Route
   alias Spark.Dsl.Transformer
 
@@ -100,20 +98,13 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
   defp fold_returns(%Route{returns: nil} = route, _module), do: {:ok, route}
 
   defp fold_returns(%Route{returns: returns} = route, module) do
-    with {:ok, folded} <- fold(returns, route.constraints),
-         :ok <- validate_return_type(returns, folded) do
-      {:ok, %{route | constraints: folded}}
-    else
+    case fold(returns, route.constraints) do
+      {:ok, folded} ->
+        {:ok, %{route | constraints: folded}}
+
       {:error, reason} ->
         message =
           case reason do
-            {:unsupported_return, path, detail} ->
-              location = if path == [], do: "", else: " at `#{Enum.join(path, ".")}`"
-
-              "Unsupported `returns` type for route `#{route.name}`#{location}: #{detail}. " <>
-                "Route results support primitive types, enums, maps/keywords/tuples/structs " <>
-                "(typed via `fields` constraints) and arrays of these."
-
             :invalid_type ->
               "Invalid `returns` type for route `#{route.name}`: " <>
                 "#{inspect(returns)} is not an Ash type"
@@ -129,51 +120,6 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
 
   defp dsl_error(module, path, message),
     do: Spark.Error.DslError.exception(module: module, path: path, message: message)
-
-  # Handlers send their response body themselves, so a result type can only
-  # describe plain data. Resources are rejected because the caller cannot
-  # choose what the handler loads, unions because their TS output types are
-  # field-selection shapes rather than wire shapes.
-  defp validate_return_type(type, constraints) do
-    type
-    |> TypeResolver.resolve(constraints)
-    |> find_unsupported([], [])
-    |> case do
-      nil -> :ok
-      {path, reason} -> {:error, {:unsupported_return, path, reason}}
-    end
-  end
-
-  defp find_unsupported(%Type{kind: :type_ref, module: type_module}, path, seen) do
-    # `seen` holds the named types currently being expanded on this branch
-    if type_module in seen do
-      {path, "recursive type #{inspect(type_module)} is not supported"}
-    else
-      type_module
-      |> TypeResolver.resolve_definition()
-      |> find_unsupported(path, [type_module | seen])
-    end
-  end
-
-  defp find_unsupported(%Type{kind: :array, item_type: item_type}, path, seen),
-    do: find_unsupported(item_type, path ++ ["[]"], seen)
-
-  defp find_unsupported(%Type{kind: kind} = type, path, _seen)
-       when kind in [:resource, :embedded_resource] do
-    {path, "resource #{inspect(type.resource_module || type.module)} is not supported"}
-  end
-
-  defp find_unsupported(%Type{kind: :union}, path, _seen),
-    do: {path, "union types are not supported"}
-
-  defp find_unsupported(%Type{kind: kind} = type, path, seen)
-       when kind in [:map, :keyword, :tuple, :struct] do
-    Enum.find_value(Type.get_fields(type), fn field ->
-      find_unsupported(field.type, path ++ [to_string(field.name)], seen)
-    end)
-  end
-
-  defp find_unsupported(%Type{}, _path, _seen), do: nil
 
   # Validate (folding in defaults), then `Ash.Type.init/2` — the same two steps
   # Ash runs for action arguments. `init` is what merges a NewType's own

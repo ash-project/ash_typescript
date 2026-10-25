@@ -246,7 +246,7 @@ end
 | `namespace` | string | No | - | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | - | Override generated Zod schema name (avoids collisions with RPC) |
 | `valibot_schema_name` | string | No | - | Override generated Valibot schema name (avoids collisions with RPC) |
-| `returns` | Ash type | No | - | JSON response body type → exported `{Route}Result` TS type. Plain data only (no resources/unions). Declarative only — the handler still sends the body |
+| `returns` | Ash type | No | - | JSON response body type → exported `{Route}Result` TS type. Plain data only (no resources, unions or recursive types, at any depth; checked when the manifest compiles). Declarative only — the handler still sends the body |
 | `constraints` | keyword | No | `[]` | Constraints for `returns`; validated/folded at compile time like argument constraints |
 
 ### Argument Options
@@ -443,11 +443,19 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
 - `TypedControllerResponse<T>` (emitted by `TypescriptStatic` in `:full` mode) is a
   union discriminated on `ok`: `json(): Promise<T>` when `ok: true`, `Promise<unknown>`
   otherwise. A plain `Response` is assignable to it, so no cast is needed.
-- **Plain data only.** `FoldArgumentConstraints.validate_return_type/2` walks the
-  resolved type and rejects resources/embedded resources (the caller can't control
-  what the handler loads) and unions (their TS output types are field-selection
-  shapes), at any depth and with a path in the error (e.g. `[].metadata`). Recursive
-  NewTypes are rejected too.
+- **Plain data only, checked when the manifest compiles.**
+  `AshTypescript.Manifest.PlainData.check_route!/2`, run from `TypedRoutes.decorate/5`
+  right after the untyped-struct check, walks the decorated `returns` with
+  `AshRpc.Introspection.find_type_root/4` (`cycles: :report`) and raises a
+  `Spark.Error.DslError` (path `[:typed_controller, route]`; Spark sets `module` to the
+  manifest module, the message names the controller and route) for a resource, an
+  embedded resource (a `:struct` `instance_of` a resource is a resource node once
+  decorated) or a union at any depth, and for a named type that contains itself
+  (codegen expands named types inline), with the path in the message (`returns → [] →
+  metadata`). It walks NewTypes and custom types declared in the manifest's
+  `custom_types`, which the old DSL-time check (removed) couldn't see. Scalars, enums,
+  arrays and untyped values stay allowed at the top level. A controller not listed in
+  the manifest isn't checked, but it isn't generated or served either.
 - **Field names must be valid TS names.** `VerifyTypedController` walks `returns` and
   every argument type (same shape as `map_route_result_type/2`) and rejects field names
   with `?` or `_<digit>`, or that fail `NameValidation.identifier?/1`, with a path in the
@@ -753,6 +761,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `lib/ash_typescript/typed_controller/route.ex` | Route handler behaviour |
 | `lib/ash_typescript/typed_controller/request_handler.ex` | Phoenix→handler request bridge |
 | `lib/ash_typescript/typed_controller/transformers/fold_argument_constraints.ex` | Compile-time validation + folding of route-argument and `returns` constraints |
+| `lib/ash_typescript/manifest/plain_data.ex` | The plain-data rule for route and publication `returns`, at manifest compile |
 | `lib/ash_typescript/typed_controller/transformers/generate_controller.ex` | Compile-time controller module generation |
 | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` | Compile-time validation |
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |
@@ -779,6 +788,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `test/ash_typescript/typed_controller/router_introspection_test.exs` | Router matching and multi-mount |
 | `test/ash_typescript/typed_controller/verify_typed_controller_test.exs` | Compile-time verification |
 | `test/ash_typescript/manifest/routes_test.exs` | Stored `%Route{}` data, client names, collisions |
+| `test/ash_typescript/manifest/plain_data_test.exs` | Plain-data `returns` (resources, unions, recursion, through NewTypes and declared custom types) |
 | `test/ash_typescript/manifest/access_invariant_test.exs` | Routes and publications leave RPC entrypoints and gates unchanged |
 | `test/support/inline_manifest.ex` | `InlineManifest.build!/1`: scoped manifests with other typed module lists |
 | `test/support/resources/session.ex` | Test typed controller module |

@@ -11,7 +11,6 @@ defmodule AshTypescript.Manifest.AccessInvariantTest do
   use ExUnit.Case, async: true
 
   alias AshTypescript.Test.InlineManifest
-  alias AshTypescript.Test.PublicationFixtures.{Exposed, FeedChannel}
 
   @moduletag :ash_typescript
 
@@ -48,25 +47,6 @@ defmodule AshTypescript.Manifest.AccessInvariantTest do
     end
   end
 
-  test "a resource brought in only by a publication has no callable action" do
-    m = InlineManifest.build!(typed_controllers: [], typed_channels: [FeedChannel])
-
-    assert Map.has_key?(AshRpc.Manifest.resource_lookup(m), Exposed)
-    refute Enum.any?(m.entrypoints, &(&1.resource == Exposed))
-
-    refute Enum.any?(
-             Map.values(AshRpc.Manifest.ash_rpc!(m).entrypoints),
-             &(&1.resource == Exposed)
-           )
-
-    conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
-
-    assert %{"success" => false, "errors" => [%{"type" => "action_not_found"} | _]} =
-             AshRpc.run_action(
-               AshTypescript.RpcProfile,
-               conn,
-               %{"action" => "read_publication_fixtures_exposed", "fields" => ["id"]},
-               manifest: m
-             )
-  end
+  # A resource can't be brought in by a publication: resource payloads are
+  # rejected when the manifest compiles (plain_data_test.exs).
 end

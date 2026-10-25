@@ -314,6 +314,56 @@ either is still set. `AshTypescript.typed_controllers/0` and
   `push_formatted/4` is now
   `push_formatted(socket, channel_module, resource, event, payload)`.
 
+## Route results and channel payloads are plain data
+
+Typed controller route `returns` and typed channel publication `returns` are
+checked when the manifest module compiles, and a violation raises naming the
+route or publication and the path to the offending type:
+
+- Resources, embedded resources (including `:struct` with `instance_of` a
+  resource) and unions are rejected at any depth, including inside NewTypes and
+  custom types declared in `custom_types`. Before, routes were checked when the
+  controller compiled, without seeing declared custom types, and publications
+  weren't checked at all.
+- A named type that contains itself is rejected (result and payload types are
+  expanded inline).
+- A typed channel publication must have a `returns`, and it must be a typed map:
+  `:map`, `:struct`, `:keyword` or `:tuple` with `fields`, an `Ash.TypedStruct`,
+  or a NewType of one. A missing `returns` (before: a warning and an `unknown`
+  payload type), a scalar, an enum, an array, `:term`, a `:map` without `fields`
+  or a custom type that isn't declared as a `map` is rejected. Fields inside a
+  payload may still be untyped.
+
+The handler or transform decides what a value holds, so a resource's loaded
+fields, field policies and relationships can't be typed for the client. Declare a
+typed map and build it from the record; the rule is on declared types:
+
+```elixir
+# Before
+publish :update, [:id],
+  event: "user_updated",
+  returns: :struct,
+  constraints: [instance_of: MyApp.User],
+  transform: fn notification -> notification.data end
+
+# After
+publish :update, [:id],
+  event: "user_updated",
+  returns: :map,
+  constraints: [fields: [email: [type: :string], name: [type: :string]]],
+  transform: fn %{data: user} -> %{email: user.email, name: user.name} end
+```
+
+A scalar payload becomes a field of a map (`expr(title)` becomes
+`expr(%{title: title})` in an `:auto` calculation, and the client reads
+`payload.title`). For a union, use a typed map with a field per variant (all
+`allow_nil?: true`). Routes still accept scalars, enums, arrays and untyped values
+at the top level.
+
+`config :ash_typescript, warn_on_missing_channel_returns:` is no longer read;
+compiling the manifest warns while it is still set. `AshTypescript.warn_on_missing_channel_returns?/0`
+is removed.
+
 ## Custom types are declared on the manifest
 
 ### Config keys move to `custom_types`

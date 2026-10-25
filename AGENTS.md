@@ -116,7 +116,8 @@ defmodule MyApp.Session do
     end
 
     # Declared JSON response → `{Route}Result` TS type + typed fetch function (GET too).
-    # Plain data only (no resources/unions); `json/2` formats per output_field_formatter
+    # Plain data only (no resources/unions/recursion, at any depth; checked at manifest
+    # compile); `json/2` formats per output_field_formatter
     get :current_user do
       returns :map
       constraints fields: [user_id: [type: :uuid, allow_nil?: false]]
@@ -211,6 +212,8 @@ For typed one-way push events from Ash PubSub publications.
 **Recommended**: Use `transform :some_calc` to reference a resource calculation.
 Ash auto-derives the `returns` type when the calculation uses `:auto`, so
 AshTypescript gets the type information it needs without manual `returns` declarations.
+Every declared publication needs a `returns` that is a typed map (an `:auto` map
+expression, or `returns: :map` with `fields`), checked when the manifest compiles.
 
 ```elixir
 # Resource with calculation transforms (recommended)
@@ -508,7 +511,10 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
-| Channel `unknown` payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
+| Manifest compile error "publication ... has no `returns`" | Publication missing `returns` (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto` map calculation (recommended), or add explicit `returns: :map` with `constraints` |
+| Manifest compile error "publication ... returns X, which is not a typed map" / "returns untyped data" | Channel payloads are typed maps: a scalar, enum, array, opaque custom type, `:term` or unconstrained `:map` is rejected | `returns: :map` (or `:struct`/`:keyword`/`:tuple`, a TypedStruct, a NewType of one) with `fields`; put the value in a field |
+| Manifest compile error "... returns a resource / an embedded resource / a union / a recursive type, at <path>" | Route results and channel payloads are plain data (`AshTypescript.Manifest.PlainData`), at any depth, through NewTypes and declared `custom_types` | Declare a typed map built from the record (`%{email: user.email}` with `fields: [email: [type: :string]]`); a field per union variant (all `allow_nil?: true`); a fixed depth for recursion |
+| "config :ash_typescript, :warn_on_missing_channel_returns is no longer read" | Removed toggle still set | Remove it: a publication without `returns` is a compile error now |
 | "not `public?`" error on RPC action | Action has `public? false` | Set `public? true` on the action or remove it from `typescript_rpc` |
 | "not `public?`" error on read_action | `read_action` has `public? false` | Set `public? true` on the read action |
 | "not `public?`" error on relationship read action | Relationship destination's read action has `public? false` | Set `public? true` on the destination's read action |
@@ -540,10 +546,9 @@ AshTypescript provides compile-time warnings for potential RPC configuration iss
 
 ### Typed Channel Warnings
 
-Two additional compile-time warnings cover typed channels (both default to enabled):
+One additional compile-time warning covers typed channels (enabled by default):
 
 - `config :ash_typescript, warn_on_non_public_publications: false` — silences warnings about publications that are not `public?`
-- `config :ash_typescript, warn_on_missing_channel_returns: false` — silences warnings about publications with no resolvable `returns` type
 
 ### Unlisted Typed Module Warning
 

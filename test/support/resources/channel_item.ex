@@ -32,14 +32,16 @@ defmodule AshTypescript.Test.ChannelItem do
     publish :update, [:id],
       event: "item_updated",
       public?: true,
-      returns: :integer,
-      transform: fn _notification -> 1 end
+      returns: :map,
+      constraints: [fields: [count: [type: :integer, allow_nil?: false]]],
+      transform: fn _notification -> %{count: 1} end
 
     publish :destroy, [:id],
       event: "item_deleted",
       public?: true,
-      returns: :string,
-      transform: fn notification -> notification.data.id end
+      returns: :map,
+      constraints: [fields: [id: [type: :string, allow_nil?: false]]],
+      transform: fn notification -> %{id: notification.data.id} end
   end
 
   attributes do

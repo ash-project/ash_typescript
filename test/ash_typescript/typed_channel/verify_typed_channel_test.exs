@@ -114,12 +114,12 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
     end
   end
 
-  describe "warn_missing_returns" do
-    # The fixtures below intentionally omit `returns` / `public?` so the verifier
-    # warns. They're defined inside the capture closure — at runtime, rather than
-    # at module level — so the verifier's `@after_verify` warning is captured here
+  describe "publication warnings" do
+    # The fixtures below intentionally omit `returns` / `public?`. They're
+    # defined inside the capture closure — at runtime, rather than at module
+    # level — so the verifier's `@after_verify` warning is captured here
     # instead of leaking into `mix test` output at compile time.
-    test "warns when publication has no returns type" do
+    test "does not warn about a missing returns (the manifest rejects it)" do
       warnings =
         ExUnit.CaptureIO.capture_io(:stderr, fn ->
           defmodule NoReturnsItem do
@@ -162,8 +162,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
           assert :ok = VerifyTypedChannel.verify(NoReturnsChannel.spark_dsl_config())
         end)
 
-      assert warnings =~ "does not have `returns` set"
-      assert warnings =~ "thing_gone"
+      assert warnings == ""
     end
 
     test "warns when publication is not marked public?" do
@@ -215,53 +214,6 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
       assert warnings =~ "is not marked `public?: true`"
       assert warnings =~ "secret_removed"
-    end
-
-    test "stays silent when warn_on_missing_channel_returns is false" do
-      set_flag_false(:warn_on_missing_channel_returns)
-
-      warnings =
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          defmodule QuietNoReturnsItem do
-            @moduledoc false
-            use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
-
-            pub_sub do
-              module AshTypescript.Test.TestEndpoint
-              prefix "quiet_no_returns"
-
-              publish :destroy, [:id], event: "quiet_gone", public?: true
-            end
-
-            attributes do
-              uuid_primary_key :id
-            end
-
-            actions do
-              defaults [:destroy]
-            end
-          end
-
-          defmodule QuietNoReturnsChannel do
-            @moduledoc false
-            use Phoenix.Channel
-            use AshTypescript.TypedChannel
-
-            def join(_topic, _payload, socket), do: {:ok, socket}
-
-            typed_channel do
-              topic "quiet_things:*"
-
-              resource QuietNoReturnsItem do
-                publish :quiet_gone
-              end
-            end
-          end
-
-          assert :ok = VerifyTypedChannel.verify(QuietNoReturnsChannel.spark_dsl_config())
-        end)
-
-      refute warnings =~ "does not have `returns` set"
     end
 
     test "stays silent when warn_on_non_public_publications is false" do

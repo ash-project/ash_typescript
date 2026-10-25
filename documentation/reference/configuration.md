@@ -70,7 +70,6 @@ config :ash_typescript,
 
   # Typed channel warnings
   warn_on_non_public_publications: true,
-  warn_on_missing_channel_returns: true,
 
   # Typed controllers/channels missing from the manifest
   warn_on_unlisted_typed_modules: true,
@@ -169,7 +168,6 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
 | `warn_on_non_public_publications` | `boolean` | `true` | Warn about typed channel publications not marked `public?: true` |
-| `warn_on_missing_channel_returns` | `boolean` | `true` | Warn about typed channel publications with no `returns` type |
 | `warn_on_unlisted_typed_modules` | `boolean` | `true` | Warn at codegen about typed controllers/channels not listed in the manifest |
 | `enable_namespace_files` | `boolean` | `false` | Generate separate files for namespaced RPC actions |
 | `namespace_output_dir` | `string \| nil` | `nil` | Directory for RPC namespace files (defaults to `output_file` dir) |
@@ -384,23 +382,22 @@ config :ash_typescript,
 
 ## Typed Channel Warnings
 
-During typed channel verification, AshTypescript warns about publications that produce lower-quality TypeScript types. Each warning is independently toggleable (default `true`), mirroring the RPC resource warnings.
+During typed channel verification, AshTypescript warns about publications that aren't marked public. The warning is toggleable (default `true`), mirroring the RPC resource warnings.
 
 ### Non-Public Publication Warning
 
 Appears when a publication referenced by a `typed_channel` is not marked `public?: true`.
 
-### Missing Channel Returns Warning
-
-Appears when a publication referenced by a `typed_channel` has no `returns` type, so its TypeScript payload type falls back to `unknown`.
-
-**To disable warnings:**
+**To disable the warning:**
 
 ```elixir
 config :ash_typescript,
-  warn_on_non_public_publications: false,
-  warn_on_missing_channel_returns: false
+  warn_on_non_public_publications: false
 ```
+
+A publication without `returns` is a compile error when the manifest compiles (see
+the typed channels guide); the former `warn_on_missing_channel_returns` setting is no
+longer read and warns if it is still set.
 
 ## Unlisted Typed Module Warning
 
