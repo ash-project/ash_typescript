@@ -149,6 +149,39 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: a generic action returning a `:struct` with `fields` and no `instance_of` is field-selectable like a typed map
 
+## [v0.19.3](https://github.com/ash-project/ash_typescript/compare/v0.19.2...v0.19.3) (2026-10-24)
+
+
+
+
+### Bug Fixes:
+
+* rpc: return not_found when destroying a missing record by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: format payloads like RPC results and reject non-map payloads by [@Torkan](https://github.com/Torkan)
+
+* codegen: declare type aliases for nested types, metadata and channel payloads by [@Torkan](https://github.com/Torkan)
+
+* rpc: allow count in keyset-only pagination config when countable by [@Torkan](https://github.com/Torkan)
+
+## [v0.19.2](https://github.com/ash-project/ash_typescript/compare/v0.19.1...v0.19.2) (2026-10-19)
+
+
+
+
+### Bug Fixes:
+
+* rpc: reject field selection on generic actions without returns by [@Torkan](https://github.com/Torkan)
+
+## [v0.19.1](https://github.com/ash-project/ash_typescript/compare/v0.19.0...v0.19.1) (2026-10-12)
+
+
+
+
+### Bug Fixes:
+
+* rpc: stop inspecting internal error terms into error responses (CVE-2026-105283) by [@Torkan](https://github.com/Torkan)
+
 ## [v0.19.0](https://github.com/ash-project/ash_typescript/compare/v0.18.4...v0.19.0) (2026-10-03)
 
 
