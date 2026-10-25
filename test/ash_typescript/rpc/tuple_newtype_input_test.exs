@@ -171,20 +171,18 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
       assert Keyword.has_key?(fields, :is_verified?)
     end
 
-    test "LocationTuple rejects map input - requires actual tuple" do
+    test "LocationTuple casts map input with atom or string keys" do
       type = AshTypescript.Test.InputParsing.LocationTuple
       {:ok, constraints} = Ash.Type.init(type, [])
 
-      # Maps are NOT valid input for tuple types - must be actual tuples
-      # The RPC pipeline's convert_map_to_tuple handles this conversion
+      # Ash casts maps keyed by the tuple's field names into tuples
       map_inputs = [
         %{lat_1: 37.7749, lng_1: -122.4194, is_verified?: true},
         %{"lat_1" => 37.7749, "lng_1" => -122.4194, "is_verified?" => true}
       ]
 
       for input <- map_inputs do
-        result = Ash.Type.cast_input(type, input, constraints)
-        assert {:error, _} = result, "Expected map input to be rejected"
+        assert {:ok, {37.7749, -122.4194, true}} = Ash.Type.cast_input(type, input, constraints)
       end
 
       # Actual tuple should work
