@@ -202,10 +202,15 @@ go through the typed-map paths. Fields come from, in order
 (`AshTypescript.CustomTypes.fields_for/3`): a `map` entry in the manifest module's
 `custom_types` section, the type's `typescript_fields/0` (named by
 `typescript_field_names/0`), a built-in entry (`AshTypescript.CustomTypes.Builtin`:
-`AshMoney.Types.Money`), the subtype's for a NewType, then `composite_types/1`.
+`AshMoney.Types.Money`), the subtype's for a NewType, then `composite_types/1`. A
+malformed `typescript_fields/0` result is passed on for ash_rpc to reject
+(`ArgumentError` naming the module), and so is a field declared twice.
 Clients select their fields (`{colorPalette: ["primary", ...]}`); a bare selection is
-`requires_field_selection`. A `typescript_type_name/0` or `scalar` entry no longer
-applies to such a type (Money included).
+`requires_field_selection`. A field typed by a module with a `scalar` entry gets the
+entry's constraints merged under its own (under `items:` for an array), whichever
+source supplies the fields. A `typescript_type_name/0` or `scalar` entry on such a
+type (Money included) is a compile error ("Map-like custom types that declare a
+TypeScript type") with a migration message.
 
 ```elixir
 def typescript_fields do
@@ -242,10 +247,12 @@ end
 ```
 
 `TypeMapper.unknown_module_mapping/2` takes the first that applies: the manifest
-`scalar` entry, `typescript_type_name/0`, the built-in `scalar` entry. Without
-`typescript`, an entry maps as its base type with the entry's constraints, or with
-the node's own when it is a field of a declared custom type
-(`custom_fields?: true`, Decision 36).
+`scalar` entry's `typescript`, `typescript_type_name/0`, the built-in `scalar`
+entry's `typescript` (only when the manifest has no `scalar` entry for the
+module), then the base type of the manifest entry, else the built-in's. So a
+manifest `scalar` with only `zod`/`valibot` keeps `typescript_type_name/0`. The
+base type maps with the entry's constraints, or with the node's own when it is a
+field of a declared custom type (`custom_fields?: true`).
 
 **Decision rule**: Can you edit the type module? Use `typescript_type_name/0` callback. Can't edit it? Use a `scalar` entry.
 

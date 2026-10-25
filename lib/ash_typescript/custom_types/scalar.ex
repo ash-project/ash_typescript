@@ -37,7 +37,8 @@ defmodule AshTypescript.CustomTypes.Scalar do
   ]
 
   @doc false
-  # Entity transform: normalizes the base type and converts regexes (D38).
+  # Entity transform: normalizes the base type and converts regexes to MFAs,
+  # which persisted DSL state can hold.
   def transform(%__MODULE__{} = scalar) do
     {:ok,
      %{

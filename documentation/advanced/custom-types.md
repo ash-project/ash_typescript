@@ -124,10 +124,15 @@ the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
 
 For a scalar, the TypeScript type comes from the first of:
 
-1. a `scalar` declaration in the manifest's `custom_types` section;
+1. the `typescript` of a `scalar` declaration in the manifest's `custom_types`
+   section;
 2. the type's `typescript_type_name/0`;
-3. a built-in `scalar` entry (see [Built-In Types](#built-in-types));
+3. the `typescript` of a built-in `scalar` entry (see
+   [Built-In Types](#built-in-types)), unless the manifest declares the type;
 4. the base type.
+
+So a `scalar` declaration with only `zod` and `valibot` keeps the type's
+`typescript_type_name/0` as its TypeScript type.
 
 Any other type module without a TypeScript mapping fails compilation with
 "Unsupported types found — AshTypescript cannot map them to TypeScript",
@@ -219,7 +224,13 @@ shape with a `map` entry or `typescript_fields/0`.
 An `Ash.Type.NewType` over a custom type inherits the subtype's fields (its
 `custom_types` entry, its `typescript_fields/0`, or its built-in) unless the
 NewType declares its own. The NewType's `typescript_field_names/0` win over
-the subtype's.
+the subtype's. When it inherits the subtype's `map` entry, it inherits that
+entry's `zod` / `valibot` too.
+
+A field typed by a scalar custom type with a `scalar` entry (yours or a
+built-in) gets the entry's `constraints`, with the field's own `constraints`
+winning per key (under `items:` for an array field), whichever of the steps
+above supplied the field.
 
 ### Selecting Fields
 

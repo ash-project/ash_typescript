@@ -262,7 +262,7 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A hand-rolled `use Ash.Type` module whose `storage_type/1` has no unambiguous JSON wire form. AshTypescript stays permissive rather than guessing, since a wrong schema rejects valid data.
 
-**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or declare it as a `scalar` in the manifest module's `custom_types` section, with a base type or the schema itself:
+**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or declare it as a `scalar` in the manifest module's `custom_types` section, with a base type or the schema itself. A `scalar` without `typescript` doesn't replace the type's `typescript_type_name/0`, so its TypeScript type stays as it was:
 
 ```elixir
 custom_types do

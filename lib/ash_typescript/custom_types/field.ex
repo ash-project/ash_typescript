@@ -37,7 +37,8 @@ defmodule AshTypescript.CustomTypes.Field do
   ]
 
   @doc false
-  # Entity transform: normalizes the type and converts regexes (D38).
+  # Entity transform: normalizes the type and converts regexes to MFAs, which
+  # persisted DSL state can hold.
   def transform(%__MODULE__{} = field) do
     {:ok,
      %{

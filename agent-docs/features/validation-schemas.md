@@ -96,7 +96,7 @@ Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/3`. **An
 What reaches this path is a hand-rolled `use Ash.Type` module, whose shape lives
 in `cast_input/2` and is not introspectable.
 
-The cascade (D40; entries are read from the manifest, so `with_manifest/2` applies):
+The cascade (entries are read from the manifest, so `with_manifest/2` applies):
 
 1. a `scalar` entry in the manifest module's `custom_types` section: its `zod` /
    `valibot` (whichever `formatter.library()` names), else its base type
@@ -109,15 +109,17 @@ The cascade (D40; entries are read from the manifest, so `with_manifest/2` appli
 An MFA `zod` / `valibot` is called as `apply(m, f, [constraints | a])` with the
 node's constraints and must return a string (`AshTypescript.CustomTypes.mapping/3`,
 shared with the TypeScript side). A scalar's base type uses the entry's
-constraints, or the node's for a member of a declared custom type (Decision 36:
-a DSL `map` field typed by a declared scalar carries the merged constraints).
-`typescript_type_name/0` has no schema counterpart, so it never replaces a
-built-in's schema (D41).
+constraints, or the node's for a member of a declared custom type (a field typed
+by a module with a `scalar` entry carries the entry's constraints merged under its
+own, whichever source declared the fields). `typescript_type_name/0` has no schema
+counterpart, so it never replaces a built-in's schema.
 
 A declared custom type (Money, a DSL `map`, `typescript_fields/0`) is a
 `:type_ref` to its `kind: :map` definition, so its schema is `z.object(...)` of
 its fields. Its `map` entry (the manifest's, else the built-in) may replace that
-with `zod` / `valibot`; `map_spec_type/3` checks this on the `:type_ref` branch.
+with `zod` / `valibot`; `map_spec_type/3` checks this on the `:type_ref` branch. A
+NewType with no entry or `typescript_fields/0` of its own (one that inherits its
+subtype's fields) uses its subtype's entry.
 
 #### Controlling a custom type's schema
 
@@ -148,6 +150,10 @@ custom_types do
   end
 end
 ```
+
+An entry without `typescript` leaves the TypeScript side to the type's
+`typescript_type_name/0` when it has one (else the base type), so a type you own
+can get schemas from an entry and keep its callback.
 
 The config keys `zod_mapping_overrides` / `valibot_mapping_overrides` are no
 longer read; a leftover key warns when the manifest compiles.
@@ -191,15 +197,16 @@ NewType or a manifest entry.
 #### Storage-derived fallback
 
 A hand-rolled type matching nothing gets a schema derived from
-`Ash.Type.storage_type/1` (`:integer` → `z.number().int()`, `:map`/`:jsonb` →
+`Ash.Type.storage_type/1` (`:integer` → `z.number().int()`, `:jsonb` →
 `z.record(...)`, `{:array, :string}` → `z.array(z.string())`, `:utc_datetime_usec` →
 `z.iso.datetime()`, …). Storage types with no unambiguous JSON wire form resolve to
 `any_schema()` — a wrong schema rejects valid data, which is worse than not validating.
 
 Before 0.18 every hand-rolled custom type collapsed to a flat `z.string()`/`v.string()`,
-which *rejected* its own valid values whenever the type wasn't string-backed. Note the
-fallback is deliberately permissive: a `:map`-storage type validates as a record, not as
-its precise object shape. Use a NewType or a `custom_types` entry if you need precision.
+which *rejected* its own valid values whenever the type wasn't string-backed. A
+`:map`-storage type never reaches this fallback: it declares fields (an object of
+them, or its `map` entry's schema) or fails compilation. Only a `:jsonb`-storage type
+validates as a record.
 
 ⚠️ After touching this path, run `npm run testZod` **and** `npm run testValibot` from
 `test/ts/` — they are the only checks that execute the generated schemas against real

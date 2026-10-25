@@ -29,7 +29,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   `extra_types:`, so their declared custom types get definitions in
   `manifest.types`. The rejection of an undeclared map-like custom type (RPC
   actions, typed queries, routes and publications) carries the hint closed
-  over the same declarations (`AshTypescript.CustomTypes.hint_fun/1`), so it
+  over the same declarations (`AshTypescript.CustomTypes.hint/3`), so it
   also says to remove a `scalar` entry that covers the type.
   """
 

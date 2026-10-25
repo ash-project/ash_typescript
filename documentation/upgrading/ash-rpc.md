@@ -352,7 +352,9 @@ end
 
 A string override whose TypeScript type follows from a base type
 (`{Mod, "string"}`) becomes `scalar Mod, :string`. Anything else keeps
-`typescript "…"`. `zod_import_into_generated` and
+`typescript "…"`. A type with `typescript_type_name/0` that only had zod or
+valibot overrides gets a `scalar` with just `zod` and `valibot`: without
+`typescript`, the entry doesn't replace `typescript_type_name/0`. `zod_import_into_generated` and
 `valibot_import_into_generated` stay in config. A scoped manifest
 (`domains: [...]`) declares its own `custom_types`.
 
