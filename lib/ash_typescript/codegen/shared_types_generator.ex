@@ -13,7 +13,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
   import AshTypescript.Codegen
   import AshTypescript.Codegen.FilterTypes
 
-  alias AshTypescript.Codegen.{Helpers, ImportResolver, SortTypes, UtilityTypes}
+  alias AshTypescript.Codegen.{Helpers, ImportResolver, SortTypes, TypeAliases, UtilityTypes}
 
   @doc """
   Generates the content for the shared types file.
@@ -24,6 +24,9 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
       * `:all_resources` - All resources needing schemas (required)
       * `:rpc_resources` - RPC-configured resources (required)
       * `:struct_argument_resources` - Resources used as struct arguments (default: [])
+      * `:extra_alias_types` - Further `%Ash.Info.Manifest.Type{}` roots whose
+        type aliases must be declared, e.g. typed channel payload types appended
+        to the file (default: [])
       * `:types_output_file` - Path to the types output file, for resolving custom import paths (required)
 
   ## Returns
@@ -34,6 +37,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
     all_resources = Keyword.fetch!(opts, :all_resources)
     rpc_resources = Keyword.fetch!(opts, :rpc_resources)
     struct_argument_resources = Keyword.get(opts, :struct_argument_resources, [])
+    extra_alias_types = Keyword.get(opts, :extra_alias_types, [])
     types_output_file = Keyword.fetch!(opts, :types_output_file)
 
     custom_imports = generate_custom_imports(types_output_file)
@@ -48,7 +52,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
 
     #{custom_imports}
 
-    #{generate_ash_type_aliases(rpc_resources)}
+    #{TypeAliases.generate_ash_type_aliases(rpc_resources, resource_lookup, extra_alias_types)}
 
     #{generate_all_schemas_for_resources(all_resources, all_resources, struct_argument_resources)}
 

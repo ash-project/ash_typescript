@@ -7,15 +7,40 @@ defmodule AshTypescript.Codegen.TypeAliases do
   Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.).
   """
 
+  alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.TypeSystem.Introspection
 
+  # Primitive kinds whose TypeScript rendering is a declared alias, mapped to
+  # the type module that declares it (mirrors `TypeMapper`'s kind fallback).
+  @kind_alias_modules %{
+    decimal: Ash.Type.Decimal,
+    uuid: Ash.Type.UUID,
+    date: Ash.Type.Date,
+    time: Ash.Type.Time,
+    time_usec: Ash.Type.TimeUsec,
+    datetime: Ash.Type.DateTime,
+    utc_datetime: Ash.Type.UtcDatetime,
+    utc_datetime_usec: Ash.Type.UtcDatetimeUsec,
+    naive_datetime: Ash.Type.NaiveDatetime,
+    duration: Ash.Type.Duration,
+    binary: Ash.Type.Binary
+  }
+
   @doc """
   Generates TypeScript type aliases for all Ash types used in resources, actions, and calculations.
-  """
-  def generate_ash_type_aliases(resources, resource_lookup \\ nil)
 
-  def generate_ash_type_aliases(resources, resource_lookup) when is_map(resource_lookup) do
+  `extra_types` are additional `%Ash.Info.Manifest.Type{}` roots rendered into
+  the same file outside any resource (e.g. typed channel payload types).
+  """
+  def generate_ash_type_aliases(resources, resource_lookup \\ nil, extra_types \\ [])
+
+  def generate_ash_type_aliases(resources, nil, extra_types) do
+    generate_ash_type_aliases(resources, AshTypescript.resource_lookup(), extra_types)
+  end
+
+  def generate_ash_type_aliases(resources, resource_lookup, extra_types)
+      when is_map(resource_lookup) do
     # Derive embedded resources from resource_lookup instead of re-scanning
     embedded_resources =
       resource_lookup
@@ -39,11 +64,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
         end
       end)
 
-    generate_aliases(types)
-  end
-
-  def generate_ash_type_aliases(resources, nil) do
-    generate_ash_type_aliases(resources, AshTypescript.resource_lookup())
+    extra_types
+    |> Enum.reduce(types, &collect_type_module/2)
+    |> generate_aliases()
   end
 
   defp collect_types_from_api_resource(api_resource, types) do
@@ -56,19 +79,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       # For calculations with arguments, collect argument types
       if field.kind == :calculation && is_list(field.arguments) do
         Enum.reduce(field.arguments, types, fn arg, types ->
-          arg_type = arg.type
-
-          type_module =
-            case arg_type do
-              %Ash.Info.Manifest.Type{module: m} when is_atom(m) -> m
-              _ -> nil
-            end
-
-          if type_module && Ash.Type.ash_type?(type_module) do
-            MapSet.put(types, type_module)
-          else
-            types
-          end
+          collect_type_module(arg.type, types)
         end)
       else
         types
@@ -76,20 +87,74 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end)
   end
 
-  defp collect_type_module(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}, types) do
+  # Collects every type module whose alias the type mapper may reference when
+  # rendering `type`, walking nested positions the mapper also renders inline:
+  # array items, union members, typed map/keyword/struct fields, tuple
+  # elements and the definitions of named types (NewTypes). Resources and
+  # embedded resources are leaves — their fields are collected per resource.
+  defp collect_type_module(%Type{kind: :array, item_type: item_type}, types) do
     collect_type_module(item_type, types)
   end
 
-  defp collect_type_module(%Ash.Info.Manifest.Type{module: module}, types)
+  defp collect_type_module(%Type{kind: :union, members: members} = type, types) do
+    Enum.reduce(members || [], put_type_module(type, types), fn member, types ->
+      collect_type_module(member.type, types)
+    end)
+  end
+
+  defp collect_type_module(%Type{kind: kind} = type, types)
+       when kind in [:map, :keyword, :struct, :tuple] do
+    type
+    |> Type.get_fields()
+    |> Enum.reduce(put_type_module(type, types), fn field, types ->
+      collect_type_module(field.type, types)
+    end)
+  end
+
+  # Named types render as their full definition, so walk it once. The module
+  # is recorded before recursing, which also stops self-referential types.
+  defp collect_type_module(%Type{kind: :type_ref, module: module} = type, types)
        when is_atom(module) and not is_nil(module) do
-    if Ash.Type.ash_type?(module) do
-      MapSet.put(types, module)
+    if MapSet.member?(types, module) do
+      types
+    else
+      types = put_type_module(type, types)
+
+      module
+      |> Introspection.named_type_definition()
+      |> collect_type_module(types)
+    end
+  end
+
+  defp collect_type_module(%Type{} = type, types) do
+    type
+    |> put_type_module(types)
+    |> put_kind_alias_module(type)
+  end
+
+  defp collect_type_module(_, types), do: types
+
+  defp put_type_module(%Type{module: module}, types)
+       when is_atom(module) and not is_nil(module) do
+    if Ash.Type.ash_type?(module), do: MapSet.put(types, module), else: types
+  end
+
+  defp put_type_module(_type, types), do: types
+
+  # A NewType wrapping a primitive is rendered from its kind (e.g. a NewType
+  # over `:utc_datetime` renders as `UtcDateTime`) unless it has its own
+  # mapping, so the kind's alias has to be declared too.
+  defp put_kind_alias_module(types, %Type{kind: kind, module: module} = type)
+       when is_map_key(@kind_alias_modules, kind) and is_atom(module) and not is_nil(module) do
+    if Ash.Type.NewType.new_type?(module) and
+         TypeMapper.unknown_module_mapping(type) == :unsupported do
+      MapSet.put(types, Map.fetch!(@kind_alias_modules, kind))
     else
       types
     end
   end
 
-  defp collect_type_module(_, types), do: types
+  defp put_kind_alias_module(types, _type), do: types
 
   # Collects type modules from action_lookup entries for a given resource
   defp collect_types_from_action_lookup(resource_module, action_lookup, types) do
@@ -102,9 +167,15 @@ defmodule AshTypescript.Codegen.TypeAliases do
           collect_type_module(input.type, types)
         end)
 
+      # Collect from action metadata (rendered in the action's metadata type)
+      types =
+        Enum.reduce(action.metadata || [], types, fn metadata, types ->
+          collect_type_module(metadata.type, types)
+        end)
+
       # Collect from action returns (for generic actions)
       case action.returns do
-        %Ash.Info.Manifest.Type{} = return_type -> collect_type_module(return_type, types)
+        %Type{} = return_type -> collect_type_module(return_type, types)
         _ -> types
       end
     end)
@@ -137,6 +208,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   defp generate_ash_type_alias(Ash.Type.Tuple), do: ""
   defp generate_ash_type_alias(Ash.Type.String), do: ""
   defp generate_ash_type_alias(Ash.Type.CiString), do: ""
+  defp generate_ash_type_alias(Ash.Type.Term), do: ""
 
   # Types that need TypeScript aliases
   defp generate_ash_type_alias(Ash.Type.UUID), do: "export type UUID = string;"

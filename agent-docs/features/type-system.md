@@ -86,6 +86,12 @@ Kind → TypeScript mapping lives in `@kind_to_ts` / `@primitives` in
 Date/time, uuid and decimal kinds route through **named aliases** emitted by
 `codegen/type_aliases.ex` (`UtcDateTimeUsec`, `UUID`, `AshDate`, `Decimal`, …),
 each of which is `= string` in the generated output — not bare `string`.
+Alias collection walks every position the mapper renders inline (array items,
+union members, typed map/keyword/struct fields, tuple elements, named-type
+definitions), so a type used only nested still gets its alias declared. Roots
+are resource fields, calculation arguments, action inputs, returns and
+metadata, and the `returns` types of the manifest's stored typed channel
+publications (their payload types are appended to `ash_types.ts`).
 
 ### Complex Types
 - Embedded resources → Full resource schema with field selection
