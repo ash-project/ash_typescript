@@ -11,7 +11,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   Runs before `BuildManifest`. It rejects, with a `Spark.Error.DslError`:
 
     * a module declared more than once;
-    * a `map` with no fields;
+    * a `map` with no fields, or with a field name declared twice;
     * a `scalar` whose base type isn't an Ash type, or a `field` whose type is
       neither an Ash type nor a module with an entry (declared or built-in);
     * constraints the type rejects (`Ash.Type.init/2`). A field typed by a
@@ -96,8 +96,24 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   end
 
   defp normalize(%MapType{} = map, by_module) do
-    with {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)) do
+    with :ok <- check_duplicate_fields(map),
+         {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)) do
       {:ok, %{map | fields: fields}}
+    end
+  end
+
+  defp check_duplicate_fields(%MapType{} = map) do
+    map.fields
+    |> Enum.group_by(& &1.name)
+    |> Enum.find(fn {_name, group} -> length(group) > 1 end)
+    |> case do
+      nil ->
+        :ok
+
+      {name, [_, second | _]} ->
+        {:error,
+         {second, [:map, map.module, :field, name],
+          "The field #{inspect(name)} of #{inspect(map.module)} is declared more than once."}}
     end
   end
 

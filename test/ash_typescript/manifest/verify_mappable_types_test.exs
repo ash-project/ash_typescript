@@ -198,6 +198,107 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
     end
   end
 
+  describe "unmappable custom types inside calculation arguments and tuples" do
+    test "a calculation argument is rejected with its field and argument" do
+      defmodule ResourceWithBareCalcArgument do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithBareCalcArgument"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        calculations do
+          calculate :echo, :string, expr("x") do
+            public? true
+            argument :code, AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithBareCalcArgument do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithBareCalcArgument do
+            rpc_action :list_calc_arg, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithBareCalcArgument
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithBareCalcArgument])
+
+      assert message =~ "Unsupported types found"
+      assert message =~ "VerifyMappableTypesTest.BareCustomType"
+      assert message =~ "field :echo, argument :code"
+    end
+
+    test "a tuple element is rejected" do
+      defmodule ResourceWithBareTuple do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithBareTuple"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :pair, :tuple do
+            public? true
+
+            constraints fields: [
+                          label: [type: :string],
+                          code: [
+                            type: AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType
+                          ]
+                        ]
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithBareTuple do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithBareTuple do
+            rpc_action :list_tuple, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithBareTuple
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithBareTuple])
+
+      assert message =~ "VerifyMappableTypesTest.BareCustomType"
+      assert message =~ "field :pair"
+    end
+  end
+
   describe "mappable custom types" do
     test "custom type with typescript_type_name/0 passes" do
       defmodule ResourceWithNamedType do

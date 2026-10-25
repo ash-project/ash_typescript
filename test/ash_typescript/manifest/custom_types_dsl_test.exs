@@ -174,6 +174,24 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
       assert message =~ "more than once"
     end
 
+    test "a field declared twice in a map is rejected" do
+      message =
+        compile_error!(
+          DuplicateField,
+          quote do
+            custom_types do
+              map SomeLib.Twice do
+                field :a, :string
+                field :a, :integer
+              end
+            end
+          end
+        )
+
+      assert message =~ "custom_types -> map -> Elixir.SomeLib.Twice -> field -> a"
+      assert message =~ "The field :a of SomeLib.Twice is declared more than once."
+    end
+
     test "scalar constraints the base type rejects" do
       message =
         compile_error!(

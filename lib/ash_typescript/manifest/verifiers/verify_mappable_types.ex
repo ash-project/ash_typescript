@@ -31,8 +31,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
       `typescript_type_name/0` or is covered by a `scalar` entry (the
       manifest's or a built-in), with the migration message.
 
-  Walks the top level of each definition site: resource fields, entrypoint
-  action inputs/returns/metadata, and standalone type definitions in
+  Walks the top level of each definition site: resource fields (and
+  calculation arguments), entrypoint action inputs/returns/metadata, and standalone type definitions in
   `manifest.types` (including embedded resources). Nested references to named
   types (`:type_ref`, `:embedded_resource`, `:resource`) are not descended
   into, because their full definitions are walked independently — this also
@@ -83,9 +83,19 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
     resource
     |> Ash.Info.Manifest.Resource.all_fields()
     |> Enum.flat_map(fn field ->
-      walk(field.type, "resource #{inspect(resource.module)}, field :#{field.name}")
+      context = "resource #{inspect(resource.module)}, field :#{field.name}"
+      walk(field.type, context) ++ walk_arguments(Map.get(field, :arguments), context)
     end)
   end
+
+  # A calculation's arguments.
+  defp walk_arguments(arguments, context) when is_list(arguments) do
+    Enum.flat_map(arguments, fn argument ->
+      walk(argument.type, "#{context}, argument :#{argument.name}")
+    end)
+  end
+
+  defp walk_arguments(_arguments, _context), do: []
 
   defp collect_from_entrypoints(entrypoints) do
     Enum.flat_map(entrypoints, fn entrypoint ->
@@ -154,6 +164,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp walk(%Type{kind: kind, fields: fields}, context)
        when kind in [:map, :keyword, :tuple, :struct] and is_list(fields) do
     Enum.flat_map(fields, fn %{type: field_type} -> walk(field_type, context) end)
+  end
+
+  defp walk(%Type{kind: :tuple, element_types: elements}, context) when is_list(elements) do
+    Enum.flat_map(elements, fn %{type: element_type} -> walk(element_type, context) end)
   end
 
   # Everything else: primitives, module-less unknowns, and references to named
