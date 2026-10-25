@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Runtime coverage for custom Ash types (manifest `kind: :unknown`) and the
-// per-library schema mapping overrides that can replace their generated schema.
+// Runtime coverage for custom Ash types and the `zod` / `valibot` options of
+// the test manifest's `custom_types` entries, which replace their generated
+// schema.
 //
 // Kept separate from constraintValidation.ts: these assert how a *type* resolves
 // to a schema, not how declared constraints are rendered.
@@ -51,13 +52,14 @@ export function testPriorityScoreNumberAccepted() {
   return validated;
 }
 
-// ─── Mapping overrides via imported schemas ──────────────────────────────────
+// ─── Entry schemas via imported schemas ──────────────────────────────────────
 //
-// Both overrides name a schema authored in TypeScript, reached through
-// `zod_import_into_generated`. See config/config.exs.
+// Both entries name a schema authored in TypeScript, reached through
+// `zod_import_into_generated`. See test/support/manifest.ex and
+// config/config.exs.
 
-// AshTypescript.Test.CustomIdentifier has no `typescript_type_name`, so without
-// its override it would generate `z.any()` and validate nothing at all.
+// AshTypescript.Test.CustomIdentifier is a `scalar` entry whose `zod` names
+// the schema; without it the entry's base type would only check for a string.
 
 export function testOverriddenCustomIdAccepted() {
   const validated = createTaskZodSchema.parse({ title: "T", customId: "abc123" });
@@ -69,10 +71,10 @@ export function testOverriddenCustomIdAccepted() {
   return validated;
 }
 
-// AshTypescript.Test.GeoPoint stores `:map`, so its storage-derived schema would
-// be a permissive `z.record(z.string(), z.any())`. The override — imported from
-// a *subdirectory*, so the generated import path is not a same-directory
-// sibling — replaces that with a precise object schema.
+// AshTypescript.Test.GeoPoint is a `map` entry, so its generated schema would be
+// an object of two numbers. The entry's `zod` — imported from a
+// *subdirectory*, so the generated import path is not a same-directory
+// sibling — replaces that with one that also checks the ranges.
 
 export function testOverriddenGeoPointAccepted() {
   const validated = createTaskZodSchema.parse({

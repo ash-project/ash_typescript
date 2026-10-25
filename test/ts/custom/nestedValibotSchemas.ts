@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Hand-authored Valibot schemas referenced from `valibot_mapping_overrides`,
-// pulled into the generated schema file via a second
+// Hand-authored Valibot schemas named by the test manifest's `custom_types`
+// `valibot` options, pulled into the generated schema file via a second
 // `valibot_import_into_generated` entry.
 //
 // Deliberately in a subdirectory: the generated `ash_valibot.ts` sits one level

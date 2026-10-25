@@ -491,12 +491,15 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
   end
 
-  describe "third-party type schemas" do
-    test "AshMoney.Types.Money maps to object matching the TS Money alias" do
-      # Must stay in sync with type_aliases.ex:
-      #   export type Money = { amount: string; currency: string };
-      assert ZodSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
-               "z.object({ amount: z.string(), currency: z.string() })"
+  describe "the built-in Money entry" do
+    test "AshMoney.Types.Money is an object of its declared fields" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(AshTypescript.Test.Task, :create)
+
+      schema =
+        ZodSchemaGenerator.generate_zod_schema(AshTypescript.Test.Task, action, "create_task")
+
+      assert schema =~
+               "price: z.object({ currency: z.string(), amount: z.string() }).nullable().optional(),"
     end
   end
 

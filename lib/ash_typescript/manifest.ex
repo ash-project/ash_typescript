@@ -131,7 +131,13 @@ defmodule AshTypescript.Manifest do
         "use AshTypescript.Manifest, typed_channels: [...]",
     type_mapping_overrides:
       "Declare these types in your manifest module's `custom_types` section: " <>
-        "`scalar MyType, :string, typescript: \"<ts type>\"`"
+        "`scalar MyType, :string, typescript: \"<ts type>\"`",
+    zod_mapping_overrides:
+      "Give these types a `zod` schema in your manifest module's `custom_types` section: " <>
+        "`scalar MyType, :string, zod: \"<zod schema>\"` (or `map MyType do ... zod ... end`)",
+    valibot_mapping_overrides:
+      "Give these types a `valibot` schema in your manifest module's `custom_types` section: " <>
+        "`scalar MyType, :string, valibot: \"<valibot schema>\"` (or `map MyType do ... valibot ... end`)"
   ]
 
   defp warn_on_legacy_config do

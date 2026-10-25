@@ -273,29 +273,19 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  defp scalar_mapping(%Scalar{typescript: ts}, _type_info, _opts) when is_binary(ts), do: ts
+  defp scalar_mapping(%Scalar{} = entry, type_info, opts) do
+    case AshTypescript.CustomTypes.mapping(entry, :typescript, type_info.constraints) do
+      nil ->
+        entry
+        |> AshTypescript.CustomTypes.base_type(
+          type_info.constraints,
+          Keyword.get(opts, :custom_fields?, false)
+        )
+        |> map_type([], Keyword.get(opts, :direction, :output))
 
-  defp scalar_mapping(%Scalar{typescript: {m, f, a}} = entry, type_info, _opts) do
-    case apply(m, f, [type_info.constraints || [] | a]) do
-      ts when is_binary(ts) ->
+      ts ->
         ts
-
-      other ->
-        raise ArgumentError,
-              "the `typescript` MFA #{Exception.format_mfa(m, f, length(a) + 1)} of the " <>
-                "custom type #{inspect(entry.module)} must return a string, got: #{inspect(other)}"
     end
-  end
-
-  defp scalar_mapping(%Scalar{typescript: nil} = entry, type_info, opts) do
-    constraints =
-      if Keyword.get(opts, :custom_fields?, false),
-        do: type_info.constraints || [],
-        else: entry.constraints
-
-    entry.type
-    |> Ash.Info.Manifest.Generator.TypeResolver.resolve(constraints)
-    |> map_type([], Keyword.get(opts, :direction, :output))
   end
 
   @doc """

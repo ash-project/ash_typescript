@@ -317,66 +317,26 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
-  Gets the Zod schema overrides for custom types from application configuration.
-
-  Use this for hand-rolled custom types whose generated schema you want to
-  control — the Zod counterpart to a `custom_types` `scalar` entry's `typescript`. Types you own
-  are usually better expressed as an `Ash.Type.NewType` with constraints, which
-  needs no override at all: a NewType carries its constraints through the normal
-  dispatch and never reaches the custom-type fallback.
-
-  ## Configuration
-
-      config :ash_typescript,
-        zod_mapping_overrides: [
-          {AshObjectIds.Type, "z.string()"}
-        ]
-
-  ## Returns
-  A keyword list of `{type_module, zod_schema_string}` tuples, or an empty list
-  if not configured.
-  """
-  def zod_mapping_overrides do
-    Application.get_env(:ash_typescript, :zod_mapping_overrides, [])
-  end
-
-  @doc """
-  Gets the Valibot schema overrides for custom types from application configuration.
-
-  The Valibot counterpart to `zod_mapping_overrides/0`.
-
-  ## Configuration
-
-      config :ash_typescript,
-        valibot_mapping_overrides: [
-          {AshObjectIds.Type, "v.string()"}
-        ]
-
-  ## Returns
-  A keyword list of `{type_module, valibot_schema_string}` tuples, or an empty
-  list if not configured.
-  """
-  def valibot_mapping_overrides do
-    Application.get_env(:ash_typescript, :valibot_mapping_overrides, [])
-  end
-
-  @doc """
   Gets extra imports to inject into the generated Zod schema file.
 
-  Use this alongside `zod_mapping_overrides/0` when an override should reference
-  a schema you authored in TypeScript rather than an inline `z.*` expression.
-  Same shape as `import_into_generated`, but scoped to the Zod file so unrelated
-  imports (hooks, custom types) don't leak into it.
+  Use this when a `custom_types` entry's `zod` names a schema you authored in
+  TypeScript rather than an inline `z.*` expression. Same shape as
+  `import_into_generated`, but scoped to the Zod file so unrelated imports
+  (hooks, custom types) don't leak into it.
 
   ## Configuration
 
       config :ash_typescript,
         zod_import_into_generated: [
           %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
-        ],
-        zod_mapping_overrides: [
-          {MyApp.ObjectId, "CustomZodSchemas.objectId"}
         ]
+
+      # in the manifest module
+      custom_types do
+        scalar MyApp.ObjectId, :string do
+          zod "CustomZodSchemas.objectId"
+        end
+      end
 
   ## Returns
   A list of `%{import_name: String.t(), file: String.t()}` maps, or an empty list.
@@ -395,10 +355,14 @@ defmodule AshTypescript.Rpc do
       config :ash_typescript,
         valibot_import_into_generated: [
           %{import_name: "CustomValibotSchemas", file: "assets/js/customValibotSchemas.ts"}
-        ],
-        valibot_mapping_overrides: [
-          {MyApp.ObjectId, "CustomValibotSchemas.objectId"}
         ]
+
+      # in the manifest module
+      custom_types do
+        scalar MyApp.ObjectId, :string do
+          valibot "CustomValibotSchemas.objectId"
+        end
+      end
 
   ## Returns
   A list of `%{import_name: String.t(), file: String.t()}` maps, or an empty list.

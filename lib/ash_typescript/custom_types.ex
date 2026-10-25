@@ -103,6 +103,45 @@ defmodule AshTypescript.CustomTypes do
     end
   end
 
+  @doc """
+  An entry's `key` mapping (`:typescript`, `:zod` or `:valibot`) for a use
+  with `constraints`: the string as given, the MFA's result
+  (`apply(m, f, [constraints | a])`), or `nil` when the entry has none.
+  Raises `ArgumentError`, naming the option, the MFA and the module, when an
+  MFA returns anything but a string.
+  """
+  @spec mapping(Scalar.t() | MapType.t(), :typescript | :zod | :valibot, Keyword.t() | nil) ::
+          String.t() | nil
+  def mapping(entry, key, constraints) do
+    case Map.get(entry, key) do
+      {m, f, a} -> apply_mapping(entry, key, {m, f, a}, constraints || [])
+      value -> value
+    end
+  end
+
+  @doc """
+  A `scalar` entry's base type for a use, resolved to a manifest type: with
+  the entry's constraints, or with the use's for a member of a declared
+  custom type's definition (`custom_fields?`, Decision 36).
+  """
+  @spec base_type(Scalar.t(), Keyword.t() | nil, boolean()) :: Manifest.Type.t()
+  def base_type(%Scalar{} = entry, use_constraints, custom_fields?) do
+    constraints = if custom_fields?, do: use_constraints || [], else: entry.constraints
+    Manifest.Generator.TypeResolver.resolve(entry.type, constraints)
+  end
+
+  defp apply_mapping(entry, key, {m, f, a}, constraints) do
+    case apply(m, f, [constraints | a]) do
+      value when is_binary(value) ->
+        value
+
+      other ->
+        raise ArgumentError,
+              "the `#{key}` MFA #{Exception.format_mfa(m, f, length(a) + 1)} of the " <>
+                "custom type #{inspect(entry.module)} must return a string, got: #{inspect(other)}"
+    end
+  end
+
   # ── precedence ───────────────────────────────────────────────────
 
   # {specs | nil, dependencies}

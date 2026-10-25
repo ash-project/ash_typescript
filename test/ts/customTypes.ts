@@ -2,16 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-export type GeoPoint = {
-  lat: number;
-  lng: number;
-};
-
-export type GeoPointValidationErrors = {
-  lat?: string[];
-  lng?: string[];
-};
-
 export type Percentage = number;
 
 export type PercentageValidationErrors = string[];

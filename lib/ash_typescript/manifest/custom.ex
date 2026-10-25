@@ -393,6 +393,15 @@ defmodule AshTypescript.Manifest.Custom do
           AshTypescript.CustomTypes.Scalar.t() | AshTypescript.CustomTypes.MapType.t() | nil
   def builtin_custom_type(source, module), do: custom_type(source, :builtin, module)
 
+  @doc """
+  The entry that applies to `module`: its manifest `custom_types` entry, else
+  its built-in one, else `nil`.
+  """
+  @spec custom_type_entry(module() | Manifest.t() | nil, module()) ::
+          AshTypescript.CustomTypes.Scalar.t() | AshTypescript.CustomTypes.MapType.t() | nil
+  def custom_type_entry(source, module),
+    do: declared_custom_type(source, module) || builtin_custom_type(source, module)
+
   defp custom_type(source, kind, module) do
     source |> typed_data(:custom_types) |> Map.get(kind, %{}) |> Map.get(module)
   end

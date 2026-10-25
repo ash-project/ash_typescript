@@ -493,12 +493,19 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
   end
 
-  describe "third-party type schemas" do
-    test "AshMoney.Types.Money maps to object matching the TS Money alias" do
-      # Must stay in sync with type_aliases.ex:
-      #   export type Money = { amount: string; currency: string };
-      assert ValibotSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
-               "v.object({ amount: v.string(), currency: v.string() })"
+  describe "the built-in Money entry" do
+    test "AshMoney.Types.Money is an object of its declared fields" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(AshTypescript.Test.Task, :create)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(
+          AshTypescript.Test.Task,
+          action,
+          "create_task"
+        )
+
+      assert schema =~
+               "price: v.optional(v.nullable(v.object({ currency: v.string(), amount: v.string() }))),"
     end
   end
 

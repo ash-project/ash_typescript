@@ -64,11 +64,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     count: "z.number().int()"
   }
 
-  @third_party_types %{
-    AshDoubleEntry.ULID => "z.string()",
-    AshMoney.Types.Money => "z.object({ amount: z.string(), currency: z.string() })"
-  }
-
   # ─────────────────────────────────────────────────────────────────
   # SchemaFormatter callbacks
   # ─────────────────────────────────────────────────────────────────
@@ -78,7 +73,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def any_schema, do: "z.any()"
   @impl true
-  def mapping_overrides, do: AshTypescript.Rpc.zod_mapping_overrides()
+  def library, do: :zod
   @impl true
   def custom_imports, do: AshTypescript.Rpc.zod_import_into_generated()
   @impl true
@@ -87,8 +82,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   def simple_primitives, do: @simple_primitives
   @impl true
   def atom_primitives, do: @atom_primitives
-  @impl true
-  def third_party_types, do: @third_party_types
   @impl true
   def format_array(inner, constraints) do
     "z.array(#{inner})"
@@ -108,10 +101,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   def wrap_record, do: "z.record(z.string(), z.any())"
   @impl true
   def format_enum(values), do: "z.enum([#{values}])"
-  @impl true
-  def ltree_array, do: "z.array(z.string())"
-  @impl true
-  def ltree_union, do: "z.union([z.string(), z.array(z.string())])"
   @impl true
   def schema_suffix, do: AshTypescript.Rpc.zod_schema_suffix()
   @impl true

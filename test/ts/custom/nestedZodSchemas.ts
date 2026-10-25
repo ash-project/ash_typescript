@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Hand-authored Zod schemas referenced from `zod_mapping_overrides`, pulled into
-// the generated schema file via a second `zod_import_into_generated` entry.
+// Hand-authored Zod schemas named by the test manifest's `custom_types` `zod`
+// options, pulled into the generated schema file via a second
+// `zod_import_into_generated` entry.
 //
 // Deliberately in a subdirectory: the generated `ash_zod.ts` sits one level up,
 // so the emitted import path must resolve to `./custom/nestedZodSchemas` rather

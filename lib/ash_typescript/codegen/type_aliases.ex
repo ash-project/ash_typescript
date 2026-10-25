@@ -196,7 +196,5 @@ defmodule AshTypescript.Codegen.TypeAliases do
       |> AshRpc.Manifest.Custom.custom_type?()
 
   defp custom_type_entry?(type),
-    do:
-      AshTypescript.Manifest.Custom.declared_custom_type(nil, type) != nil or
-        AshTypescript.Manifest.Custom.builtin_custom_type(nil, type) != nil
+    do: AshTypescript.Manifest.Custom.custom_type_entry(nil, type) != nil
 end

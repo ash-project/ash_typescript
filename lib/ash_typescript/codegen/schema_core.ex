@@ -17,6 +17,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
   alias Ash.Info.Manifest.Type, as: SpecType
   alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
+  alias AshTypescript.CustomTypes
+  alias AshTypescript.CustomTypes.{MapType, Scalar}
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
 
@@ -69,9 +72,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Strings enforce non-emptiness whenever their folded constraints carry
   # `allow_empty?: false` (the Ash string default), mirroring what the server
   # accepts — independent of the field's nilability.
-  defp map_spec_type(_formatter, nil), do: nil
+  #
+  # `custom_fields?` is true for a member of a declared custom type's
+  # definition (Decision 36): a scalar entry's base mapping then uses the
+  # member's own constraints. It follows arrays, and nested containers set
+  # their own.
+  defp map_spec_type(formatter, type_info, custom_fields? \\ false)
 
-  defp map_spec_type(formatter, %SpecType{} = type_info) do
+  defp map_spec_type(_formatter, nil, _custom_fields?), do: nil
+
+  defp map_spec_type(formatter, %SpecType{} = type_info, custom_fields?) do
     case type_info.kind do
       kind when kind in [:string, :ci_string] ->
         constraints = type_info.constraints || []
@@ -94,7 +104,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
         # Item constraints already live on `item_type`; `type_info.constraints`
         # carries the array's own cardinality (`min_length`/`max_length`), which
         # the formatter renders alongside the item schema.
-        inner = map_spec_type(formatter, type_info.item_type) || formatter.any_schema()
+        inner =
+          map_spec_type(formatter, type_info.item_type, custom_fields?) || formatter.any_schema()
+
         formatter.format_array(inner, type_info.constraints || [])
 
       :union ->
@@ -107,11 +119,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
         map_typed_container(formatter, type_info)
 
       :type_ref ->
-        full_type = Introspection.named_type_definition(type_info.module)
-        map_spec_type(formatter, full_type)
+        map_entry_schema(formatter, type_info) ||
+          map_spec_type(formatter, Introspection.named_type_definition(type_info.module))
 
       :unknown ->
-        map_unknown_module(formatter, type_info)
+        map_unknown_module(formatter, type_info, custom_fields?)
 
       _primitive_kind ->
         lookup_primitive(formatter, type_info)
@@ -136,31 +148,39 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  # Handles `:unknown` kinds — custom Ash types (Ltree, ULID, Money, third-party).
-  #
-  # Only hand-rolled `use Ash.Type` modules reach here — an `Ash.Type.NewType`
-  # resolves to its subtype's kind (or a `:type_ref`) and carries its declared
-  # constraints through the normal dispatch, so it never lands on `:unknown`.
-  #
-  # Config overrides win over the in-tree accept-lists, which cover commonly
-  # used official Ash libraries. A type matching nothing falls back to a schema
-  # derived from its `storage_type/1` rather than a flat string — a custom type
-  # storing `:integer` validates as a number, not as text.
-  defp map_unknown_module(formatter, %SpecType{module: module} = type_info) do
-    cond do
-      (override = mapping_override(formatter, module)) != nil ->
-        override
+  # A declared custom type's `map` entry (the manifest's, else the built-in)
+  # replaces the object of its fields with its `zod` / `valibot`, when it has
+  # one for this formatter's library.
+  defp map_entry_schema(formatter, %SpecType{module: module} = type_info) do
+    case Custom.custom_type_entry(nil, module) do
+      %MapType{} = entry -> CustomTypes.mapping(entry, formatter.library(), type_info.constraints)
+      _ -> nil
+    end
+  end
 
-      module == AshPostgres.Ltree ->
-        if Keyword.get(type_info.constraints || [], :escape?, false),
-          do: formatter.ltree_array(),
-          else: formatter.ltree_union()
+  # Handles `:unknown` kinds — hand-rolled `use Ash.Type` modules (D40):
+  #
+  #   1. a `scalar` entry in the manifest's `custom_types` section;
+  #   2. the formatter's `simple_primitives`;
+  #   3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`);
+  #   4. for a type with `typescript_type_name/0`, a schema derived from its
+  #      `storage_type/1` rather than a flat string — a custom type storing
+  #      `:integer` validates as a number, not as text.
+  #
+  # An `Ash.Type.NewType` resolves to its subtype's kind (or a `:type_ref`)
+  # and carries its declared constraints through the normal dispatch, so it
+  # never lands here. `typescript_type_name/0` has no schema counterpart, so it
+  # doesn't replace a built-in's schema (D41).
+  defp map_unknown_module(formatter, %SpecType{module: module} = type_info, custom_fields?) do
+    cond do
+      match?(%Scalar{}, entry = Custom.declared_custom_type(nil, module)) ->
+        scalar_schema(formatter, entry, type_info, custom_fields?)
 
       module && Map.has_key?(formatter.simple_primitives(), module) ->
         Map.get(formatter.simple_primitives(), module)
 
-      module && Map.has_key?(formatter.third_party_types(), module) ->
-        Map.get(formatter.third_party_types(), module)
+      match?(%Scalar{}, entry = Custom.builtin_custom_type(nil, module)) ->
+        scalar_schema(formatter, entry, type_info, custom_fields?)
 
       module && Introspection.is_custom_type?(module) ->
         storage_derived_schema(formatter, module)
@@ -170,14 +190,21 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  defp mapping_override(formatter, module) when is_atom(module) and not is_nil(module) do
-    case List.keyfind(formatter.mapping_overrides(), module, 0) do
-      {_module, schema} -> schema
-      nil -> nil
+  # The entry's `zod` / `valibot` (an MFA gets the node's constraints), else
+  # its base type with the entry's constraints, or the node's for a member of
+  # a declared custom type (Decision 36).
+  defp scalar_schema(formatter, %Scalar{} = entry, type_info, custom_fields?) do
+    case CustomTypes.mapping(entry, formatter.library(), type_info.constraints) do
+      nil ->
+        map_spec_type(
+          formatter,
+          CustomTypes.base_type(entry, type_info.constraints, custom_fields?)
+        )
+
+      schema ->
+        schema
     end
   end
-
-  defp mapping_override(_formatter, _module), do: nil
 
   # Derives a schema from the type's Ash storage type. Unrecognized storage
   # falls through to the permissive `any_schema()` rather than guessing — a
@@ -447,13 +474,15 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   # Field names come from the container's decoration.
   defp build_object_from_fields(formatter, %SpecType{} = container, fields) do
+    custom_fields? = AshRpc.Manifest.Custom.custom_type?(container)
+
     field_schemas =
       Enum.map_join(fields, ", ", fn %{
                                        name: field_name,
                                        type: %SpecType{} = field_type,
                                        allow_nil?: allow_nil
                                      } ->
-        schema_type = map_spec_type(formatter, field_type)
+        schema_type = map_spec_type(formatter, field_type, custom_fields?)
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
         "#{ClientNames.type_field(container, field_name)}: #{schema_type}"

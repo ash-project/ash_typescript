@@ -58,13 +58,4 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
     assert Builtin.ltree_valibot(escape?: true) == "v.array(v.string())"
     assert Builtin.ltree_valibot([]) == "v.union([v.string(), v.array(v.string())])"
   end
-
-  test "the Ltree mappings match the schema generators' strings" do
-    alias AshTypescript.Codegen.{ValibotSchemaGenerator, ZodSchemaGenerator}
-
-    assert Builtin.ltree_zod(escape?: true) == ZodSchemaGenerator.ltree_array()
-    assert Builtin.ltree_zod([]) == ZodSchemaGenerator.ltree_union()
-    assert Builtin.ltree_valibot(escape?: true) == ValibotSchemaGenerator.ltree_array()
-    assert Builtin.ltree_valibot([]) == ValibotSchemaGenerator.ltree_union()
-  end
 end

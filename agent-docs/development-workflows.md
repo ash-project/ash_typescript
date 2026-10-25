@@ -91,8 +91,8 @@ Both positive (shouldPass) and negative (shouldFail) patterns.
 Ensure we test both http/fetch and channel functions.
 
 These are **type-level only**. After any change to validation-schema codegen,
-constraint handling, or `third_party_types`, also run the runtime suites —
-they compile *and execute* the generated schemas against fixture inputs and are
+constraint handling, or custom-type schemas (`custom_types` entries, built-ins),
+also run the runtime suites — they compile *and execute* the generated schemas against fixture inputs and are
 the only path that catches runtime schema bugs:
 
 ```bash

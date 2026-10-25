@@ -64,11 +64,6 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
     count: "v.pipe(v.number(), v.integer())"
   }
 
-  @third_party_types %{
-    AshDoubleEntry.ULID => "v.string()",
-    AshMoney.Types.Money => "v.object({ amount: v.string(), currency: v.string() })"
-  }
-
   # ─────────────────────────────────────────────────────────────────
   # SchemaFormatter callbacks
   # ─────────────────────────────────────────────────────────────────
@@ -78,7 +73,7 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def any_schema, do: "v.any()"
   @impl true
-  def mapping_overrides, do: AshTypescript.Rpc.valibot_mapping_overrides()
+  def library, do: :valibot
   @impl true
   def custom_imports, do: AshTypescript.Rpc.valibot_import_into_generated()
   @impl true
@@ -87,8 +82,6 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   def simple_primitives, do: @simple_primitives
   @impl true
   def atom_primitives, do: @atom_primitives
-  @impl true
-  def third_party_types, do: @third_party_types
   @impl true
   def format_array(inner, constraints) do
     pipes =
@@ -117,10 +110,6 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   def wrap_record, do: "v.record(v.string(), v.any())"
   @impl true
   def format_enum(values), do: "v.picklist([#{values}])"
-  @impl true
-  def ltree_array, do: "v.array(v.string())"
-  @impl true
-  def ltree_union, do: "v.union([v.string(), v.array(v.string())])"
   @impl true
   def schema_suffix, do: AshTypescript.Rpc.valibot_schema_suffix()
   @impl true

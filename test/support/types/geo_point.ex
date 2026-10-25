@@ -4,14 +4,12 @@
 
 defmodule AshTypescript.Test.GeoPoint do
   @moduledoc """
-  A hand-rolled custom type stored as a map, used to exercise validation-schema
-  mapping overrides that resolve to a *non-string* schema.
+  A hand-rolled custom type stored as a map, used to exercise a `map` entry's
+  `zod` / `valibot` schemas.
 
-  Its real shape lives in `cast_input/2`, so the storage-derived fallback can
-  only manage `z.record(z.string(), z.any())` / `v.record(v.string(), v.any())`.
-  `config/config.exs` tightens that to a precise object schema authored in
-  TypeScript, referenced through `zod_mapping_overrides` /
-  `valibot_mapping_overrides`.
+  The test manifest declares it with a `map` entry (`lat` and `lng`, both
+  non-null floats), whose `zod` / `valibot` replace the generated object of
+  the fields with schemas authored in TypeScript that also check the ranges.
   """
   use Ash.Type
 
@@ -43,6 +41,4 @@ defmodule AshTypescript.Test.GeoPoint do
 
   @impl true
   def apply_constraints(value, _constraints), do: {:ok, value}
-
-  def typescript_type_name, do: "CustomTypes.GeoPoint"
 end

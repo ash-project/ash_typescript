@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ExternalCode do
   @moduledoc """
   A string custom type with no TypeScript callbacks, standing in for a type
   from a dependency. The test manifest declares it with a `scalar` entry whose
-  `typescript` is an MFA (`AshTypescript.Test.ExternalCodeTs.typescript/1`).
+  `typescript`, `zod` and `valibot` are MFAs (`AshTypescript.Test.ExternalCodeTs`).
   """
   use Ash.Type
 
@@ -31,11 +31,21 @@ end
 
 defmodule AshTypescript.Test.ExternalCodeTs do
   @moduledoc """
-  The `typescript` MFA of the test manifest's `AshTypescript.Test.ExternalCode`
-  scalar entry. It receives the use's constraints.
+  The `typescript`, `zod` and `valibot` MFAs of the test manifest's
+  `AshTypescript.Test.ExternalCode` scalar entry. Each receives the use's
+  constraints.
   """
 
   @doc "The TypeScript type of an `ExternalCode` use."
   @spec typescript(Keyword.t()) :: String.t()
   def typescript(constraints) when is_list(constraints), do: "`code-${string}`"
+
+  @doc "The zod schema of an `ExternalCode` use."
+  @spec zod(Keyword.t()) :: String.t()
+  def zod(constraints) when is_list(constraints), do: ~s{z.string().startsWith("code-")}
+
+  @doc "The valibot schema of an `ExternalCode` use."
+  @spec valibot(Keyword.t()) :: String.t()
+  def valibot(constraints) when is_list(constraints),
+    do: ~s{v.pipe(v.string(), v.startsWith("code-"))}
 end

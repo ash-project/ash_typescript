@@ -11,7 +11,12 @@ defmodule AshTypescript.Manifest.LegacyTypeConfigWarningTest do
   alias AshTypescript.Manifest.LegacyTypeConfigWarningTest, as: T
 
   setup do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:type_mapping_overrides])
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :type_mapping_overrides,
+      :zod_mapping_overrides,
+      :valibot_mapping_overrides
+    ])
+
     :ok
   end
 
@@ -56,9 +61,46 @@ defmodule AshTypescript.Manifest.LegacyTypeConfigWarningTest do
            }) == "string"
   end
 
-  test "no warning when the key is unset" do
-    Application.delete_env(:ash_typescript, :type_mapping_overrides)
+  for {key, option} <- [zod_mapping_overrides: "zod", valibot_mapping_overrides: "valibot"] do
+    test "a leftover #{key} key warns at manifest compile time" do
+      Application.put_env(:ash_typescript, unquote(key), [
+        {AshTypescript.Test.CustomIdentifier, "schema"}
+      ])
 
-    refute compile_manifest(T.Clean) =~ "type_mapping_overrides"
+      stderr = compile_manifest(Module.concat(T, Macro.camelize("#{unquote(key)}")))
+
+      assert stderr =~
+               "config :ash_typescript, #{inspect(unquote(key))} is no longer read and is ignored."
+
+      assert stderr =~ "custom_types"
+      # Names the entry option that replaces it.
+      assert stderr =~ "#{unquote(option)}: "
+    end
+  end
+
+  test "a leftover zod_mapping_overrides key is not read" do
+    Application.put_env(:ash_typescript, :zod_mapping_overrides, [
+      {AshTypescript.Test.CustomIdentifier, "Overridden"}
+    ])
+
+    resolved =
+      Ash.Info.Manifest.Generator.TypeResolver.resolve(AshTypescript.Test.CustomIdentifier, [])
+
+    # The test manifest's `scalar` entry names the schema.
+    assert AshTypescript.Codegen.SchemaCore.get_type(
+             AshTypescript.Codegen.ZodSchemaGenerator,
+             resolved
+           ) == "CustomZodSchemas.objectId"
+  end
+
+  test "no warning when the keys are unset" do
+    for key <- [:type_mapping_overrides, :zod_mapping_overrides, :valibot_mapping_overrides] do
+      Application.delete_env(:ash_typescript, key)
+    end
+
+    stderr = compile_manifest(T.Clean)
+    refute stderr =~ "type_mapping_overrides"
+    refute stderr =~ "zod_mapping_overrides"
+    refute stderr =~ "valibot_mapping_overrides"
   end
 end

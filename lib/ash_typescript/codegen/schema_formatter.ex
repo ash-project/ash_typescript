@@ -28,19 +28,15 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @callback any_schema() :: String.t()
 
   @doc """
-  Per-library schema overrides from application config, for hand-rolled custom
-  types whose generated schema needs to be controlled by hand.
-
-  Returns a keyword list of `{type_module, schema_string}` tuples. Consulted by
-  `AshTypescript.Codegen.SchemaCore` ahead of the in-tree accept-lists, mirroring
-  how `custom_types` `scalar` entries work on the TypeScript side.
+  The validation library this formatter targets. `AshTypescript.Codegen.SchemaCore`
+  reads the matching option (`zod` or `valibot`) of a `custom_types` entry.
   """
-  @callback mapping_overrides() :: keyword(String.t())
+  @callback library() :: :zod | :valibot
 
   @doc """
   Extra imports to inject into this formatter's generated schema file, so a
-  `mapping_overrides/0` entry can reference a schema the user authored in
-  TypeScript instead of an inline library expression.
+  `custom_types` entry's `zod` / `valibot` can name a schema the user authored
+  in TypeScript instead of an inline library expression.
 
   Returns a list of `%{import_name: String.t(), file: String.t()}` maps — the
   same shape as `import_into_generated`, but scoped per library.
@@ -55,9 +51,6 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   @doc "Map of atom-symbol primitives (e.g. `:map`) to schema strings."
   @callback atom_primitives() :: %{atom() => String.t()}
-
-  @doc "Map of third-party Ash type modules (e.g. `AshMoney.Types.Money`) to schema strings."
-  @callback third_party_types() :: %{module() => String.t()}
 
   @doc "Build an array schema, applying outer `:min_length` and `:max_length` constraints."
   @callback format_array(inner :: String.t(), constraints :: keyword()) :: String.t()
@@ -107,12 +100,6 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   @doc "Build a float schema, applying min/max/gt/lt constraints if present."
   @callback format_float(constraints :: keyword()) :: String.t()
-
-  @doc "Ltree type represented as an array of strings."
-  @callback ltree_array() :: String.t()
-
-  @doc "Ltree type represented as a string-or-array-of-strings union."
-  @callback ltree_union() :: String.t()
 
   @doc ~S'The schema variable name suffix (e.g. `"Schema"` or `"ValibotSchema"`).'
   @callback schema_suffix() :: String.t()

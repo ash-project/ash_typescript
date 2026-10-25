@@ -4,11 +4,11 @@
 
 defmodule AshMoney.Types.Money do
   @moduledoc """
-  Minimal stub impersonating `AshMoney.Types.Money` so the codegen's
-  `third_party_types` map matches during test codegen without pulling
-  ash_money as a dependency.
+  Minimal stub impersonating `AshMoney.Types.Money` so the built-in `map`
+  entry (`AshTypescript.CustomTypes.Builtin`) applies during test codegen
+  without pulling ash_money as a dependency.
 
-  Only the module name matters for the mapping; this stub implements just
+  Only the module name matters for the entry; this stub implements just
   enough of `Ash.Type` for the test resource attribute to compile.
   """
   use Ash.Type

@@ -90,27 +90,40 @@ Dispatch is on manifest `kind`, so a custom type resolving to a **concrete kind*
 (e.g. a string-backed `Ash.Type.NewType`) gets that kind's structural schema. There is
 no blanket `is_custom_type? → any` short-circuit (removed in 0.18).
 
-Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/2`. **An
+Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/3`. **An
 `Ash.Type.NewType` never lands here** — it resolves to its subtype's kind (or a
 `:type_ref`) and carries its declared constraints through the normal dispatch.
 What reaches this path is a hand-rolled `use Ash.Type` module, whose shape lives
 in `cast_input/2` and is not introspectable.
 
-The cascade:
+The cascade (D40; entries are read from the manifest, so `with_manifest/2` applies):
 
-1. `formatter.mapping_overrides()` — `zod_mapping_overrides` / `valibot_mapping_overrides` config
-2. `AshPostgres.Ltree` → `ltree_array()` when `escape?: true`, else `ltree_union()`
-3. `formatter.simple_primitives()` lookup
-4. `formatter.third_party_types()` lookup — `AshDoubleEntry.ULID` → `z.string()`/`v.string()`;
-   `AshMoney.Types.Money` → `z.object({ amount: z.string(), currency: z.string() })` (valibot mirror)
-5. `Introspection.is_custom_type?/1` → schema derived from `Ash.Type.storage_type/1`
-6. otherwise `formatter.any_schema()`
+1. a `scalar` entry in the manifest module's `custom_types` section: its `zod` /
+   `valibot` (whichever `formatter.library()` names), else its base type
+2. `formatter.simple_primitives()` lookup
+3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`): `AshDoubleEntry.ULID`
+   → its base type (`z.string()`), `AshPostgres.Ltree` → its MFAs, by `escape?`
+4. `Introspection.is_custom_type?/1` → schema derived from `Ash.Type.storage_type/1`
+5. otherwise `formatter.any_schema()`
+
+An MFA `zod` / `valibot` is called as `apply(m, f, [constraints | a])` with the
+node's constraints and must return a string (`AshTypescript.CustomTypes.mapping/3`,
+shared with the TypeScript side). A scalar's base type uses the entry's
+constraints, or the node's for a member of a declared custom type (Decision 36:
+a DSL `map` field typed by a declared scalar carries the merged constraints).
+`typescript_type_name/0` has no schema counterpart, so it never replaces a
+built-in's schema (D41).
+
+A declared custom type (Money, a DSL `map`, `typescript_fields/0`) is a
+`:type_ref` to its `kind: :map` definition, so its schema is `z.object(...)` of
+its fields. Its `map` entry (the manifest's, else the built-in) may replace that
+with `zod` / `valibot`; `map_spec_type/3` checks this on the `:type_ref` branch.
 
 #### Controlling a custom type's schema
 
 **First choice: make it an `Ash.Type.NewType`.** Constraints declared on a NewType
 flow through the normal dispatch for scalars, maps, arrays, and unions alike — no
-override, no callback, and the TypeScript type stays in sync automatically:
+entry, no callback, and the TypeScript type stays in sync automatically:
 
 ```elixir
 use Ash.Type.NewType, subtype_of: :integer, constraints: [min: 1, max: 100]
@@ -122,24 +135,36 @@ use Ash.Type.NewType,
 # → z.object({ lat: z.number().nullable().optional(), ... })
 ```
 
-**Second choice: config overrides**, for types that must stay hand-rolled (custom
-cast semantics, casting into a struct) or that come from a dependency. This is
-also the only way to emit raw library syntax such as a brand or `.refine()`:
+**Second choice: a `custom_types` entry** in the manifest module, for types that
+must stay hand-rolled (custom cast semantics, casting into a struct) or that come
+from a dependency. This is also the only way to emit raw library syntax such as a
+brand or `.refine()`:
 
 ```elixir
-config :ash_typescript,
-  zod_mapping_overrides: [{MyApp.Weird, ~s{z.string().brand<"Id">()}}],
-  valibot_mapping_overrides: [{MyApp.Weird, "v.string()"}]
+custom_types do
+  scalar MyApp.Weird, :string do
+    zod ~s{z.string().brand<"Id">()}
+    valibot "v.string()"
+  end
+end
 ```
 
-An override may also **name a schema you authored in TypeScript** instead of an
+The config keys `zod_mapping_overrides` / `valibot_mapping_overrides` are no
+longer read; a leftover key warns when the manifest compiles.
+
+An entry may also **name a schema you authored in TypeScript** instead of an
 inline expression. The generated schema files import only their own library, so
 the reference needs a matching per-library import entry — otherwise the emitted
 code references an undefined name and `tsc` fails:
 
 ```elixir
+# manifest module
+custom_types do
+  scalar MyApp.ObjectId, :string, zod: "CustomZodSchemas.objectId"
+end
+
+# config
 config :ash_typescript,
-  zod_mapping_overrides: [{MyApp.ObjectId, "CustomZodSchemas.objectId"}],
   zod_import_into_generated: [
     %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
   ]
@@ -159,10 +184,9 @@ modules (custom types, hooks) into the schema files and risk import cycles when 
 hooks file imports from `ash_zod.ts`. `SharedSchemaGenerator` resolves them via
 the shared `ImportResolver`, so paths are relative to the schema file.
 
-There is deliberately **no ash_typescript-specific callback** for this. Third-party
-types can't be expected to implement one, so commonly used official Ash libraries
-are carried in the in-tree `third_party_types()` accept-list instead; everyone else
-uses a NewType or config.
+Type callbacks have no zod/valibot counterpart. Commonly used official Ash
+library types are carried as built-in entries instead; everyone else uses a
+NewType or a manifest entry.
 
 #### Storage-derived fallback
 
@@ -175,7 +199,7 @@ A hand-rolled type matching nothing gets a schema derived from
 Before 0.18 every hand-rolled custom type collapsed to a flat `z.string()`/`v.string()`,
 which *rejected* its own valid values whenever the type wasn't string-backed. Note the
 fallback is deliberately permissive: a `:map`-storage type validates as a record, not as
-its precise object shape. Use a NewType or an override if you need precision.
+its precise object shape. Use a NewType or a `custom_types` entry if you need precision.
 
 ⚠️ After touching this path, run `npm run testZod` **and** `npm run testValibot` from
 `test/ts/` — they are the only checks that execute the generated schemas against real
@@ -183,17 +207,19 @@ data (type-level compilation will not catch e.g. an empty `z.object({})` for Mon
 
 Runtime coverage for this cascade lives in `test/ts/{zod,valibot}/{shouldPass,shouldFail}/customTypeSchemas.ts`
 (kept apart from `constraintValidation.ts`, which covers constraint rendering rather than
-type resolution). The two test fixtures in `config/config.exs` cover both reasons to reach
-for an override:
+type resolution). Two entries in the test manifest (`test/support/manifest.ex`) name
+schemas authored in TypeScript:
 
-| Type | Storage | Without an override | Override source |
-|------|---------|---------------------|-----------------|
-| `AshTypescript.Test.CustomIdentifier` | `:string` | `z.any()` — no `typescript_type_name` | `test/ts/customZodSchemas.ts` |
-| `AshTypescript.Test.GeoPoint` | `:map` | `z.record(z.string(), z.any())` — too permissive | `test/ts/custom/nestedZodSchemas.ts` |
+| Type | Entry | Without the entry's schema | Schema source |
+|------|-------|----------------------------|---------------|
+| `AshTypescript.Test.CustomIdentifier` | `scalar` over `:string` | `z.string()` | `test/ts/customZodSchemas.ts` |
+| `AshTypescript.Test.GeoPoint` | `map` (`lat`, `lng`) | `z.object(...)` of two numbers, no ranges | `test/ts/custom/nestedZodSchemas.ts` |
 
 `GeoPoint` deliberately imports from a **subdirectory**, so `ImportResolver` has to emit
 `./custom/nestedZodSchemas` rather than a same-directory sibling, and its `shouldFail`
-tests reject a point missing `lng` — something the storage-derived record would accept.
+tests reject an out-of-range latitude — something the object of its fields would accept.
+`InlineManifest.app_custom_types/0` mirrors the test manifest's section for inline
+manifests over the whole test app.
 
 ## Configuration
 

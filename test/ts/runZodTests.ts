@@ -140,7 +140,7 @@ runTest("testArrayAboveMaximum", () => shouldFail.testArrayAboveMaximum());
 runTest("testArrayItemConstraintViolation", () => shouldFail.testArrayItemConstraintViolation());
 runTest("testOptionalArrayRejectsNull", () => shouldFail.testOptionalArrayRejectsNull());
 
-console.log("\n--- Custom types and schema mapping overrides ---\n");
+console.log("\n--- Custom types and custom_types entry schemas ---\n");
 
 runTest("testColorPaletteObjectAccepted", () => customPass.testColorPaletteObjectAccepted());
 runTest("testPriorityScoreNumberAccepted", () => customPass.testPriorityScoreNumberAccepted());

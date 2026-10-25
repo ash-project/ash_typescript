@@ -78,30 +78,13 @@ if Mix.env() == :test do
         file: "./test/ts/channelHooks.ts"
       }
     ],
-    # Validation-schema overrides (the TypeScript side is the manifest's
-    # `custom_types` section, `test/support/manifest.ex`). Two
-    # overrides per library, covering both reasons to reach for one:
-    #
-    #   CustomIdentifier — a hand-rolled Ash.Type with no `typescript_type_name`,
-    #     which would otherwise fall through to `z.any()` / `v.any()`.
-    #   GeoPoint — map storage, so the derived schema would be a permissive
-    #     `z.record(...)`; the override tightens it to a precise object.
-    #
-    # Both name schemas authored in TypeScript rather than inline expressions,
-    # so each needs a matching `*_import_into_generated` entry. The GeoPoint
-    # pair lives in a subdirectory to exercise relative-path resolution against
-    # something other than a same-directory sibling.
-    zod_mapping_overrides: [
-      {AshTypescript.Test.CustomIdentifier, "CustomZodSchemas.objectId"},
-      {AshTypescript.Test.GeoPoint, "NestedZodSchemas.geoPoint"}
-    ],
+    # Schemas authored in TypeScript that the test manifest's `custom_types`
+    # entries name in their `zod` / `valibot` (CustomIdentifier, GeoPoint). The
+    # nested pair lives in a subdirectory to exercise relative-path resolution
+    # against something other than a same-directory sibling.
     zod_import_into_generated: [
       %{import_name: "CustomZodSchemas", file: "./test/ts/customZodSchemas.ts"},
       %{import_name: "NestedZodSchemas", file: "./test/ts/custom/nestedZodSchemas.ts"}
-    ],
-    valibot_mapping_overrides: [
-      {AshTypescript.Test.CustomIdentifier, "CustomValibotSchemas.objectId"},
-      {AshTypescript.Test.GeoPoint, "NestedValibotSchemas.geoPoint"}
     ],
     valibot_import_into_generated: [
       %{import_name: "CustomValibotSchemas", file: "./test/ts/customValibotSchemas.ts"},

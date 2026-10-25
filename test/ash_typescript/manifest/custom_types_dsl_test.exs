@@ -436,11 +436,15 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
       assert Map.has_key?(builtin, AshMoney.Types.Money)
     end
 
-    test "the test manifest persists its scalar entries" do
+    test "the test manifest persists its entries" do
       assert %{declared: declared} = persisted(AshTypescript.Test.Manifest)
 
       assert Map.keys(declared) |> Enum.sort() ==
-               [AshTypescript.Test.CustomIdentifier, AshTypescript.Test.ExternalCode]
+               [
+                 AshTypescript.Test.CustomIdentifier,
+                 AshTypescript.Test.ExternalCode,
+                 AshTypescript.Test.GeoPoint
+               ]
     end
   end
 

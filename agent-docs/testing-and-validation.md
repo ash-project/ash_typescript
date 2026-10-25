@@ -45,8 +45,8 @@ mix test
 ```
 
 `testZod`/`testValibot` are the **only** path that exercises schema runtime
-behavior. Always run them after touching `third_party_types`, constraint
-generation, or any other validation codegen. Root-level equivalents:
+behavior. Always run them after touching custom-type schemas (`custom_types`
+entries, built-ins), constraint generation, or any other validation codegen. Root-level equivalents:
 `mix test.test_zod`, `mix test.test_valibot`.
 
 ## Test Categories

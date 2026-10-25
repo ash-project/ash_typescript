@@ -103,8 +103,10 @@ Three dependency types are built-in `custom_types` entries
 | `AshPostgres.Ltree` | `scalar` with MFA `typescript` | `string[]` when `escape?: true`, else `string \| string[]` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
 
-A manifest entry for the same module replaces the built-in. Zod/Valibot still
-have parallel `@third_party_types` entries in their formatter modules.
+A manifest entry for the same module replaces the built-in. The Zod/Valibot
+schemas come from the same entries (`SchemaCore`, see
+[validation-schemas.md](validation-schemas.md)): Money is an object of its
+fields, Ltree uses the built-in's `zod`/`valibot` MFAs, ULID its base type.
 
 ## Architecture Benefits
 

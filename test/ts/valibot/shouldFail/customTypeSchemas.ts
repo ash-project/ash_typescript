@@ -35,24 +35,24 @@ export function testPriorityScoreStringRejected() {
   );
 }
 
-// Overrides are enforced at runtime, not merely emitted.
+// Entry schemas are enforced at runtime, not merely emitted.
 
 export function testOverriddenCustomIdTooShort() {
   return expectValiError(
     () => v.parse(createTaskValibotSchema, { title: "T", customId: "ab" }),
-    "Should have thrown for customId shorter than the override minimum",
+    "Should have thrown for customId shorter than the entry schema's minimum",
   );
 }
 
 export function testOverriddenGeoPointOutOfRange() {
   return expectValiError(
     () => v.parse(createTaskValibotSchema, { title: "Nowhere", geoPoint: { lat: 999, lng: 10.75 } }),
-    "Should have thrown for a latitude outside the override's range",
+    "Should have thrown for a latitude outside the entry schema's range",
   );
 }
 
-// The decisive check that the override replaced the storage-derived schema:
-// `v.record(v.string(), v.any())` would happily accept a half-built point.
+// The declared fields are required: a record schema would accept a half-built
+// point.
 
 export function testOverriddenGeoPointMissingField() {
   return expectValiError(

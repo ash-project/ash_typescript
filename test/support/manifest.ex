@@ -25,9 +25,25 @@ defmodule AshTypescript.Test.Manifest do
     ]
 
   custom_types do
-    scalar AshTypescript.Test.CustomIdentifier, :string
+    # Schemas authored in TypeScript, imported through `zod_import_into_generated`
+    # / `valibot_import_into_generated` (config/config.exs).
+    scalar AshTypescript.Test.CustomIdentifier, :string do
+      zod "CustomZodSchemas.objectId"
+      valibot "CustomValibotSchemas.objectId"
+    end
 
-    scalar AshTypescript.Test.ExternalCode, :string,
-      typescript: {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+    scalar AshTypescript.Test.ExternalCode, :string do
+      typescript {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+      zod {AshTypescript.Test.ExternalCodeTs, :zod, []}
+      valibot {AshTypescript.Test.ExternalCodeTs, :valibot, []}
+    end
+
+    # The schemas replace the object of the fields with one that checks ranges.
+    map AshTypescript.Test.GeoPoint do
+      field :lat, :float, allow_nil?: false
+      field :lng, :float, allow_nil?: false
+      zod "NestedZodSchemas.geoPoint"
+      valibot "NestedValibotSchemas.geoPoint"
+    end
   end
 end

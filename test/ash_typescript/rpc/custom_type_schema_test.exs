@@ -4,34 +4,32 @@
 
 defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   @moduledoc """
-  Tests validation-schema generation for hand-rolled custom Ash types
-  (`kind: :unknown`).
+  Tests validation-schema generation for custom Ash types.
 
-  An `Ash.Type.NewType` never reaches this path — it resolves to its subtype's
-  kind and carries its declared constraints through the normal dispatch. What
-  lands here is a hand-rolled `use Ash.Type` module, resolved in this order:
+  A hand-rolled `use Ash.Type` module (`kind: :unknown`) is resolved in this
+  order (D40):
 
-  1. `zod_mapping_overrides` / `valibot_mapping_overrides` config
-  2. the in-tree accept-lists (`simple_primitives`, `third_party_types`)
-  3. a schema derived from the type's `storage_type/1`
+  1. a `scalar` entry in the manifest's `custom_types` section: its `zod` /
+     `valibot`, else its base type;
+  2. the formatter's `simple_primitives`;
+  3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`);
+  4. a schema derived from the type's `storage_type/1`.
+
+  A declared custom type (a `:type_ref` to its definition) uses its `map`
+  entry's `zod` / `valibot` when it has one, else an object of its fields.
+  Variants of the test manifest go through `AshTypescript.with_manifest/2`.
   """
   use ExUnit.Case, async: false
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
-  setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :valibot_mapping_overrides,
-      :zod_mapping_overrides
-    ])
-  end
-
   alias Ash.Info.Manifest.Generator.TypeResolver
+  alias Ash.Info.Manifest.Type, as: SpecType
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
-  alias AshTypescript.Test.GeoPoint
+  alias AshTypescript.CustomTypes.{MapType, Scalar}
+  alias AshTypescript.Test.{ExternalCode, GeoPoint, Theme, ThemeMap}
   alias AshTypescript.Test.Todo.PriorityScore
+  alias AshTypescript.TypeSystem.Introspection
 
   defmodule IntegerStorageType do
     @moduledoc false
@@ -113,10 +111,41 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     def typescript_type_name, do: "OpaqueStorage"
   end
 
-  defp zod(type), do: SchemaCore.get_type(ZodSchemaGenerator, TypeResolver.resolve(type, []))
+  @doc false
+  # A `zod` / `valibot` MFA target: echoes the constraints it receives.
+  def echo_schema(constraints, tag), do: "#{tag}:#{inspect(constraints)}"
 
-  defp valibot(type),
-    do: SchemaCore.get_type(ValibotSchemaGenerator, TypeResolver.resolve(type, []))
+  @doc false
+  def non_string_schema(_constraints), do: :not_a_string
+
+  defp zod(type, constraints \\ []),
+    do: SchemaCore.get_type(ZodSchemaGenerator, TypeResolver.resolve(type, constraints))
+
+  defp valibot(type, constraints \\ []),
+    do: SchemaCore.get_type(ValibotSchemaGenerator, TypeResolver.resolve(type, constraints))
+
+  defp ref_zod(module),
+    do: SchemaCore.get_type(ZodSchemaGenerator, %SpecType{kind: :type_ref, module: module})
+
+  defp ref_valibot(module),
+    do: SchemaCore.get_type(ValibotSchemaGenerator, %SpecType{kind: :type_ref, module: module})
+
+  # Runs `fun` against a copy of the test manifest whose `custom_types`
+  # `kind` (`:declared` or `:builtin`) entries are updated by `update`.
+  defp with_entries(kind, update, fun) do
+    manifest = AshTypescript.manifest()
+
+    manifest =
+      update_in(manifest.custom.ash_typescript.custom_types, fn custom_types ->
+        Map.update!(custom_types, kind, update)
+      end)
+
+    AshTypescript.with_manifest(manifest, fun)
+  end
+
+  defp declare(entry, fun), do: with_entries(:declared, &Map.put(&1, entry.module, entry), fun)
+
+  defp regex(source), do: {Spark.Regex, :cache, [source, []]}
 
   describe "storage-derived fallback" do
     test "an integer-storage custom type validates as a number, not a string" do
@@ -146,66 +175,213 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
   end
 
-  describe "config overrides" do
-    setup do
-      # Restore rather than delete — config/config.exs sets these for the test
-      # env, and `delete_env` would wipe them for every later test.
-      zod_config = Application.get_env(:ash_typescript, :zod_mapping_overrides)
-      valibot_config = Application.get_env(:ash_typescript, :valibot_mapping_overrides)
+  describe "scalar entries" do
+    test "an entry's zod and valibot replace the storage-derived schema" do
+      entry = %Scalar{
+        module: IntegerStorageType,
+        type: Ash.Type.Integer,
+        zod: ~s{z.string().brand<"Id">()},
+        valibot: "v.string()"
+      }
 
-      on_exit(fn ->
-        Application.put_env(:ash_typescript, :zod_mapping_overrides, zod_config)
-        Application.put_env(:ash_typescript, :valibot_mapping_overrides, valibot_config)
+      declare(entry, fn ->
+        assert zod(IntegerStorageType) == ~s{z.string().brand<"Id">()}
+        assert valibot(IntegerStorageType) == "v.string()"
       end)
     end
 
-    test "an override replaces the storage-derived schema" do
-      Application.put_env(:ash_typescript, :zod_mapping_overrides, [
-        {IntegerStorageType, ~s{z.string().brand<"Id">()}}
-      ])
+    test "each library reads its own option" do
+      entry = %Scalar{module: IntegerStorageType, type: Ash.Type.Integer, zod: "z.string()"}
 
-      Application.put_env(:ash_typescript, :valibot_mapping_overrides, [
-        {IntegerStorageType, "v.string()"}
-      ])
-
-      assert zod(IntegerStorageType) == ~s{z.string().brand<"Id">()}
-      assert valibot(IntegerStorageType) == "v.string()"
+      declare(entry, fn ->
+        assert zod(IntegerStorageType) == "z.string()"
+        # No valibot schema: valibot maps the entry's base type.
+        assert valibot(IntegerStorageType) == "v.pipe(v.number(), v.integer())"
+      end)
     end
 
-    test "overrides are independent per library" do
-      Application.put_env(:ash_typescript, :zod_mapping_overrides, [
-        {IntegerStorageType, "z.string()"}
-      ])
+    test "an entry without a schema maps as its base type, not the storage type" do
+      entry = %Scalar{module: IntegerStorageType, type: Ash.Type.Boolean}
 
-      assert zod(IntegerStorageType) == "z.string()"
-      # Valibot has no override configured, so it keeps the storage-derived schema.
-      assert valibot(IntegerStorageType) == "v.pipe(v.number(), v.integer())"
+      declare(entry, fn ->
+        assert zod(IntegerStorageType) == "z.boolean()"
+        assert valibot(IntegerStorageType) == "v.boolean()"
+      end)
     end
 
-    test "an unrelated override does not leak onto other types" do
-      Application.put_env(:ash_typescript, :zod_mapping_overrides, [
-        {IntegerStorageType, "z.string()"}
-      ])
+    test "an entry with a match constraint gives the regex" do
+      entry = %Scalar{
+        module: IntegerStorageType,
+        type: Ash.Type.String,
+        constraints: [match: regex("^id-[0-9]+$"), max_length: 12]
+      }
 
-      assert zod(PriorityScore) == "z.number().int()"
+      declare(entry, fn ->
+        assert zod(IntegerStorageType) =~ "z.string()"
+        assert zod(IntegerStorageType) =~ ".max(12).regex(/^id-[0-9]+$/)"
+        assert valibot(IntegerStorageType) =~ "v.maxLength(12)"
+        assert valibot(IntegerStorageType) =~ "v.regex(/^id-[0-9]+$/)"
+      end)
     end
 
-    test "GeoPoint's override replaces a record schema it would otherwise get" do
-      # The contrast the generated-output tests rely on: clear the configured
-      # overrides and the map-storage fallback is all that's left.
-      Application.put_env(:ash_typescript, :zod_mapping_overrides, [])
-      Application.put_env(:ash_typescript, :valibot_mapping_overrides, [])
+    test "an MFA zod or valibot is called with the use's constraints" do
+      entry = %Scalar{
+        module: IntegerStorageType,
+        type: Ash.Type.Integer,
+        zod: {__MODULE__, :echo_schema, ["zod"]},
+        valibot: {__MODULE__, :echo_schema, ["valibot"]}
+      }
 
-      assert zod(GeoPoint) == "z.record(z.string(), z.any())"
-      assert valibot(GeoPoint) == "v.record(v.string(), v.any())"
+      declare(entry, fn ->
+        assert zod(IntegerStorageType, foo: 1) == "zod:[foo: 1]"
+        assert valibot(IntegerStorageType, foo: 1) == "valibot:[foo: 1]"
+      end)
     end
 
-    test "an override wins over an in-tree third-party mapping" do
-      Application.put_env(:ash_typescript, :zod_mapping_overrides, [
-        {AshDoubleEntry.ULID, "z.string().length(26)"}
-      ])
+    test "an MFA returning a non-string raises, naming the module and MFA" do
+      entry = %Scalar{
+        module: IntegerStorageType,
+        type: Ash.Type.Integer,
+        zod: {__MODULE__, :non_string_schema, []}
+      }
 
-      assert zod(AshDoubleEntry.ULID) == "z.string().length(26)"
+      declare(entry, fn ->
+        error = assert_raise ArgumentError, fn -> zod(IntegerStorageType) end
+        message = Exception.message(error)
+        assert message =~ "`zod`"
+        assert message =~ inspect(IntegerStorageType)
+        assert message =~ "AshTypescript.Rpc.CustomTypeSchemaTest.non_string_schema/1"
+        assert message =~ ":not_a_string"
+      end)
+    end
+
+    test "an entry is per module" do
+      entry = %Scalar{module: IntegerStorageType, type: Ash.Type.Integer, zod: "z.string()"}
+
+      declare(entry, fn -> assert zod(PriorityScore) == "z.number().int()" end)
+    end
+
+    test "the test manifest's MFA scalar (ExternalCode)" do
+      assert zod(ExternalCode) == ~s{z.string().startsWith("code-")}
+      assert valibot(ExternalCode) == ~s{v.pipe(v.string(), v.startsWith("code-"))}
+    end
+  end
+
+  describe "built-in scalars" do
+    test "ULID maps as its base type" do
+      assert zod(AshDoubleEntry.ULID) == "z.string()"
+      assert valibot(AshDoubleEntry.ULID) == "v.string()"
+    end
+
+    test "Ltree maps through the built-in's MFAs, per escape?" do
+      assert zod(AshPostgres.Ltree, escape?: true) == "z.array(z.string())"
+      assert zod(AshPostgres.Ltree) == "z.union([z.string(), z.array(z.string())])"
+      assert valibot(AshPostgres.Ltree, escape?: true) == "v.array(v.string())"
+      assert valibot(AshPostgres.Ltree) == "v.union([v.string(), v.array(v.string())])"
+    end
+
+    test "a manifest entry replaces the built-in" do
+      entry = %Scalar{
+        module: AshDoubleEntry.ULID,
+        type: Ash.Type.String,
+        zod: "z.string().length(26)"
+      }
+
+      declare(entry, fn ->
+        assert zod(AshDoubleEntry.ULID) == "z.string().length(26)"
+        # The built-in is replaced whole: valibot maps the entry's base type.
+        assert valibot(AshDoubleEntry.ULID) == "v.string()"
+      end)
+    end
+
+    test "typescript_type_name/0 doesn't replace a built-in's schema (D41)" do
+      entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, zod: "Builtin.score"}
+
+      with_entries(:builtin, &Map.put(&1, PriorityScore, entry), fn ->
+        assert zod(PriorityScore) == "Builtin.score"
+      end)
+    end
+  end
+
+  describe "map entries" do
+    test "GeoPoint's zod and valibot replace the object of its fields" do
+      assert ref_zod(GeoPoint) == "NestedZodSchemas.geoPoint"
+      assert ref_valibot(GeoPoint) == "NestedValibotSchemas.geoPoint"
+    end
+
+    test "without zod or valibot, the schema is an object of the fields" do
+      with_entries(
+        :declared,
+        &Map.update!(&1, GeoPoint, fn e -> %{e | zod: nil, valibot: nil} end),
+        fn ->
+          assert ref_zod(GeoPoint) == "z.object({ lat: z.number(), lng: z.number() })"
+          assert ref_valibot(GeoPoint) == "v.object({ lat: v.number(), lng: v.number() })"
+        end
+      )
+    end
+
+    test "a built-in map entry's zod applies to a declared custom type" do
+      entry = %MapType{module: Theme, fields: [], zod: {__MODULE__, :echo_schema, ["theme"]}}
+
+      with_entries(:builtin, &Map.put(&1, Theme, entry), fn ->
+        assert ref_zod(Theme) == "theme:[]"
+        assert ref_valibot(Theme) =~ "v.object({ color: "
+      end)
+    end
+
+    test "a type without an entry is an object of its fields" do
+      assert ref_zod(ThemeMap) =~ "z.object({ color: "
+    end
+  end
+
+  describe "constraints of a scalar member's base mapping (Decision 36)" do
+    # ExternalCode re-declared over :string with a regex: Theme is a declared
+    # custom type, so its member maps with its own (merged) constraints;
+    # ThemeMap isn't, so the entry's apply.
+    setup do
+      entry = %Scalar{
+        module: ExternalCode,
+        type: Ash.Type.String,
+        constraints: [match: regex("^code-"), max_length: 20]
+      }
+
+      %{entry: entry}
+    end
+
+    test "a member of a declared custom type uses its own constraints", %{entry: entry} do
+      declare(entry, fn ->
+        theme = merged_theme(match: regex("^code-[a-z]+$"), max_length: 8)
+        schema = SchemaCore.get_type(ZodSchemaGenerator, theme)
+
+        assert schema =~ "code: z.string().max(8).regex(/^code-[a-z]+$/)"
+        assert schema =~ "codes: z.array(z.string()"
+        refute schema =~ ".max(20)"
+      end)
+    end
+
+    test "a member of another typed map uses the entry's constraints", %{entry: entry} do
+      declare(entry, fn ->
+        schema = ref_zod(ThemeMap)
+
+        assert schema =~ "code: z.string().max(20).regex(/^code-/)"
+        assert schema =~ "codes: z.array(z.string().max(20).regex(/^code-/))"
+      end)
+    end
+  end
+
+  describe "scalar members carry the regex (D35)" do
+    test "in a declared custom type and a NewType over :map" do
+      for module <- [Theme, ThemeMap] do
+        assert ref_zod(module) =~ "color: z.string().min(1).regex(/^#[0-9a-fA-F]{6}$/)"
+        assert ref_valibot(module) =~ "v.regex(/^#[0-9a-fA-F]{6}$/)"
+      end
+    end
+  end
+
+  describe "SchemaFormatter.library/0" do
+    test "names each formatter's library" do
+      assert ZodSchemaGenerator.library() == :zod
+      assert ValibotSchemaGenerator.library() == :valibot
     end
   end
 
@@ -225,31 +401,45 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       refute content =~ "colorPalette: z.string()"
     end
 
-    test "configured overrides reach both generators", %{content: content} do
-      # AshTypescript.Test.CustomIdentifier has no `typescript_type_name`, so
-      # without the config overrides in config/config.exs it would fall through
-      # to `z.any()` / `v.any()` here.
+    test "a scalar entry's schemas reach both generators", %{content: content} do
+      # AshTypescript.Test.CustomIdentifier has no `typescript_type_name`; its
+      # `scalar` entry in the test manifest names schemas authored in TypeScript.
       assert content =~ "customId: CustomZodSchemas.objectId"
       assert content =~ "customId: v.optional(v.nullable(CustomValibotSchemas.objectId))"
       refute content =~ "customId: z.any()"
       refute content =~ "customId: v.any()"
     end
 
-    test "an override replaces a too-permissive storage-derived schema", %{content: content} do
-      # GeoPoint stores `:map`, so without its override it would generate the
-      # record schema below and accept a half-built point.
+    test "a map entry's schemas replace the object of its fields", %{content: content} do
+      # GeoPoint's fields would give a plain object of two numbers; its entry
+      # names a stricter schema with ranges.
       assert content =~ "geoPoint: NestedZodSchemas.geoPoint"
       assert content =~ "geoPoint: v.optional(v.nullable(NestedValibotSchemas.geoPoint))"
       refute content =~ "geoPoint: z.record(z.string(), z.any())"
-      refute content =~ "geoPoint: v.record(v.string(), v.any())"
+      refute content =~ "geoPoint: z.object("
     end
 
-    test "an override may name a schema from a user-authored file", %{content: content} do
-      # The override is only usable if the schema file also imports it —
+    test "a schema may come from a user-authored file", %{content: content} do
+      # The schema is only usable if the schema file also imports it —
       # otherwise the generated TypeScript references an undefined name.
       assert content =~ ~s{import * as CustomZodSchemas from "./customZodSchemas";}
       assert content =~ ~s{import * as CustomValibotSchemas from "./customValibotSchemas";}
     end
+  end
+
+  # Theme's decorated definition with its `code` member's constraints set to
+  # `constraints`, as a DSL `map` field typed by a declared scalar carries
+  # them (merged over the scalar's).
+  defp merged_theme(constraints) do
+    theme = Introspection.named_type_definition(Theme)
+
+    fields =
+      Enum.map(theme.fields, fn
+        %{name: :code, type: type} = field -> %{field | type: %{type | constraints: constraints}}
+        field -> field
+      end)
+
+    %{theme | fields: fields}
   end
 
   describe "per-library schema imports" do
