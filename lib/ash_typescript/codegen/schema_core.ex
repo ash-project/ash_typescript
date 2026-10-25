@@ -74,9 +74,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # accepts — independent of the field's nilability.
   #
   # `custom_fields?` is true for a member of a declared custom type's
-  # definition (Decision 36): a scalar entry's base mapping then uses the
-  # member's own constraints. It follows arrays, and nested containers set
-  # their own.
+  # definition: a scalar entry's base mapping then uses the member's own
+  # constraints. It follows arrays, and nested containers set their own.
   defp map_spec_type(formatter, type_info, custom_fields? \\ false)
 
   defp map_spec_type(_formatter, nil, _custom_fields?), do: nil
@@ -150,15 +149,31 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   # A declared custom type's `map` entry (the manifest's, else the built-in)
   # replaces the object of its fields with its `zod` / `valibot`, when it has
-  # one for this formatter's library.
+  # one for this formatter's library. A NewType that inherits its subtype's
+  # fields (no entry or `typescript_fields/0` of its own) inherits its
+  # subtype's entry too.
   defp map_entry_schema(formatter, %SpecType{module: module} = type_info) do
-    case Custom.custom_type_entry(nil, module) do
+    case map_entry(module) do
       %MapType{} = entry -> CustomTypes.mapping(entry, formatter.library(), type_info.constraints)
       _ -> nil
     end
   end
 
-  # Handles `:unknown` kinds — hand-rolled `use Ash.Type` modules (D40):
+  defp map_entry(module) do
+    case Custom.custom_type_entry(nil, module) do
+      nil -> if inherits_fields?(module), do: Custom.custom_type_entry(nil, subtype(module))
+      entry -> entry
+    end
+  end
+
+  defp inherits_fields?(module) do
+    Code.ensure_loaded?(module) and Ash.Type.NewType.new_type?(module) and
+      not function_exported?(module, :typescript_fields, 0) and subtype(module) != module
+  end
+
+  defp subtype(module), do: Ash.Type.NewType.subtype_of(module)
+
+  # Handles `:unknown` kinds — hand-rolled `use Ash.Type` modules:
   #
   #   1. a `scalar` entry in the manifest's `custom_types` section;
   #   2. the formatter's `simple_primitives`;
@@ -170,7 +185,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # An `Ash.Type.NewType` resolves to its subtype's kind (or a `:type_ref`)
   # and carries its declared constraints through the normal dispatch, so it
   # never lands here. `typescript_type_name/0` has no schema counterpart, so it
-  # doesn't replace a built-in's schema (D41).
+  # doesn't replace a built-in's schema.
   defp map_unknown_module(formatter, %SpecType{module: module} = type_info, custom_fields?) do
     cond do
       match?(%Scalar{}, entry = Custom.declared_custom_type(nil, module)) ->
@@ -192,7 +207,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   # The entry's `zod` / `valibot` (an MFA gets the node's constraints), else
   # its base type with the entry's constraints, or the node's for a member of
-  # a declared custom type (Decision 36).
+  # a declared custom type (whose definition carries them merged).
   defp scalar_schema(formatter, %Scalar{} = entry, type_info, custom_fields?) do
     case CustomTypes.mapping(entry, formatter.library(), type_info.constraints) do
       nil ->

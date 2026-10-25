@@ -134,6 +134,52 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     use Ash.Type.NewType, subtype_of: AshTypescript.CustomTypes.FieldsForTest.Composite
   end
 
+  defmodule ScalarFields do
+    @moduledoc false
+    use MapStorage
+
+    def typescript_fields,
+      do: [
+        code: [
+          type: AshTypescript.CustomTypes.FieldsForTest.Scalarish,
+          constraints: [max_length: 8]
+        ],
+        codes: [type: {:array, AshTypescript.CustomTypes.FieldsForTest.Scalarish}],
+        label: [type: :string]
+      ]
+  end
+
+  defmodule NewOverScalarFields do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshTypescript.CustomTypes.FieldsForTest.ScalarFields
+  end
+
+  defmodule CompositeScalar do
+    @moduledoc false
+    use Ash.Type
+
+    @impl true
+    def storage_type(_), do: :map
+    @impl true
+    def cast_input(value, _), do: {:ok, value}
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
+    @impl true
+    def composite?(_), do: true
+    @impl true
+    def composite_types(_),
+      do: [{:code, AshTypescript.CustomTypes.FieldsForTest.Scalarish, [max_length: 3]}]
+  end
+
+  defmodule NotAList do
+    @moduledoc false
+    use MapStorage
+
+    def typescript_fields, do: :not_a_list
+  end
+
   defp builtin, do: Map.new(Builtin.entries(), &{&1.module, &1})
 
   defp map_entry(module, fields), do: %MapType{module: module, fields: fields}
@@ -292,6 +338,76 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     test "a NewType over a composite type gets its composite_types/1 fields" do
       assert CustomTypes.fields_for(T.NewOverComposite, %{}, builtin()) ==
                CustomTypes.fields_for(T.Composite, %{}, builtin())
+    end
+  end
+
+  describe "fields typed by a scalar entry" do
+    # The scalar's constraints go under the field's (the field winning per
+    # key, under `items:` for an array), whichever source supplies the fields.
+    setup do
+      regex = {Spark.Regex, :cache, ["^code-", []]}
+
+      scalar = %Scalar{
+        module: T.Scalarish,
+        type: Ash.Type.String,
+        constraints: [match: regex, max_length: 20]
+      }
+
+      %{scalar: scalar, regex: regex}
+    end
+
+    test "typescript_fields/0, and a NewType inheriting them", %{scalar: scalar, regex: regex} do
+      declared = %{T.Scalarish => scalar}
+
+      expected = [
+        code: [type: T.Scalarish, constraints: [match: regex, max_length: 8]],
+        codes: [
+          type: {:array, T.Scalarish},
+          constraints: [items: [match: regex, max_length: 20]]
+        ],
+        label: [type: :string]
+      ]
+
+      assert CustomTypes.fields_for(T.ScalarFields, declared, builtin()) == expected
+      assert CustomTypes.fields_for(T.NewOverScalarFields, declared, builtin()) == expected
+    end
+
+    test "composite_types/1, with a built-in scalar entry", %{scalar: scalar, regex: regex} do
+      builtin = Map.put(builtin(), T.Scalarish, scalar)
+
+      assert CustomTypes.fields_for(T.CompositeScalar, %{}, builtin) == [
+               code: [
+                 type: T.Scalarish,
+                 constraints: [match: regex, max_length: 3],
+                 allow_nil?: false
+               ]
+             ]
+    end
+
+    test "a built-in map entry's fields", %{scalar: scalar, regex: regex} do
+      builtin =
+        builtin()
+        |> Map.put(T.Scalarish, scalar)
+        |> Map.put(T.NamesOnly, map_entry(T.NamesOnly, [%Field{name: :x, type: T.Scalarish}]))
+
+      assert CustomTypes.fields_for(T.NamesOnly, %{}, builtin) == [
+               x: [
+                 type: T.Scalarish,
+                 constraints: [match: regex, max_length: 20],
+                 allow_nil?: true
+               ]
+             ]
+    end
+
+    test "fields without a scalar entry are left as declared" do
+      assert CustomTypes.fields_for(T.ScalarFields, %{}, builtin()) ==
+               T.ScalarFields.typescript_fields()
+    end
+  end
+
+  describe "a malformed typescript_fields/0 result" do
+    test "is passed through for ash_rpc to report" do
+      assert CustomTypes.fields_for(T.NotAList, %{}, builtin()) == :not_a_list
     end
   end
 

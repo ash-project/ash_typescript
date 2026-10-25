@@ -24,6 +24,13 @@ defmodule AshTypescript.CustomTypes do
        over its subtype's);
     6. otherwise `nil`.
 
+  Whichever step supplies them, a field typed by a module with a `scalar`
+  entry (the manifest's, else a built-in) gets the entry's constraints merged
+  under its own (`Keyword.merge/2`, the field winning per key; under `items:`
+  for an array). A `typescript_fields/0` result that isn't a list of
+  `{name, opts}` specs is passed on as it is, for ash_rpc's decoration to
+  reject with an `ArgumentError` naming the module.
+
   `AshTypescript.Manifest.Transformers.DecorateManifest` passes the manifest's
   entries and the built-ins; `AshTypescript.RpcMappingSource` passes only the
   built-ins.
@@ -50,30 +57,27 @@ defmodule AshTypescript.CustomTypes do
     specs
   end
 
-  @doc """
-  The `custom_type_fields:` closure over persisted `custom_types`
-  (`%{declared: …, builtin: …}`), or over the built-ins alone for `nil`.
-  """
+  @doc false
+  # The `custom_type_fields:` closure over persisted `custom_types`
+  # (`%{declared: …, builtin: …}`), or over the built-ins alone for `nil`.
   @spec fields_fun(%{declared: entries(), builtin: entries()} | nil) :: fields_fun()
   def fields_fun(%{declared: declared, builtin: builtin}), do: &fields_for(&1, declared, builtin)
   def fields_fun(nil), do: fields_fun(%{declared: %{}, builtin: Builtin.by_module()})
 
-  @doc """
-  The hint closure over persisted `custom_types` (`%{declared: …, builtin: …}`),
-  or over the built-ins alone for `nil`: `hint/3` as a function of the module,
-  for ash_rpc's `custom_type_fields_hint:` and `hint:` options.
-  """
+  @doc false
+  # The hint closure over persisted `custom_types` (`%{declared: …, builtin: …}`),
+  # or over the built-ins alone for `nil`: `hint/3` as a function of the module,
+  # for ash_rpc's `custom_type_fields_hint:` and `hint:` options.
   @spec hint_fun(%{declared: entries(), builtin: entries()} | nil) :: (module() -> String.t())
   def hint_fun(%{declared: declared, builtin: builtin}), do: &hint(&1, declared, builtin)
   def hint_fun(nil), do: hint_fun(%{declared: %{}, builtin: Builtin.by_module()})
 
-  @doc """
-  The type modules whose `typescript_fields/0` or `composite_types/1`
-  supplied the fields of a declared custom type in `manifest.types`
-  (`AshRpc.Manifest.Custom.custom_type?/1`), plus a NewType's subtype when the
-  fields came from it. The manifest module recompiles when one of them does.
-  Fields from manifest entries and built-ins need no dependency.
-  """
+  @doc false
+  # The type modules whose `typescript_fields/0` or `composite_types/1`
+  # supplied the fields of a declared custom type in `manifest.types`
+  # (`AshRpc.Manifest.Custom.custom_type?/1`), plus a NewType's subtype when the
+  # fields came from it. The manifest module recompiles when one of them does.
+  # Fields from manifest entries and built-ins need no dependency.
   @spec compile_dependencies(Manifest.t(), entries(), entries()) :: [module()]
   def compile_dependencies(%Manifest{types: types}, declared, builtin) do
     types
@@ -112,13 +116,12 @@ defmodule AshTypescript.CustomTypes do
     end
   end
 
-  @doc """
-  An entry's `key` mapping (`:typescript`, `:zod` or `:valibot`) for a use
-  with `constraints`: the string as given, the MFA's result
-  (`apply(m, f, [constraints | a])`), or `nil` when the entry has none.
-  Raises `ArgumentError`, naming the option, the MFA and the module, when an
-  MFA returns anything but a string.
-  """
+  @doc false
+  # An entry's `key` mapping (`:typescript`, `:zod` or `:valibot`) for a use
+  # with `constraints`: the string as given, the MFA's result
+  # (`apply(m, f, [constraints | a])`), or `nil` when the entry has none.
+  # Raises `ArgumentError`, naming the option, the MFA and the module, when an
+  # MFA returns anything but a string.
   @spec mapping(Scalar.t() | MapType.t(), :typescript | :zod | :valibot, Keyword.t() | nil) ::
           String.t() | nil
   def mapping(entry, key, constraints) do
@@ -128,11 +131,10 @@ defmodule AshTypescript.CustomTypes do
     end
   end
 
-  @doc """
-  A `scalar` entry's base type for a use, resolved to a manifest type: with
-  the entry's constraints, or with the use's for a member of a declared
-  custom type's definition (`custom_fields?`, Decision 36).
-  """
+  @doc false
+  # A `scalar` entry's base type for a use, resolved to a manifest type: with
+  # the entry's constraints, or with the use's for a member of a declared
+  # custom type's definition (`custom_fields?`).
   @spec base_type(Scalar.t(), Keyword.t() | nil, boolean()) :: Manifest.Type.t()
   def base_type(%Scalar{} = entry, use_constraints, custom_fields?) do
     constraints = if custom_fields?, do: use_constraints || [], else: entry.constraints
@@ -155,11 +157,14 @@ defmodule AshTypescript.CustomTypes do
 
   # {specs | nil, dependencies}
   defp resolve(module, declared, builtin) do
-    case own(module, module, declared, builtin) do
-      {:fields, specs, dependencies} -> {specs, dependencies}
-      :scalar -> {nil, []}
-      :none -> inherited(module, declared, builtin)
-    end
+    {specs, dependencies} =
+      case own(module, module, declared, builtin) do
+        {:fields, specs, dependencies} -> {specs, dependencies}
+        :scalar -> {nil, []}
+        :none -> inherited(module, declared, builtin)
+      end
+
+    {merge_scalar_constraints(specs, declared, builtin), dependencies}
   end
 
   defp inherited(module, declared, builtin) do
@@ -192,8 +197,7 @@ defmodule AshTypescript.CustomTypes do
   defp callback_or_builtin(module, names, builtin) do
     cond do
       exports?(module, :typescript_fields, 0) ->
-        specs = Enum.map(module.typescript_fields(), &name_spec(&1, names))
-        {:fields, specs, [module]}
+        {:fields, name_specs(module.typescript_fields(), names), [module]}
 
       match?(%MapType{}, Map.get(builtin, module)) ->
         %MapType{fields: fields} = Map.fetch!(builtin, module)
@@ -238,7 +242,64 @@ defmodule AshTypescript.CustomTypes do
     {field.name, opts}
   end
 
-  defp name_spec({name, opts}, names), do: {name, put_present(opts, :client_name, names[name])}
+  # A malformed result is passed through, for ash_rpc's decoration to report.
+  defp name_specs(specs, names) when is_list(specs), do: Enum.map(specs, &name_spec(&1, names))
+  defp name_specs(other, _names), do: other
+
+  defp name_spec({name, opts}, names) when is_list(opts),
+    do: {name, put_present(opts, :client_name, names[name])}
+
+  defp name_spec(other, _names), do: other
+
+  # A field typed by a module with a `scalar` entry (declared, else built-in)
+  # gets the entry's constraints under its own, the field winning per key
+  # (under `items:` for an array), as a DSL `map` field does. Fields without
+  # one are left as declared.
+  defp merge_scalar_constraints(specs, declared, builtin) when is_list(specs) do
+    Enum.map(specs, fn
+      {name, opts} = spec when is_list(opts) ->
+        with true <- Keyword.keyword?(opts),
+             {:ok, type} <- Keyword.fetch(opts, :type),
+             merged when not is_nil(merged) <-
+               merged_constraints(type, opts[:constraints] || [], declared, builtin) do
+          {name, put_constraints(opts, merged)}
+        else
+          _ -> spec
+        end
+
+      spec ->
+        spec
+    end)
+  end
+
+  defp merge_scalar_constraints(specs, _declared, _builtin), do: specs
+
+  # The merged constraints, or nil when no scalar entry changes them.
+  defp merged_constraints({:array, inner}, constraints, declared, builtin)
+       when is_list(constraints) do
+    case merged_constraints(inner, Keyword.get(constraints, :items, []), declared, builtin) do
+      nil -> nil
+      items -> Keyword.put(constraints, :items, items)
+    end
+  end
+
+  defp merged_constraints(type, constraints, declared, builtin)
+       when is_atom(type) and is_list(constraints) do
+    with %Scalar{constraints: [_ | _] = scalar} <- entry(type, declared, builtin),
+         merged when merged != constraints <- Keyword.merge(scalar, constraints) do
+      merged
+    else
+      _ -> nil
+    end
+  end
+
+  defp merged_constraints(_type, _constraints, _declared, _builtin), do: nil
+
+  defp put_constraints(opts, constraints) do
+    if Keyword.has_key?(opts, :constraints),
+      do: Keyword.replace!(opts, :constraints, constraints),
+      else: opts ++ [constraints: constraints]
+  end
 
   defp composite_spec({name, _storage_key, type, constraints}, names),
     do: composite_spec({name, type, constraints}, names)

@@ -111,6 +111,18 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     def typescript_type_name, do: "OpaqueStorage"
   end
 
+  defmodule NewGeoPoint do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshTypescript.Test.GeoPoint
+  end
+
+  defmodule NewGeoPointWithFields do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshTypescript.Test.GeoPoint
+
+    def typescript_fields, do: [x: [type: :integer]]
+  end
+
   @doc false
   # A `zod` / `valibot` MFA target: echoes the constraints it receives.
   def echo_schema(constraints, tag), do: "#{tag}:#{inspect(constraints)}"
@@ -329,38 +341,78 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       end)
     end
 
+    test "a NewType over a type with a map entry inherits its zod and valibot" do
+      assert ref_zod(NewGeoPoint) == "NestedZodSchemas.geoPoint"
+      assert ref_valibot(NewGeoPoint) == "NestedValibotSchemas.geoPoint"
+    end
+
+    test "a NewType's own map entry wins over its subtype's" do
+      entry = %MapType{module: NewGeoPoint, fields: [], zod: "Own.geo", valibot: "Own.vgeo"}
+
+      declare(entry, fn ->
+        assert ref_zod(NewGeoPoint) == "Own.geo"
+        assert ref_valibot(NewGeoPoint) == "Own.vgeo"
+      end)
+    end
+
+    test "a NewType declaring its own fields doesn't inherit its subtype's schema" do
+      # Its schema is the object of its own fields, read from its definition,
+      # which this manifest doesn't have.
+      assert_raise ArgumentError, ~r/NewGeoPointWithFields is not in the manifest/, fn ->
+        ref_zod(NewGeoPointWithFields)
+      end
+    end
+
     test "a type without an entry is an object of its fields" do
       assert ref_zod(ThemeMap) =~ "z.object({ color: "
     end
   end
 
-  describe "constraints of a scalar member's base mapping (Decision 36)" do
-    # ExternalCode re-declared over :string with a regex: Theme is a declared
-    # custom type, so its member maps with its own (merged) constraints;
-    # ThemeMap isn't, so the entry's apply.
+  describe "constraints of a scalar member's base mapping" do
+    # ExternalCode re-declared over :string with a regex and no schemas. Theme
+    # is a declared custom type: decoration merged the entry's constraints
+    # into its members, which map with them. ThemeMap isn't one, so the
+    # entry's constraints apply at the use.
     setup do
-      entry = %Scalar{
-        module: ExternalCode,
-        type: Ash.Type.String,
-        constraints: [match: regex("^code-"), max_length: 20]
-      }
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          body:
+            quote do
+              custom_types do
+                scalar AshTypescript.Test.CustomIdentifier, :string do
+                  zod "CustomZodSchemas.objectId"
+                  valibot "CustomValibotSchemas.objectId"
+                end
 
-      %{entry: entry}
+                scalar AshTypescript.Test.ExternalCode, :string,
+                  constraints: [match: ~r/^code-/, max_length: 20]
+
+                map AshTypescript.Test.GeoPoint do
+                  field :lat, :float, allow_nil?: false
+                  field :lng, :float, allow_nil?: false
+                end
+              end
+            end
+        )
+
+      %{manifest: manifest}
     end
 
-    test "a member of a declared custom type uses its own constraints", %{entry: entry} do
-      declare(entry, fn ->
-        theme = merged_theme(match: regex("^code-[a-z]+$"), max_length: 8)
-        schema = SchemaCore.get_type(ZodSchemaGenerator, theme)
+    test "a member of a declared custom type maps with its merged constraints", %{
+      manifest: manifest
+    } do
+      AshTypescript.with_manifest(manifest, fn ->
+        code = Enum.find(Introspection.named_type_definition(Theme).fields, &(&1.name == :code))
+        assert Keyword.get(code.type.constraints, :max_length) == 20
 
-        assert schema =~ "code: z.string().max(8).regex(/^code-[a-z]+$/)"
-        assert schema =~ "codes: z.array(z.string()"
-        refute schema =~ ".max(20)"
+        schema = ref_zod(Theme)
+        assert schema =~ "code: z.string().max(20).regex(/^code-/)"
+        assert schema =~ "codes: z.array(z.string().max(20).regex(/^code-/))"
       end)
     end
 
-    test "a member of another typed map uses the entry's constraints", %{entry: entry} do
-      declare(entry, fn ->
+    test "a member of another typed map uses the entry's constraints", %{manifest: manifest} do
+      AshTypescript.with_manifest(manifest, fn ->
         schema = ref_zod(ThemeMap)
 
         assert schema =~ "code: z.string().max(20).regex(/^code-/)"
@@ -425,21 +477,6 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       assert content =~ ~s{import * as CustomZodSchemas from "./customZodSchemas";}
       assert content =~ ~s{import * as CustomValibotSchemas from "./customValibotSchemas";}
     end
-  end
-
-  # Theme's decorated definition with its `code` member's constraints set to
-  # `constraints`, as a DSL `map` field typed by a declared scalar carries
-  # them (merged over the scalar's).
-  defp merged_theme(constraints) do
-    theme = Introspection.named_type_definition(Theme)
-
-    fields =
-      Enum.map(theme.fields, fn
-        %{name: :code, type: type} = field -> %{field | type: %{type | constraints: constraints}}
-        field -> field
-      end)
-
-    %{theme | fields: fields}
   end
 
   describe "per-library schema imports" do
