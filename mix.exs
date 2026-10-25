@@ -166,6 +166,8 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.TypedController.Dsl)},
         {"documentation/dsls/DSL-AshTypescript.TypedChannel.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.TypedChannel.Dsl)},
+        {"documentation/dsls/DSL-AshTypescript.Manifest.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.Manifest.Dsl)},
 
         # About
         "CHANGELOG.md"
@@ -247,9 +249,9 @@ defmodule AshTypescript.MixProject do
       sync_usage_rules: ["usage_rules.sync"],
       credo: "credo --strict",
       "spark.formatter":
-        "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl",
+        "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl,AshTypescript.Manifest.Dsl",
       "spark.cheat_sheets":
-        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl"
+        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl,AshTypescript.Manifest.Dsl"
     ]
   end
 end

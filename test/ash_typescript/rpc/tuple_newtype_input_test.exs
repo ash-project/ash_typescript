@@ -146,20 +146,20 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
       assert Keyword.has_key?(fields, :is_verified?)
     end
 
-    test "LocationTuple rejects map input - requires actual tuple" do
+    test "LocationTuple casts map input keyed by field name, and tuples" do
       type = AshTypescript.Test.InputParsing.LocationTuple
       {:ok, constraints} = Ash.Type.init(type, [])
 
-      # Maps are NOT valid input for tuple types - must be actual tuples
-      # The RPC pipeline's convert_map_to_tuple handles this conversion
+      # Ash casts a map keyed by the tuple's field names (atom or string keys)
+      # into the tuple, in field order. The RPC pipeline's convert_map_to_tuple
+      # still maps client names to those field names first.
       map_inputs = [
         %{lat_1: 37.7749, lng_1: -122.4194, is_verified?: true},
         %{"lat_1" => 37.7749, "lng_1" => -122.4194, "is_verified?" => true}
       ]
 
       for input <- map_inputs do
-        result = Ash.Type.cast_input(type, input, constraints)
-        assert {:error, _} = result, "Expected map input to be rejected"
+        assert {:ok, {37.7749, -122.4194, true}} = Ash.Type.cast_input(type, input, constraints)
       end
 
       # Actual tuple should work
@@ -167,8 +167,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
       assert is_tuple(cast_value)
     end
 
-    test "direct Ash.Type.Tuple cast with inline constraints - requires actual tuple" do
-      # Ash.Type.Tuple.cast_input expects an actual Elixir tuple, not a map
+    test "direct Ash.Type.Tuple cast with inline constraints casts a tuple" do
       constraints = [
         fields: [
           lat_1: [type: :float, allow_nil?: false],
@@ -177,7 +176,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
         ]
       ]
 
-      # Input must be an actual Elixir tuple in field order
+      # A tuple in field order
       input = {37.7749, -122.4194, true}
 
       result = Ash.Type.cast_input(Ash.Type.Tuple, input, constraints)
