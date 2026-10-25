@@ -742,5 +742,42 @@ defmodule AshTypescript.Manifest.PlainDataTest do
       assert message =~ "returns an untyped struct, #{inspect(T.PlainToken)}, at returns."
       refute message =~ "`instance_of` an Ash resource"
     end
+
+    test "on a route argument, with the resource alternative" do
+      # Arguments are outside the plain-data rule and may be resources.
+      controller = Module.concat(T, ArgumentPlainToken)
+
+      {error, message} =
+        rejected!(fn ->
+          Module.create(
+            controller,
+            quote do
+              use AshTypescript.TypedController
+
+              typed_controller do
+                module_name AshTypescript.Manifest.PlainDataTest.ArgumentPlainToken.Controller
+
+                post :save do
+                  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+
+                  argument :token, :struct,
+                    constraints: [instance_of: AshTypescript.Manifest.PlainDataTest.PlainToken]
+                end
+              end
+            end,
+            Macro.Env.location(__ENV__)
+          )
+
+          compile_manifest!(ArgumentPlainTokenManifest, [typed_controllers: [controller]], nil)
+        end)
+
+      assert error.path == [:typed_controller, :save]
+
+      assert message =~
+               "#{inspect(controller)} route :save accepts an untyped struct, " <>
+                 "#{inspect(T.PlainToken)}, at argument :token."
+
+      assert message =~ "* `instance_of` an Ash resource"
+    end
   end
 end

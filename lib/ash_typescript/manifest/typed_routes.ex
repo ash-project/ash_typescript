@@ -137,7 +137,8 @@ defmodule AshTypescript.Manifest.TypedRoutes do
           "#{inspect(route.source_module)} route #{inspect(route.name)} #{verb} " <>
             AshRpc.Manifest.UntypedStructError.details(type, path,
               hint: hint,
-              allow_resource?: false
+              # Arguments are outside the plain-data rule and may be resources.
+              allow_resource?: verb == "accepts"
             )
     end
   end
