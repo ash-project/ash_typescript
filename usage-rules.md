@@ -383,7 +383,7 @@ for (const action of manifest.actions) {
 | Route hooks not firing | Check `typed_controller_import_into_generated` + hook names |
 | Typed channel event not found | Event name must match `event:` option on resource's `pub_sub` publication |
 | Duplicate channel event names | Use unique event names across all resources in one channel |
-| Manifest compile error "publication ... has no `returns`" | Use `transform :some_calc` (an `:auto` map calculation) on the publication, or add explicit `returns: :map` with `fields` |
+| Manifest compile error "publication ... has no `returns`" | Use `transform :some_calc` (an `:auto` map calculation) on the publication, or add explicit `returns: :map` with `fields` and a `transform:` function |
 | Manifest compile error "... which is not a typed map" / "returns untyped data" | Channel payloads are typed maps: `returns: :map` with `fields`, and put the value in a field |
 | Manifest compile error "... returns a resource / an embedded resource / a union / a recursive type, at <path>" | Route and publication `returns` are plain data: a typed map built from the record, a field per union variant, a fixed depth for recursion |
 | "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |

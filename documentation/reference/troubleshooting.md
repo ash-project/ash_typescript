@@ -620,7 +620,7 @@ end
 
 **Cause:** Every publication a typed channel declares needs a `returns` that is a typed map, checked when the manifest module compiles. The publication has neither a calculation `transform` nor an explicit `returns`.
 
-**Solution:** Use `transform :some_calc` with an `:auto` map calculation (recommended, Ash derives `returns`), or set `returns: :map` with `constraints: [fields: [...]]` on the publication.
+**Solution:** Use `transform :some_calc` with an `:auto` map calculation (recommended, Ash derives `returns`), or set `returns: :map` with `constraints: [fields: [...]]` together with a `transform:` function that builds the map (Ash requires a `transform` whenever `returns` is set).
 
 #### Error: "publication ... returns X, which is not a typed map" / "returns untyped data"
 

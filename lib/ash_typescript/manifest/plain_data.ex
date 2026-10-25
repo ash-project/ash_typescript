@@ -36,9 +36,9 @@ defmodule AshTypescript.Manifest.PlainData do
     raise_publication!(
       publication,
       "has no `returns`.\n\n" <>
-        "Channel payloads are typed maps. Set `returns:` with `constraints`, or " <>
-        "`transform:` a calculation typed as a map (an `:auto` calculation over " <>
-        "`expr(%{title: title})`, for example)."
+        "Channel payloads are typed maps. `transform:` a calculation typed as a map " <>
+        "(an `:auto` calculation over `expr(%{title: title})`, for example), or set " <>
+        "`returns:` with `constraints` together with a `transform:` function."
     )
   end
 

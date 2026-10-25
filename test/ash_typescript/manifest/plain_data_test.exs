@@ -24,7 +24,7 @@ defmodule AshTypescript.Manifest.PlainDataTest do
   @cycle_hint "Expand it to a fixed depth or send an untyped `:map` field."
   @non_map_hint "Phoenix only pushes JSON objects."
   @untyped_hint "Declare its `fields`"
-  @no_returns_hint "Set `returns:` with `constraints`, or `transform:` a calculation typed as a map"
+  @no_returns_hint "set `returns:` with `constraints` together with a `transform:` function"
 
   defmodule Node do
     @moduledoc false
