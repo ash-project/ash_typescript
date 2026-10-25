@@ -42,7 +42,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   defp ts(type, constraints \\ []),
     do: Codegen.get_ts_type(%{type: type, constraints: constraints})
 
-  describe "scalar entries (D40)" do
+  describe "scalar entries" do
     test "CustomIdentifier's manifest scalar maps it as its base type", %{content: content} do
       assert content =~ "customId: string | null;"
       assert ts(CustomIdentifier) == "string"
@@ -82,7 +82,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "the order of TypeScript mappings for a scalar (Decision 20)" do
+  describe "the order of TypeScript mappings for a scalar" do
     test "a manifest scalar's typescript beats typescript_type_name/0" do
       entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, typescript: "number"}
 
@@ -138,7 +138,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "constraints of a scalar's base mapping (Decision 36)" do
+  describe "constraints of a scalar's base mapping" do
     setup do
       entry = %Scalar{
         module: CustomIdentifier,
@@ -167,7 +167,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "constraints of a scalar member's base mapping (Decision 36)" do
+  describe "constraints of a scalar member's base mapping" do
     # ExternalCode re-declared over :atom with `one_of`: Theme's `code` field
     # (no constraints of its own) is a member of a declared custom type, so it
     # maps with its own constraints; ThemeMap's isn't, so the entry's apply.
@@ -219,7 +219,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "scalar members keep their own mapping (D35, D40)" do
+  describe "scalar members keep their own mapping" do
     @theme_result ~s({color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: `code-${string}`, codes: Array<`code-${string}`> | null, __type: "TypedMap", __primitiveFields: "color" | "accent" | "score" | "code" | "codes"} | null;)
     @theme_input ~s({color: `#${string}`, accent?: `#${string}` | null, score?: CustomTypes.PriorityScore | null, code: `code-${string}`, codes?: Array<`code-${string}`> | null} | null;)
 
@@ -240,7 +240,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "built-in scalars without aliases (D33)" do
+  describe "built-in scalars without aliases" do
     test "no ULID, Ltree or Money alias is generated" do
       aliases =
         Codegen.generate_ash_type_aliases([AshTypescript.Test.Task, AshTypescript.Test.Todo])

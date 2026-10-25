@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   Tests validation-schema generation for custom Ash types.
 
   A hand-rolled `use Ash.Type` module (`kind: :unknown`) is resolved in this
-  order (D40):
+  order:
 
   1. a `scalar` entry in the manifest's `custom_types` section: its `zod` /
      `valibot`, else its base type;
@@ -306,7 +306,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       end)
     end
 
-    test "typescript_type_name/0 doesn't replace a built-in's schema (D41)" do
+    test "typescript_type_name/0 doesn't replace a built-in's schema" do
       entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, zod: "Builtin.score"}
 
       with_entries(:builtin, &Map.put(&1, PriorityScore, entry), fn ->
@@ -421,7 +421,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
   end
 
-  describe "scalar members carry the regex (D35)" do
+  describe "scalar members carry the regex" do
     test "in a declared custom type and a NewType over :map" do
       for module <- [Theme, ThemeMap] do
         assert ref_zod(module) =~ "color: z.string().min(1).regex(/^#[0-9a-fA-F]{6}$/)"
