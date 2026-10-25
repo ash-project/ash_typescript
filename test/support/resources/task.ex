@@ -72,6 +72,18 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    # Scalar members with their own TypeScript mapping, in a declared custom
+    # type and in a NewType over :map with fields.
+    attribute :theme, AshTypescript.Test.Theme do
+      allow_nil? true
+      public? true
+    end
+
+    attribute :theme_map, AshTypescript.Test.ThemeMap do
+      allow_nil? true
+      public? true
+    end
+
     timestamps()
   end
 
@@ -191,7 +203,7 @@ defmodule AshTypescript.Test.Task do
     end
 
     create :create do
-      accept [:title, :price, :custom_id, :geo_point]
+      accept [:title, :price, :custom_id, :geo_point, :theme, :theme_map]
       primary? true
       metadata :some_string, :string, allow_nil?: false
       metadata :some_number, :integer, allow_nil?: false

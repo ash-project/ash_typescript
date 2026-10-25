@@ -9,11 +9,12 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
   The manifest generator classifies custom `use Ash.Type` modules it cannot
   categorize as `kind: :unknown` (module preserved). Codegen can only map such
-  a module when it implements `typescript_type_name/0`, has a
-  `type_mapping_overrides` config entry, or is a known third-party type (see
-  `AshTypescript.Codegen.TypeMapper.unknown_module_mapping/1`). Anything else
+  a module when it implements `typescript_type_name/0`, has a `scalar` entry
+  in the manifest module's `custom_types` section, or has a built-in one (see
+  `AshTypescript.Codegen.TypeMapper.unknown_module_mapping/2`). Anything else
   fails codegen; this verifier surfaces all offenders at compile time in one
-  aggregated error instead of a mid-codegen raise on the first one.
+  aggregated error instead of a mid-codegen raise on the first one. The
+  entries are read from the manifest being verified.
 
   `kind: :unknown` types without a module (e.g. generic actions without a
   declared return type) are skipped — there is nothing to map or to point at.
@@ -40,10 +41,14 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp do_verify(nil, _module), do: :ok
 
   defp do_verify(%Ash.Info.Manifest{} = manifest, module) do
+    # The mapping reads the `custom_types` entries (and named types) from the
+    # manifest being verified, not the configured one.
     offenders =
-      collect_from_resources(manifest.resources) ++
-        collect_from_entrypoints(manifest.entrypoints) ++
-        collect_from_types(manifest.types)
+      AshTypescript.with_manifest(manifest, fn ->
+        collect_from_resources(manifest.resources) ++
+          collect_from_entrypoints(manifest.entrypoints) ++
+          collect_from_types(manifest.types)
+      end)
 
     case offenders do
       [] -> :ok
@@ -155,7 +160,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
       To fix this, either:
         - implement the `typescript_type_name/0` callback on the type module, or
-        - add an entry to `config :ash_typescript, type_mapping_overrides: [{TheModule, "<ts type>"}]`
+        - declare it in the manifest module's `custom_types` section (`scalar TheModule, :string`)
       """
     )
   end

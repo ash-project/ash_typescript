@@ -78,10 +78,8 @@ if Mix.env() == :test do
         file: "./test/ts/channelHooks.ts"
       }
     ],
-    type_mapping_overrides: [
-      {AshTypescript.Test.CustomIdentifier, "string"}
-    ],
-    # Validation-schema counterparts to the TypeScript override above. Two
+    # Validation-schema overrides (the TypeScript side is the manifest's
+    # `custom_types` section, `test/support/manifest.ex`). Two
     # overrides per library, covering both reasons to reach for one:
     #
     #   CustomIdentifier — a hand-rolled Ash.Type with no `typescript_type_name`,

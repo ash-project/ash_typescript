@@ -62,7 +62,7 @@ defmodule AshTypescript.Manifest do
 
   @impl Spark.Dsl
   def handle_opts(opts) do
-    warn_on_legacy_typed_config()
+    warn_on_legacy_config()
     typed_controllers = opts[:typed_controllers] || []
     typed_channels = opts[:typed_channels] || []
 
@@ -118,17 +118,27 @@ defmodule AshTypescript.Manifest do
     for module <- Enum.uniq(modules), do: quote(do: _ = unquote(module).module_info(:md5))
   end
 
-  @legacy_typed_keys [:typed_controllers, :typed_channels]
+  # Config keys that were removed, with what replaces each. Nothing reads them,
+  # so a leftover setting would silently drop typed controllers or channels
+  # from the manifest, or change the generated types. The read happens at
+  # macro-expansion time on purpose: it feeds a warning only.
+  @legacy_config_keys [
+    typed_controllers:
+      "List the modules on the manifest module instead: " <>
+        "use AshTypescript.Manifest, typed_controllers: [...]",
+    typed_channels:
+      "List the modules on the manifest module instead: " <>
+        "use AshTypescript.Manifest, typed_channels: [...]",
+    type_mapping_overrides:
+      "Declare these types in your manifest module's `custom_types` section: " <>
+        "`scalar MyType, :string, typescript: \"<ts type>\"`"
+  ]
 
-  # These config keys were removed. Nothing reads them, so a leftover setting
-  # would silently drop typed controllers or channels from the manifest. The
-  # read happens at macro-expansion time on purpose: it feeds a warning only.
-  defp warn_on_legacy_typed_config do
-    for key <- @legacy_typed_keys, not is_nil(Application.get_env(:ash_typescript, key)) do
+  defp warn_on_legacy_config do
+    for {key, instead} <- @legacy_config_keys,
+        not is_nil(Application.get_env(:ash_typescript, key)) do
       IO.warn(
-        "config :ash_typescript, #{inspect(key)} is no longer read and is ignored. " <>
-          "List the modules on the manifest module instead: " <>
-          "use AshTypescript.Manifest, #{key}: [...]",
+        "config :ash_typescript, #{inspect(key)} is no longer read and is ignored. " <> instead,
         []
       )
     end

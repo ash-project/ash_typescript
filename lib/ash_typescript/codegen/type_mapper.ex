@@ -13,6 +13,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.Helpers
+  alias AshTypescript.CustomTypes.Scalar
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.TypeSystem.Introspection
 
   # ─────────────────────────────────────────────────────────────────
@@ -170,7 +172,30 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # ── %Ash.Info.Manifest.Type{} dispatch ──────────────────────────────────
   # Eliminates unwrap_new_type + cond cascade when pre-resolved types
   # are available (e.g., from ResourceBuilder or persisted Resource specs).
-  def map_type(%Ash.Info.Manifest.Type{} = type_info, _constraints, direction) do
+  def map_type(%Ash.Info.Manifest.Type{} = type_info, _constraints, direction),
+    do: map_type_info(type_info, direction, false)
+
+  # Aggregate kind atoms (e.g., :count, :sum) are not real Ash types
+  # and are not handled by TypeResolver. Handle them directly.
+  def map_type(type, _constraints, _direction)
+      when is_atom(type) and is_map_key(@aggregate_kinds, type) do
+    Map.get(@aggregate_kinds, type)
+  end
+
+  # :map atom (Ecto shorthand, not Ash.Type.Map) is not handled by TypeResolver.
+  def map_type(:map, _constraints, _direction), do: AshTypescript.untyped_map_type()
+
+  def map_type(type, constraints, direction) do
+    # Build an %Ash.Info.Manifest.Type{} from raw Ash types for backward compatibility
+    type_info = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
+    map_type(type_info, constraints, direction)
+  end
+
+  # `custom_fields?` is true for a member of a declared custom type's
+  # definition (Decision 36): a scalar entry's base mapping then uses the
+  # member's own constraints. It follows arrays, and nested containers set
+  # their own.
+  defp map_type_info(%Type{} = type_info, direction, custom_fields?) do
     case type_info.kind do
       :type_ref ->
         # Resolve the named type module to its full definition and re-dispatch
@@ -178,7 +203,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
         map_type(full_type, [], direction)
 
       :array ->
-        inner_ts = map_type(type_info.item_type, [], direction)
+        inner_ts = map_type_info(type_info.item_type, direction, custom_fields?)
         wrap_array(inner_ts)
 
       kind when kind in [:resource, :embedded_resource] ->
@@ -201,26 +226,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
         # For primitive kinds: check module lookup, then the shared
         # unknown-module accept-list, then the kind table.
         case Map.get(@primitives, type_info.module) do
-          nil -> map_unclassified(type_info)
+          nil -> map_unclassified(type_info, direction: direction, custom_fields?: custom_fields?)
           ts -> ts
         end
     end
-  end
-
-  # Aggregate kind atoms (e.g., :count, :sum) are not real Ash types
-  # and are not handled by TypeResolver. Handle them directly.
-  def map_type(type, _constraints, _direction)
-      when is_atom(type) and is_map_key(@aggregate_kinds, type) do
-    Map.get(@aggregate_kinds, type)
-  end
-
-  # :map atom (Ecto shorthand, not Ash.Type.Map) is not handled by TypeResolver.
-  def map_type(:map, _constraints, _direction), do: AshTypescript.untyped_map_type()
-
-  def map_type(type, constraints, direction) do
-    # Build an %Ash.Info.Manifest.Type{} from raw Ash types for backward compatibility
-    type_info = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
-    map_type(type_info, constraints, direction)
   end
 
   @doc """
@@ -230,34 +239,63 @@ defmodule AshTypescript.Codegen.TypeMapper do
   This is the single accept-list for unclassified (`kind: :unknown`) type
   modules, shared by `map_type/3`, `AshTypescript.Codegen.TypeAliases`, and
   the compile-time `AshTypescript.Manifest.Verifiers.VerifyMappableTypes`
-  verifier: custom types implementing `typescript_type_name/0` (or decorated
-  with a `type_name` in the manifest), `type_mapping_overrides` config
-  entries, and known third-party types with bespoke aliases.
+  verifier. The first of these that applies (Decision 20):
+
+    1. a `scalar` entry in the manifest's `custom_types` section;
+    2. `typescript_type_name/0` on the type (or a `type_name` decorated in the
+       manifest);
+    3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`).
+
+  An entry's `typescript` string is used as given, and its MFA is called as
+  `apply(m, f, [constraints | a])` with the node's constraints. Without
+  `typescript`, the entry maps as its base type with the entry's
+  constraints, or with the node's when `custom_fields?: true` (a member of a
+  declared custom type's definition). Entries are read from the configured
+  manifest (`AshTypescript.with_manifest/2` applies).
+
+  Options: `:direction` (`:output`, the default, or `:input`) and
+  `:custom_fields?` (default `false`).
   """
-  @spec unknown_module_mapping(Type.t()) :: {:ok, String.t()} | :unsupported
-  def unknown_module_mapping(%Type{module: module} = type_info) do
+  @spec unknown_module_mapping(Type.t(), keyword()) :: {:ok, String.t()} | :unsupported
+  def unknown_module_mapping(%Type{module: module} = type_info, opts \\ []) do
     cond do
-      is_atom(module) and not is_nil(module) and Introspection.is_custom_type?(module) ->
-        {:ok, AshTypescript.Manifest.Custom.type_name(type_info) || module.typescript_type_name()}
+      match?(%Scalar{}, entry = Custom.declared_custom_type(nil, module)) ->
+        {:ok, scalar_mapping(entry, type_info, opts)}
 
-      (override = get_type_mapping_override(module)) != nil ->
-        {:ok, override}
+      Introspection.is_custom_type?(module) ->
+        {:ok, Custom.type_name(type_info) || module.typescript_type_name()}
 
-      # Third-party Ash types with bespoke TypeScript aliases. These modules
-      # don't implement `typescript_type_name/0`, so they aren't caught by the
-      # custom-type branch above.
-      module == AshMoney.Types.Money ->
-        {:ok, "Money"}
-
-      module == AshPostgres.Ltree ->
-        {:ok, map_ltree(type_info.constraints || [])}
-
-      module == AshDoubleEntry.ULID ->
-        {:ok, "ULID"}
+      match?(%Scalar{}, entry = Custom.builtin_custom_type(nil, module)) ->
+        {:ok, scalar_mapping(entry, type_info, opts)}
 
       true ->
         :unsupported
     end
+  end
+
+  defp scalar_mapping(%Scalar{typescript: ts}, _type_info, _opts) when is_binary(ts), do: ts
+
+  defp scalar_mapping(%Scalar{typescript: {m, f, a}} = entry, type_info, _opts) do
+    case apply(m, f, [type_info.constraints || [] | a]) do
+      ts when is_binary(ts) ->
+        ts
+
+      other ->
+        raise ArgumentError,
+              "the `typescript` MFA #{Exception.format_mfa(m, f, length(a) + 1)} of the " <>
+                "custom type #{inspect(entry.module)} must return a string, got: #{inspect(other)}"
+    end
+  end
+
+  defp scalar_mapping(%Scalar{typescript: nil} = entry, type_info, opts) do
+    constraints =
+      if Keyword.get(opts, :custom_fields?, false),
+        do: type_info.constraints || [],
+        else: entry.constraints
+
+    entry.type
+    |> Ash.Info.Manifest.Generator.TypeResolver.resolve(constraints)
+    |> map_type([], Keyword.get(opts, :direction, :output))
   end
 
   @doc """
@@ -283,17 +321,17 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
     To fix this, either:
       - implement the `typescript_type_name/0` callback on the type module, or
-      - add an entry to `config :ash_typescript, type_mapping_overrides: [{#{inspect(type)}, "<ts type>"}]`
+      - declare it in your manifest module's `custom_types` section: `scalar #{inspect(type)}, :string`
     """
   end
 
   # Types whose module isn't a direct Ash primitive: the shared accept-list
-  # (custom types, overrides, third-party types), then the kind table.
+  # (scalar entries, custom types, built-ins), then the kind table.
   # Genuinely unmappable module types raise. The `VerifyMappableTypes`
   # manifest verifier reports these at compile time with full context, so the
   # raise here is a backstop for paths that bypass the manifest.
-  defp map_unclassified(%Type{} = type_info) do
-    case unknown_module_mapping(type_info) do
+  defp map_unclassified(%Type{} = type_info, opts) do
+    case unknown_module_mapping(type_info, opts) do
       {:ok, ts} ->
         ts
 
@@ -330,16 +368,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # ─────────────────────────────────────────────────────────────────
 
   defp wrap_array(inner_type), do: "Array<#{inner_type}>"
-
-  # AshPostgres.Ltree maps to a string[] when `escape?` is set, otherwise to the
-  # flexible `string | string[]` alias.
-  defp map_ltree(constraints) do
-    if Keyword.get(constraints, :escape?, false) do
-      "AshPostgresLtreeArray"
-    else
-      "AshPostgresLtreeFlexible"
-    end
-  end
 
   defp map_resource(resource, direction) do
     resource_name = Helpers.build_resource_type_name(resource)
@@ -401,11 +429,14 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # ─────────────────────────────────────────────────────────────────
 
   defp build_field_input_type(%Type{} = container) do
+    custom_fields? = AshRpc.Manifest.Custom.custom_type?(container)
+
     field_types =
       container
       |> Type.get_fields()
       |> Enum.map_join(", ", fn field ->
-        {field_name, field_type_str, allow_nil} = extract_field_info_for_input(field)
+        {field_name, field_type_str, allow_nil} =
+          extract_field_info_for_input(field, custom_fields?)
 
         formatted_field_name = ClientNames.type_field(container, field_name)
 
@@ -418,12 +449,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   # Extract field info for input direction from spec fields
-  defp extract_field_info_for_input(%{
-         name: field_name,
-         type: %Type{} = type,
-         allow_nil?: allow_nil
-       }) do
-    field_type_str = map_type(type, [], :input)
+  defp extract_field_info_for_input(
+         %{name: field_name, type: %Type{} = type, allow_nil?: allow_nil},
+         custom_fields?
+       ) do
+    field_type_str = map_type_info(type, :input, custom_fields?)
     {field_name, field_type_str, allow_nil || false}
   end
 
@@ -514,6 +544,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @spec build_map_type(Type.t(), [String.t()] | nil) :: String.t()
   def build_map_type(%Type{} = container, select \\ nil) do
     fields = Type.get_fields(container)
+    custom_fields? = AshRpc.Manifest.Custom.custom_type?(container)
 
     selected_fields =
       if select do
@@ -528,7 +559,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     field_types =
       selected_fields
       |> Enum.map_join(", ", fn field ->
-        {field_name, field_type_str, allow_nil} = extract_field_info(field)
+        {field_name, field_type_str, allow_nil} = extract_field_info(field, custom_fields?)
 
         formatted_field_name = ClientNames.type_field(container, field_name)
 
@@ -573,7 +604,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # branches and the field would be unselectable at the type level. Nullability
   # lives inside `__resource` (matching resource schemas); an outer `| null`
   # would break the `extends { __type: "Relationship" }` match.
-  defp extract_field_info(%{name: field_name, type: %Type{} = type, allow_nil?: allow_nil}) do
+  defp extract_field_info(
+         %{name: field_name, type: %Type{} = type, allow_nil?: allow_nil},
+         custom_fields?
+       ) do
     case resource_member(type) do
       {resource, array?} ->
         resource_type = map_resource(resource, :output)
@@ -592,7 +626,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
             {field_name, "{ __array: true; #{inner_content} }", allow_nil || false}
 
           nil ->
-            {field_name, map_type(type, [], :output), allow_nil || false}
+            {field_name, map_type_info(type, :output, custom_fields?), allow_nil || false}
         end
     end
   end
@@ -737,17 +771,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # ─────────────────────────────────────────────────────────────────
   # Helpers
   # ─────────────────────────────────────────────────────────────────
-
-  defp get_type_mapping_override(type) when is_atom(type) do
-    type_mapping_overrides = AshTypescript.type_mapping_overrides()
-
-    case List.keyfind(type_mapping_overrides, type, 0) do
-      {^type, ts_type} -> ts_type
-      nil -> nil
-    end
-  end
-
-  defp get_type_mapping_override(_type), do: nil
 
   defp map_enum_from_type(%Ash.Info.Manifest.Type{values: values})
        when is_list(values) and values != [] do

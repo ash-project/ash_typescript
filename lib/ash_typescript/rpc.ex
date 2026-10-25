@@ -320,7 +320,7 @@ defmodule AshTypescript.Rpc do
   Gets the Zod schema overrides for custom types from application configuration.
 
   Use this for hand-rolled custom types whose generated schema you want to
-  control — it is the Zod counterpart to `type_mapping_overrides`. Types you own
+  control — the Zod counterpart to a `custom_types` `scalar` entry's `typescript`. Types you own
   are usually better expressed as an `Ash.Type.NewType` with constraints, which
   needs no override at all: a NewType carries its constraints through the normal
   dispatch and never reaches the custom-type fallback.

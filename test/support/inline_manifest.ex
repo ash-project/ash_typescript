@@ -11,11 +11,17 @@ defmodule AshTypescript.Test.InlineManifest do
   so repeated calls reuse the compiled module. Compiler and verifier
   output goes to a stderr capture, and is attached to the error when the
   module fails to compile.
+
+  `body:` is quoted DSL for the module body (a `custom_types` section);
+  the other options go to `use AshTypescript.Manifest`. A manifest over the
+  whole test app needs the test manifest's `scalar` entries
+  (`app_custom_types/0`) for codegen to map its custom types.
   """
 
   @spec build!(keyword()) :: Ash.Info.Manifest.t()
   def build!(opts) do
     module = module_for(opts)
+    {body, opts} = Keyword.pop(opts, :body)
     opts = Keyword.put_new(opts, :otp_app, :ash_typescript)
 
     # The lock id is `{resource, requester}`: a per-process requester, so
@@ -27,7 +33,10 @@ defmodule AshTypescript.Test.InlineManifest do
             try do
               Module.create(
                 module,
-                quote(do: use(AshTypescript.Manifest, unquote(opts))),
+                quote do
+                  use AshTypescript.Manifest, unquote(opts)
+                  unquote(body)
+                end,
                 Macro.Env.location(__ENV__)
               )
 
@@ -50,6 +59,19 @@ defmodule AshTypescript.Test.InlineManifest do
     end)
 
     AshTypescript.manifest(module)
+  end
+
+  @doc "The test manifest's `custom_types` section (`test/support/manifest.ex`), quoted."
+  @spec app_custom_types() :: Macro.t()
+  def app_custom_types do
+    quote do
+      custom_types do
+        scalar AshTypescript.Test.CustomIdentifier, :string
+
+        scalar AshTypescript.Test.ExternalCode, :string,
+          typescript: {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+      end
+    end
   end
 
   @spec module_for(keyword()) :: module()

@@ -5,12 +5,6 @@
 defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
   use ExUnit.Case, async: false
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
-  setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:type_mapping_overrides])
-  end
-
   defmodule BareCustomType do
     @moduledoc false
     use Ash.Type
@@ -104,7 +98,8 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
       assert message =~ "VerifyMappableTypesTest.BareCustomType"
       assert message =~ "field :identifier"
       assert message =~ "typescript_type_name/0"
-      assert message =~ "type_mapping_overrides"
+      assert message =~ "custom_types"
+      refute message =~ "type_mapping_overrides"
     end
 
     test "bare custom type as an action argument is rejected with action context" do
@@ -245,7 +240,7 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
       assert silent_verify_for_domains([DomainWithNamedType]) == :ok
     end
 
-    test "bare custom type with a type_mapping_overrides entry passes" do
+    test "bare custom type with a custom_types scalar entry passes" do
       defmodule ResourceWithOverriddenType do
         use Ash.Resource,
           domain: nil,
@@ -283,17 +278,28 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
         end
       end
 
-      original = Application.get_env(:ash_typescript, :type_mapping_overrides, [])
+      # Without the entry the type is unmappable.
+      assert {:error, _} = silent_verify_for_domains([DomainWithOverriddenType])
 
-      Application.put_env(:ash_typescript, :type_mapping_overrides, [
-        {AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType, "string"} | original
-      ])
+      module = AshTypescript.Manifest.VerifyMappableTypesTest.DeclaringManifest
 
-      on_exit(fn ->
-        Application.put_env(:ash_typescript, :type_mapping_overrides, original)
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        Module.create(
+          module,
+          quote do
+            use AshTypescript.Manifest,
+              otp_app: :ash_typescript,
+              domains: [AshTypescript.Manifest.VerifyMappableTypesTest.DomainWithOverriddenType]
+
+            custom_types do
+              scalar AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType, :string
+            end
+          end,
+          Macro.Env.location(__ENV__)
+        )
       end)
 
-      assert silent_verify_for_domains([DomainWithOverriddenType]) == :ok
+      assert AshTypescript.Manifest.run_verifiers(module) == :ok
     end
   end
 

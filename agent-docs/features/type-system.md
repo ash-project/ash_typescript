@@ -94,17 +94,17 @@ each of which is `= string` in the generated output — not bare `string`.
 
 ### Third-Party Types
 
-Three dependency types are mapped without any callback, in
-`TypeMapper.unknown_module_mapping/1`:
+Three dependency types are built-in `custom_types` entries
+(`AshTypescript.CustomTypes.Builtin`); no alias is generated for them:
 
-| Module | TypeScript |
-|--------|------------|
-| `AshMoney.Types.Money` | `Money` (`{ amount: string; currency: string }`) |
-| `AshPostgres.Ltree` | `AshPostgresLtreeArray` when `escape?: true`, else `AshPostgresLtreeFlexible` |
-| `AshDoubleEntry.ULID` | `ULID` |
+| Module | Entry | TypeScript |
+|--------|-------|------------|
+| `AshMoney.Types.Money` | `map` (`currency`, `amount`) | a `TypedMap` / input object of its fields |
+| `AshPostgres.Ltree` | `scalar` with MFA `typescript` | `string[]` when `escape?: true`, else `string \| string[]` |
+| `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
 
-Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot have parallel
-`@third_party_types` entries in their formatter modules.
+A manifest entry for the same module replaces the built-in. Zod/Valibot still
+have parallel `@third_party_types` entries in their formatter modules.
 
 ## Architecture Benefits
 
@@ -202,8 +202,8 @@ go through the typed-map paths. Fields come from, in order
 `typescript_field_names/0`), a built-in entry (`AshTypescript.CustomTypes.Builtin`:
 `AshMoney.Types.Money`), the subtype's for a NewType, then `composite_types/1`.
 Clients select their fields (`{colorPalette: ["primary", ...]}`); a bare selection is
-`requires_field_selection`. A `typescript_type_name/0` or `type_mapping_overrides`
-entry no longer applies to such a type (Money included).
+`requires_field_selection`. A `typescript_type_name/0` or `scalar` entry no longer
+applies to such a type (Money included).
 
 ```elixir
 def typescript_fields do
@@ -224,30 +224,42 @@ config :ash_typescript,
   ]
 ```
 
-### Type Mapping Overrides
+### Scalar Entries
 
-For scalar **dependency types** you can't modify (e.g., `AshUUID.UUID`), use `type_mapping_overrides` instead of the callback:
+For scalar **dependency types** you can't modify (e.g., `AshUUID.UUID`), declare a
+`scalar` in the manifest module's `custom_types` section instead of the callback
+(`config :ash_typescript, :type_mapping_overrides` is no longer read, and setting
+it warns at manifest compile):
 
 ```elixir
-config :ash_typescript,
-  type_mapping_overrides: [
-    {AshUUID.UUID, "string"}
-  ]
+custom_types do
+  scalar AshUUID.UUID, :string                       # maps as its base type
+  scalar MyDep.Code, :string, typescript: "`code-${string}`"
+  scalar MyDep.Path, :string, typescript: {MyDep.Ts, :path, []}  # apply(m, f, [constraints | a])
+end
 ```
 
-**Decision rule**: Can you edit the type module? Use `typescript_type_name/0` callback. Can't edit it? Use `type_mapping_overrides`.
+`TypeMapper.unknown_module_mapping/2` takes the first that applies: the manifest
+`scalar` entry, `typescript_type_name/0`, the built-in `scalar` entry. Without
+`typescript`, an entry maps as its base type with the entry's constraints, or with
+the node's own when it is a field of a declared custom type
+(`custom_fields?: true`, Decision 36).
+
+**Decision rule**: Can you edit the type module? Use `typescript_type_name/0` callback. Can't edit it? Use a `scalar` entry.
 
 ### Unmappable Types (0.18)
 
 A type the manifest generator classifies as `kind: :unknown` must be resolvable to a
 TypeScript type or it is a **compile-time error**. Three layers:
 
-1. **Accept-list** — `TypeMapper.unknown_module_mapping/1`
+1. **Accept-list** — `TypeMapper.unknown_module_mapping/2`
    (`lib/ash_typescript/codegen/type_mapper.ex`) is the single source of truth,
    shared by `map_type/3`, `TypeAliases`, and the verifier. Returns
-   `{:ok, ts_type} | :unsupported`. Accepts: custom types
-   (`Introspection.is_custom_type?/1`, incl. manifest `type_name` decoration),
-   `type_mapping_overrides` entries, and the three third-party modules above.
+   `{:ok, ts_type} | :unsupported`. Accepts: manifest `scalar` entries, custom
+   types (`Introspection.is_custom_type?/1`, incl. manifest `type_name`
+   decoration), and built-in `scalar` entries. It reads the entries from the
+   configured manifest; the verifier wraps its walk in `with_manifest/2` so it
+   reads the manifest being verified.
 
 2. **Compile-time verifier** — `AshTypescript.Manifest.Verifiers.VerifyMappableTypes`
    walks every reachable type (resource fields, entrypoint action inputs/returns/
@@ -285,7 +297,7 @@ Custom types integrate at multiple levels:
 - **Calculation detection failures**: Resource vs primitive calculation misclassification
 
 ### Custom Type Issues
-- **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type_name/0` or a `type_mapping_overrides` entry for each listed module
+- **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type_name/0` or a `custom_types` `scalar` entry for each listed module
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
 - **Type not detected**: Ensure `typescript_type_name/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)

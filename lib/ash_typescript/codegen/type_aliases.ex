@@ -163,20 +163,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
   defp generate_ash_type_alias(Ash.Type.File), do: "export type File = any;"
   defp generate_ash_type_alias(Ash.Type.Function), do: "export type Function = any;"
   defp generate_ash_type_alias(Ash.Type.Module), do: "export type ModuleName = string;"
-  defp generate_ash_type_alias(AshDoubleEntry.ULID), do: "export type ULID = string;"
-
-  defp generate_ash_type_alias(AshPostgres.Ltree),
-    do:
-      "export type AshPostgresLtreeFlexible = string | string[];\nexport type AshPostgresLtreeArray = string[];"
-
-  defp generate_ash_type_alias(AshMoney.Types.Money),
-    do: "export type Money = { amount: string; currency: string };"
 
   defp generate_ash_type_alias(type) do
     cond do
-      get_type_mapping_override(type) != nil ->
-        ""
-
       Introspection.is_custom_type?(type) ->
         ""
 
@@ -191,6 +180,10 @@ defmodule AshTypescript.Codegen.TypeAliases do
       declared_custom_type?(type) ->
         ""
 
+      # A `custom_types` entry (manifest or built-in) maps it at each use.
+      custom_type_entry?(type) ->
+        ""
+
       true ->
         TypeMapper.raise_unsupported_type!(type)
     end
@@ -202,14 +195,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
       |> Ash.Info.Manifest.get_type(type)
       |> AshRpc.Manifest.Custom.custom_type?()
 
-  defp get_type_mapping_override(type) when is_atom(type) do
-    type_mapping_overrides = AshTypescript.type_mapping_overrides()
-
-    case List.keyfind(type_mapping_overrides, type, 0) do
-      {^type, ts_type} -> ts_type
-      nil -> nil
-    end
-  end
-
-  defp get_type_mapping_override(_type), do: nil
+  defp custom_type_entry?(type),
+    do:
+      AshTypescript.Manifest.Custom.declared_custom_type(nil, type) != nil or
+        AshTypescript.Manifest.Custom.builtin_custom_type(nil, type) != nil
 end

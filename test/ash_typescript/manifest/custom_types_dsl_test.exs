@@ -430,9 +430,17 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
     end
 
     test "a manifest without the section persists no declarations and the built-ins" do
-      assert %{declared: declared, builtin: builtin} = persisted(AshTypescript.Test.Manifest)
+      module = compile_manifest!(NoSection, nil)
+      assert %{declared: declared, builtin: builtin} = persisted(module)
       assert declared == %{}
       assert Map.has_key?(builtin, AshMoney.Types.Money)
+    end
+
+    test "the test manifest persists its scalar entries" do
+      assert %{declared: declared} = persisted(AshTypescript.Test.Manifest)
+
+      assert Map.keys(declared) |> Enum.sort() ==
+               [AshTypescript.Test.CustomIdentifier, AshTypescript.Test.ExternalCode]
     end
   end
 

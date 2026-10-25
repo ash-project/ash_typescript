@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 | Symptoms | Cause | Solution |
 |----------|-------|----------|
 | ``No `:manifest` module configured for AshTypescript.`` | Ran codegen in dev env (this repo only sets `manifest:` inside the `:test` block of `config/config.exs`) | Use `mix test.codegen`, never `mix ash_typescript.codegen` |
-| "unsupported type ... AshTypescript cannot map it to a TypeScript type." | Type has no TS mapping | Implement `typescript_type_name/0`, add a `type_mapping_overrides` entry, or use a supported type |
+| "unsupported type ... AshTypescript cannot map it to a TypeScript type." | Type has no TS mapping | Implement `typescript_type_name/0`, add a `scalar` entry to the manifest's `custom_types` section, or use a supported type |
 | Generated types contain `any` | Deliberate (`:term`, File/Function, module-less unknowns) — unmappable types now raise instead | See "Manifest & Verifier Issues" below |
 | Field selection not working | Invalid field format/pipeline issue | Use unified field format; see Runtime errors below |
 | TypeScript compilation errors | Schema generation problems | Check resource schema structure |
@@ -112,8 +112,9 @@ Unmappable types are a compile-time error again. `VerifyMappableTypes` walks
 every reachable type and aggregates all offenders into one `DslError` with
 locations; `TypeMapper` raises `unsupported type ... AshTypescript cannot map it
 to a TypeScript type.` as a backstop. Fix by implementing `typescript_type_name/0`
-on the type module, adding a `type_mapping_overrides` entry, or using a
-supported type.
+on the type module, adding a `scalar` entry to the manifest's `custom_types`
+section, or using a supported type. A scoped or inline manifest declares its own
+entries (`InlineManifest.build!(body: InlineManifest.app_custom_types())` in tests).
 
 ### Codegen `ArgumentError` "no client name for …" / "is not in the manifest" / "is not decorated"
 Raised by `AshTypescript.Codegen.ClientNames`: codegen asked for a client name

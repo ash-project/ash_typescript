@@ -23,4 +23,11 @@ defmodule AshTypescript.Test.Manifest do
       AshTypescript.Test.FullActivityChannel,
       AshTypescript.Test.TrackerChannel
     ]
+
+  custom_types do
+    scalar AshTypescript.Test.CustomIdentifier, :string
+
+    scalar AshTypescript.Test.ExternalCode, :string,
+      typescript: {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+  end
 end

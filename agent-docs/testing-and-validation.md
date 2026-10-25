@@ -254,6 +254,10 @@ manifest = AshTypescript.Test.InlineManifest.build!(typed_controllers: [MyTest.S
 AshTypescript.with_manifest(manifest, fn -> ... end)
 ```
 
+`body:` adds quoted DSL to the module, such as a `custom_types` section. A manifest
+over the whole test app that runs codegen needs the test manifest's `scalar` entries:
+`build!(..., body: AshTypescript.Test.InlineManifest.app_custom_types())`.
+
 ## Asserting on Generated TypeScript in Elixir Tests
 
 **CRITICAL: Never read from `test/ts/generated.ts` in tests.** This file may be stale or out of sync with the current codebase. Instead, generate the TypeScript programmatically and assert on the resulting string.

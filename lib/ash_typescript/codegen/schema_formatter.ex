@@ -33,7 +33,7 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   Returns a keyword list of `{type_module, schema_string}` tuples. Consulted by
   `AshTypescript.Codegen.SchemaCore` ahead of the in-tree accept-lists, mirroring
-  how `type_mapping_overrides` works on the TypeScript side.
+  how `custom_types` `scalar` entries work on the TypeScript side.
   """
   @callback mapping_overrides() :: keyword(String.t())
 
