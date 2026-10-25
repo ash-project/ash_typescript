@@ -136,6 +136,8 @@ defmodule AshTypescript.Test.Domain do
 
     resource AshTypescript.Test.TodoComment do
       rpc_action :list_todo_comments, :read
+      # Keyset-only, countable pagination
+      rpc_action :list_todo_comments_keyset, :read_keyset_only
       rpc_action :create_todo_comment, :create
       rpc_action :update_todo_comment, :update
       rpc_action :destroy_todo_comment, :destroy

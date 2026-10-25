@@ -29,6 +29,25 @@ defmodule AshTypescript.Codegen.PaginationTypesTest do
     end
   end
 
+  describe "keyset-only pagination config" do
+    test "countable keyset action accepts count?: boolean", %{content: content} do
+      # TodoComment :read_keyset_only has keyset-only, countable: true pagination.
+      [block] =
+        Regex.run(~r/export type ListTodoCommentsKeysetConfig = \{.*?^\};$/ms, content)
+
+      assert block =~ "count?: boolean;"
+      refute block =~ "count?: never;"
+    end
+
+    test "non-countable keyset action rejects count", %{content: content} do
+      # Todo :list_recent has keyset-only, countable: false pagination.
+      [block] = Regex.run(~r/export type ListRecentTodosConfig = \{.*?^\};$/ms, content)
+
+      assert block =~ "count?: never;"
+      refute block =~ "count?: boolean;"
+    end
+  end
+
   describe "keyset pagination cursor nullability" do
     test "previousPage/nextPage are nullable (runtime sends null for empty pages)", %{
       content: content
