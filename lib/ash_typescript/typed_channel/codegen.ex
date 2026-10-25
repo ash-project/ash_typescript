@@ -139,16 +139,13 @@ defmodule AshTypescript.TypedChannel.Codegen do
   The decorated `returns` type of every stored publication of the given
   `{module, topic}` channel entries. Payload types are appended to
   `ash_types.ts`, so the aliases they reference are collected from these roots.
-  Publications without `returns` are skipped.
   """
   @spec payload_return_types([{module(), String.t()}]) :: [Ash.Info.Manifest.Type.t()]
   def payload_return_types(channel_entries) do
     modules = MapSet.new(channel_entries, &elem(&1, 0))
 
-    for %AshTypescript.Manifest.Publication{
-          channel_module: mod,
-          returns: %Ash.Info.Manifest.Type{} = returns
-        } <- AshTypescript.Manifest.Custom.publications(),
+    for %AshTypescript.Manifest.Publication{channel_module: mod, returns: returns} <-
+          AshTypescript.Manifest.Custom.publications(),
         MapSet.member?(modules, mod),
         do: returns
   end

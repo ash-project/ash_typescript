@@ -291,7 +291,7 @@ defmodule MyAppWeb.OrgChannel do
 end
 ```
 
-Resources must have `pub_sub` publications with matching `event:` names. For typed payloads, use `transform :some_calc` referencing an `:auto`-typed calculation (recommended — Ash derives `returns` automatically), or set `returns:` explicitly. Without either, the payload type is `unknown`.
+Resources must have `pub_sub` publications with matching `event:` names. For typed payloads, use `transform :some_calc` referencing an `:auto`-typed calculation (recommended — Ash derives `returns` automatically), or set `returns:` explicitly. One of them is required, and the payload must be a typed map (see Typed Channel Constraints).
 
 The module must also `use Phoenix.Channel` (compile warning otherwise): the declared events are automatically intercepted and their payloads formatted with the configured `output_field_formatter` before being pushed, so the wire payload matches the generated TypeScript types.
 
@@ -383,7 +383,9 @@ for (const action of manifest.actions) {
 | Route hooks not firing | Check `typed_controller_import_into_generated` + hook names |
 | Typed channel event not found | Event name must match `event:` option on resource's `pub_sub` publication |
 | Duplicate channel event names | Use unique event names across all resources in one channel |
-| Channel payload is `unknown` | Use `transform :some_calc` (an `:auto`-typed calculation) on the publication, or add explicit `returns:` |
+| Manifest compile error "publication ... has no `returns`" | Use `transform :some_calc` (an `:auto` map calculation) on the publication, or add explicit `returns: :map` with `fields` |
+| Manifest compile error "... which is not a typed map" / "returns untyped data" | Channel payloads are typed maps: `returns: :map` with `fields`, and put the value in a field |
+| Manifest compile error "... returns a resource / an embedded resource / a union / a recursive type, at <path>" | Route and publication `returns` are plain data: a typed map built from the record, a field per union variant, a fixed depth for recursion |
 | "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |
 | "Map-like custom types that declare a TypeScript type" | Remove `typescript_type_name/0` (or the `scalar` entry); TS comes from the fields |
 | `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |

@@ -38,9 +38,9 @@ defmodule AshTypescript.TypedChannel.PayloadFormatter do
 
   @doc """
   Formats a broadcast payload for the client against the decorated `returns`
-  type of the manifest publication stored for `{channel_module, resource, event}`.
+  type of the manifest publication stored for `{channel_module, resource, event}`
+  (every stored publication has one: a typed map).
 
-  Returns the payload unchanged when the publication declares no `returns`.
   When the manifest has no publication for the key (the channel is not listed
   in the manifest module's `typed_channels:` option, or the manifest is stale),
   returns it unchanged and logs a warning.
@@ -50,10 +50,6 @@ defmodule AshTypescript.TypedChannel.PayloadFormatter do
     manifest = AshTypescript.manifest()
 
     case Custom.publication(manifest, channel_module, resource, event) do
-      # No `returns` declared: nothing to format against, so push as-is
-      %Publication{returns: nil} ->
-        payload
-
       %Publication{returns: returns} ->
         ValueFormatter.format(
           payload,

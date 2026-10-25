@@ -103,8 +103,8 @@ a publication on the resource. The publication must have a `returns` type,
 either auto-derived via `transform :calc` or explicitly set via `returns:`,
 and it must be a typed map: `:map`, `:struct`, `:keyword` or `:tuple` with
 `fields` (or a NewType of one), since Phoenix only pushes JSON objects.
-Resources, embedded resources and unions are rejected at any depth. These
-rules are checked when the manifest module compiles.
+Resources, embedded resources, unions and recursive types are rejected at
+any depth. These rules are checked when the manifest module compiles.
 
 
 

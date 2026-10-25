@@ -56,11 +56,13 @@ export type AshRpcError = {
 
 ### Correlation IDs
 
-When an error has no `AshRpc.Error` implementation, or is any other term
-AshTypescript doesn't recognise, the details are withheld from the client — the
-full error goes to the server log instead, keyed by a generated UUID. That UUID
-is sent as `errorId` (and also appears in `message`), so you can show it to the
-user and match their report to the log entry:
+When an Ash error has no `AshRpc.Error` implementation, or a request fails
+with any other term AshTypescript doesn't recognise that isn't a map (a bare
+tuple or a string, for example), the client gets an `internal_error` with the
+details withheld — the full error goes to the server log instead, keyed by a
+generated UUID. That UUID is sent as `errorId` (and also appears in
+`message`), so you can show it to the user and match their report to the log
+entry:
 
 ```typescript
 if (!result.success) {
@@ -70,6 +72,11 @@ if (!result.success) {
   }
 }
 ```
+
+Other unexpected failures — a plain exception such as `RuntimeError`, a plain
+map, a struct that isn't an exception, or a term inside a Reactor step error —
+come back as `unknown_error` ("Something went wrong") without an `errorId`.
+Their details are withheld too.
 
 Validation errors don't carry an `errorId` — they're fully described by `type`,
 `message` and `fields`, and nothing was withheld. To give every error an ID,

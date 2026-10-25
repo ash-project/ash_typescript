@@ -7,9 +7,10 @@ defmodule AshTypescript.Manifest.Publication do
   A typed channel's declared event and its publication's `returns` type,
   stored under `manifest.custom.ash_typescript.publications` keyed by
   `{channel_module, resource, event}`. Two channels may declare the same
-  publication; each gets its own entry. `returns` is `nil` when the
-  publication declares no `returns` (payloads pass through unformatted, and
-  codegen emits `unknown`).
+  publication; each gets its own entry. Every stored publication has a
+  `returns` that is a typed map: one without, or with another payload type,
+  fails manifest compilation (`AshTypescript.Manifest.PlainData`). `returns`
+  is `nil` only on the undecorated structs collected before that check.
   """
 
   @type t :: %__MODULE__{

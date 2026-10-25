@@ -469,6 +469,17 @@ end
 
 **Solution:** Fix the constraint keys/values to match what the type supports (e.g. `min_length`/`max_length`/`match` for `:string`, `min`/`max` for `:integer`).
 
+#### Error: "... returns a resource / an embedded resource / a union / a recursive type, at <path>"
+
+**Cause:** Route `returns` and channel publication `returns` are plain data (`AshTypescript.Manifest.PlainData`). A resource, an embedded resource, a union or a type that contains itself is rejected at any depth, including through NewTypes and declared `custom_types`, when the manifest module compiles. The error names the route or publication and the path (`returns → owner`).
+
+**Solution:**
+- Resource or embedded resource: declare a typed map and build it from the record, for example `returns :map` with `constraints fields: [email: [type: :string]]` and `%{email: user.email}`
+- Union: a typed map with a field per variant (all `allow_nil?: true`)
+- Recursive type: expand it to a fixed depth, or send an untyped `:map` field
+
+Route arguments are not affected: they may be resources.
+
 #### Every Request to a Typed Controller Returns 500
 
 **Cause:** The controller is not listed in the manifest module's `typed_controllers:` option, so the manifest has no routes for it. Codegen warns about it ("Found typed controllers or typed channels not listed in the manifest"). With `typed_controller_show_raised_errors: true`, the message reads "typed controller route ... is not in the AshTypescript manifest".
@@ -601,9 +612,25 @@ end
 
 #### Channel Payloads Arrive Unformatted
 
-**Cause:** The channel is not listed in the manifest module's `typed_channels:` option (codegen warns about it, and generates no TypeScript for it). The payload is pushed as broadcast (snake_case keys) and a warning is logged: "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option and recompile." An event whose publication has no `returns` is also pushed unformatted, without a warning.
+**Cause:** The channel is not listed in the manifest module's `typed_channels:` option (codegen warns about it, and generates no TypeScript for it). The payload is pushed as broadcast (snake_case keys) and a warning is logged: "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option and recompile."
 
-**Solution:** List the channel on the manifest module (`use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyAppWeb.OrgChannel]`) and recompile. For an event without `returns`, add a calculation `transform` or an explicit `returns`. Typed channel code generation also covers only the listed channels.
+**Solution:** List the channel on the manifest module (`use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyAppWeb.OrgChannel]`) and recompile. Typed channel code generation also covers only the listed channels.
+
+#### Error: "publication ... has no `returns`"
+
+**Cause:** Every publication a typed channel declares needs a `returns` that is a typed map, checked when the manifest module compiles. The publication has neither a calculation `transform` nor an explicit `returns`.
+
+**Solution:** Use `transform :some_calc` with an `:auto` map calculation (recommended, Ash derives `returns`), or set `returns: :map` with `constraints: [fields: [...]]` on the publication.
+
+#### Error: "publication ... returns X, which is not a typed map" / "returns untyped data"
+
+**Cause:** Channel payloads are typed maps (Phoenix only pushes JSON objects). A scalar, enum or array payload, an opaque custom type, `:term` or an unconstrained `:map` is rejected when the manifest module compiles.
+
+**Solution:** Use `returns: :map` with `fields` constraints (or a `:struct`, `:keyword` or `:tuple` with `fields`, a TypedStruct, or a NewType of one), and put the value in a field. Fields inside it may be untyped. Resources, unions and recursive types inside the payload are rejected too: see "returns a resource / an embedded resource / a union / a recursive type" under Typed Controller Issues.
+
+#### Warning: "config :ash_typescript, :warn_on_missing_channel_returns is no longer read and is ignored"
+
+**Solution:** Remove the setting: a publication without `returns` is a compile error now.
 
 ### Channel Hook Issues
 
