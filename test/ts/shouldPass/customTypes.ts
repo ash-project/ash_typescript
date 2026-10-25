@@ -5,7 +5,8 @@
 // Custom Types Tests - shouldPass
 // Tests for custom type field selection and usage
 
-import { getTodo, createTodo } from "../generated";
+import { getTodo, createTodo, listTasks, createTask } from "../generated";
+import type { Decimal } from "../ash_types";
 
 // Test 0: Custom type field selection
 export const customTypeTest = await getTodo({
@@ -73,6 +74,37 @@ if (createWithColorPalette.success) {
     const createdSecondary: string = createdPalette.secondary;
     const createdAccent: string = createdPalette.accent;
   }
+}
+
+// Test 6: built-in Money (a declared map) is selected by sub-field
+export const priceTest = await listTasks({
+  fields: ["id", { price: ["currency", "amount"] }],
+});
+
+if (priceTest.success) {
+  for (const task of priceTest.data) {
+    if (task.price) {
+      const currency: string = task.price.currency;
+      const amount: Decimal = task.price.amount;
+      console.log(`Price: ${currency} ${amount}`);
+    }
+  }
+}
+
+// Test 7: a scalar member with its own TS mapping (HexColor) keeps it inside
+// a declared custom type (Theme), in results and inputs
+export const themeTest = await createTask({
+  input: {
+    title: "Themed",
+    theme: { color: "#336699", code: "code-a1" },
+  },
+  fields: ["id", { theme: ["color", "accent"] }],
+});
+
+if (themeTest.success && themeTest.data.theme) {
+  const color: `#${string}` = themeTest.data.theme.color;
+  const accent: `#${string}` | null = themeTest.data.theme.accent;
+  console.log(`Theme: ${color} ${accent}`);
 }
 
 console.log("Custom types tests should compile successfully!");

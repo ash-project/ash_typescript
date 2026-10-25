@@ -27,6 +27,7 @@ import "./shouldFail/nestedQueryOpts";
 import "./shouldFail/typedControllerResults";
 import "./shouldFail/getByMappedField";
 import "./shouldFail/unexposedRelationships";
+import "./shouldFail/customTypes";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
