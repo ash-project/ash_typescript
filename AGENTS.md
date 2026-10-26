@@ -441,7 +441,8 @@ mix credo --strict                   # Linting
 | `UndefinedFunctionError` on `AshTypescript.Test.*` | Test resources not compiled (dev env) | Run via `mix test` / `mix test.codegen`, which set `MIX_ENV=test` via `preferred_envs` |
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
 | "Invalid field names found in map/keyword/tuple type constraints" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
-| "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
+| "Some types cannot be mapped to TypeScript" (`has no TypeScript mapping`) | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
+| "Some types cannot be mapped to TypeScript" (`defines both ...`) | Custom type has `typescript_type_name/0` and `fields` constraints | Remove one or the other; they are mutually exclusive |
 | Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Add `zod_mapping_overrides` / `valibot_mapping_overrides`, or express the type as an `Ash.Type.NewType` with constraints |
 | Zod/Valibot schema too permissive (e.g. `z.record`) for a custom type | Hand-rolled `:map`-storage type — the shape lives in `cast_input/2` and can't be introspected | Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override |
 | `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A mapping override references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |

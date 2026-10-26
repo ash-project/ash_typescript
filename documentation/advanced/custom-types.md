@@ -92,7 +92,7 @@ Some common third-party Ash types are mapped out of the box — no callback or o
 | `AshPostgres.Ltree` | `AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` alias (depending on the `escape?` constraint) |
 | `AshDoubleEntry.ULID` | `ULID` (string) alias |
 
-Any other type module without a TypeScript mapping fails compilation with "Unsupported types found — AshTypescript cannot map them to TypeScript", listing each offender and its location. Fix it with one of the approaches below.
+Any other type module without a TypeScript mapping fails compilation with "Some types cannot be mapped to TypeScript", listing each offender and its location. Fix it with one of the approaches below.
 
 ## Type Mapping Overrides
 
@@ -180,6 +180,31 @@ interface ProductResourceSchema {
 |----------|----------|
 | `typescript_type_name/0` callback | You control the Ash type definition |
 | `type_mapping_overrides` | The type is from a dependency you can't modify |
+
+### Naming an `Ash.Type.NewType`
+
+The `typescript_type_name/0` callback also works on an `Ash.Type.NewType`. A
+NewType of a scalar, or of a `:map` without `fields` constraints (which would
+otherwise generate an untyped record), is emitted under the given name:
+
+```elixir
+defmodule MyApp.Layout do
+  use Ash.Type.NewType, subtype_of: :map
+
+  def typescript_type_name, do: "CustomTypes.Layout"
+end
+```
+
+```typescript
+layout: CustomTypes.Layout | null;
+```
+
+A NewType of a `:map` *with* `fields` constraints keeps its generated typed map,
+since that is what field selection uses. Defining `typescript_type_name/0` on
+such a type fails compilation, since the name would be ignored: remove either
+the callback or the `fields` constraints. Other constraints (`min`/`max`,
+`max_length`, defaults in `constraints/0`) don't change the TypeScript shape
+and can be combined with the callback.
 
 ## Validation Schemas for Custom Types
 

@@ -64,6 +64,10 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    attribute :layout, AshTypescript.Test.Todo.Layout do
+      public? true
+    end
+
     attribute :tags, {:array, :string} do
       default []
       public? true

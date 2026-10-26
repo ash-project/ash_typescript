@@ -13,6 +13,7 @@ defmodule AshTypescript.CustomTypesTest do
 
   alias AshTypescript.Codegen
   alias AshTypescript.Test.Todo.ColorPalette
+  alias AshTypescript.Test.Todo.Layout
   alias AshTypescript.Test.Todo.Percentage
   alias AshTypescript.Test.Todo.PriorityScore
 
@@ -165,6 +166,22 @@ defmodule AshTypescript.CustomTypesTest do
     test "full generation uses NewType custom type name, not unwrapped float" do
       {:ok, result} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       assert result =~ "percentage: CustomTypes.Percentage | null"
+    end
+  end
+
+  describe "map NewType with typescript_type_name" do
+    test "get_ts_type/2 maps a map NewType with custom name instead of the untyped map" do
+      assert Codegen.get_ts_type(%{type: Layout, constraints: []}) == "CustomTypes.Layout"
+    end
+
+    test "map NewType custom type in array generates proper TypeScript array type" do
+      assert Codegen.get_ts_type(%{type: {:array, Layout}, constraints: []}) ==
+               "Array<CustomTypes.Layout>"
+    end
+
+    test "full generation uses the map NewType's custom type name" do
+      {:ok, result} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+      assert result =~ "layout: CustomTypes.Layout | null"
     end
   end
 

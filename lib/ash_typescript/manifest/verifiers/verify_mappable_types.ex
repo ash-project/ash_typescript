@@ -15,6 +15,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   fails codegen; this verifier surfaces all offenders at compile time in one
   aggregated error instead of a mid-codegen raise on the first one.
 
+  It also rejects custom types that implement `typescript_type_name/0` and
+  declare `fields` constraints: those map to a typed container built from the
+  fields, so the declared name would be silently ignored.
+
   `kind: :unknown` types without a module (e.g. generic actions without a
   declared return type) are skipped — there is nothing to map or to point at.
 
@@ -106,7 +110,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
        when is_atom(mod) and not is_nil(mod) do
     case TypeMapper.unknown_module_mapping(type) do
       {:ok, _ts} -> []
-      :unsupported -> [{mod, context}]
+      :unsupported -> [{mod, context, :unsupported}]
     end
   end
 
@@ -116,15 +120,26 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
     Enum.flat_map(members, fn %{type: member_type} -> walk(member_type, context) end)
   end
 
-  defp walk(%Type{kind: kind, fields: fields}, context)
+  defp walk(%Type{kind: kind, fields: fields} = type, context)
        when kind in [:map, :keyword, :tuple, :struct] and is_list(fields) do
-    Enum.flat_map(fields, fn %{type: field_type} -> walk(field_type, context) end)
+    fields_conflict(type, context) ++
+      Enum.flat_map(fields, fn %{type: field_type} -> walk(field_type, context) end)
   end
 
   # Everything else: primitives, module-less unknowns, and references to named
   # definitions (:type_ref, :resource, :embedded_resource) that are walked
-  # independently via `collect_from_types`/`collect_from_resources`.
+  # independently via `collect_from_types`/`collect_from_resources`. Only a
+  # custom type with `fields` (e.g. a tuple's `element_types`) can still conflict.
+  defp walk(%Type{} = type, context), do: fields_conflict(type, context)
   defp walk(_type, _context), do: []
+
+  # A custom type with `fields` maps to a typed container, so its
+  # `typescript_type_name/0` would be silently ignored.
+  defp fields_conflict(%Type{module: mod} = type, context) do
+    if TypeMapper.custom_type_with_fields?(type),
+      do: [{mod, context, :conflicting_custom_type}],
+      else: []
+  end
 
   # ─────────────────────────────────────────────────────────────────
   # Error formatting
@@ -133,29 +148,38 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp build_error(offenders, module) do
     listing =
       offenders
-      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Enum.group_by(&elem(&1, 0))
       |> Enum.sort_by(fn {mod, _} -> inspect(mod) end)
-      |> Enum.map_join("\n\n", fn {mod, contexts} ->
+      |> Enum.map_join("\n\n", fn {mod, entries} ->
         locations =
-          contexts
-          |> Enum.uniq()
-          |> Enum.sort()
-          |> Enum.map_join("\n", &"      - #{&1}")
+          entries
+          |> Enum.uniq_by(&elem(&1, 1))
+          |> Enum.sort_by(&elem(&1, 1))
+          |> Enum.map_join("\n", fn {_mod, context, _reason} -> "      - #{context}" end)
 
-        "  • #{inspect(mod)}\n#{locations}"
+        reason =
+          if Enum.any?(entries, &(elem(&1, 2) == :conflicting_custom_type)),
+            do: "defines both `typescript_type_name/0` and `fields` constraints",
+            else: "has no TypeScript mapping"
+
+        "  • #{inspect(mod)} (#{reason})\n#{locations}"
       end)
 
     Spark.Error.DslError.exception(
       module: module,
       path: [:typescript_rpc],
       message: """
-      Unsupported types found — AshTypescript cannot map them to TypeScript:
+      Some types cannot be mapped to TypeScript:
 
       #{listing}
 
-      To fix this, either:
+      Each custom type needs exactly one way to map to TypeScript. Either:
         - implement the `typescript_type_name/0` callback on the type module, or
-        - add an entry to `config :ash_typescript, type_mapping_overrides: [{TheModule, "<ts type>"}]`
+        - add an entry to `config :ash_typescript, type_mapping_overrides: [{TheModule, "<ts type>"}]`, or
+        - (map types) declare `fields` constraints so AshTypescript generates a typed map
+
+      These are mutually exclusive: a type with `fields` constraints cannot also use
+      `typescript_type_name/0`. Remove one or the other.
       """
     )
   end

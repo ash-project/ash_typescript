@@ -24,6 +24,11 @@ export type GeoPointValidationErrors = {
   lng?: string[];
 };
 
+export type Layout = {
+  columns?: number;
+  areas?: string[];
+};
+
 export type Percentage = number;
 
 export type PercentageValidationErrors = string[];

@@ -59,6 +59,50 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
     def dump_to_native(_, _), do: :error
   end
 
+  defmodule ConstrainedNamedCustomType do
+    @moduledoc false
+    use Ash.Type.NewType,
+      subtype_of: :map,
+      constraints: [fields: [value: [type: :string]]]
+
+    def typescript_type_name, do: "string"
+  end
+
+  defmodule ConstrainedScalarNamedType do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :float, constraints: [min: 0.0, max: 100.0]
+
+    def typescript_type_name, do: "number"
+  end
+
+  defmodule DefaultedConstraintNamedType do
+    @moduledoc false
+    use Ash.Type
+
+    def typescript_type_name, do: "string"
+
+    @impl true
+    def constraints, do: [precision: [type: :integer, default: 2]]
+
+    @impl true
+    def storage_type(_), do: :string
+
+    @impl true
+    def cast_input(nil, _), do: {:ok, nil}
+    def cast_input(value, _) when is_binary(value), do: {:ok, value}
+    def cast_input(_, _), do: :error
+
+    @impl true
+    def cast_stored(nil, _), do: {:ok, nil}
+    def cast_stored(value, _) when is_binary(value), do: {:ok, value}
+    def cast_stored(_, _), do: :error
+
+    @impl true
+    def dump_to_native(nil, _), do: {:ok, nil}
+    def dump_to_native(value, _) when is_binary(value), do: {:ok, value}
+    def dump_to_native(_, _), do: :error
+  end
+
   describe "unmappable custom types" do
     test "bare custom type on an attribute is rejected with remediation guidance" do
       defmodule ResourceWithBareAttribute do
@@ -100,8 +144,8 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
 
       assert {:error, message} = silent_verify_for_domains([DomainWithBareAttribute])
 
-      assert message =~ "Unsupported types found"
-      assert message =~ "VerifyMappableTypesTest.BareCustomType"
+      assert message =~ "Some types cannot be mapped to TypeScript"
+      assert message =~ "VerifyMappableTypesTest.BareCustomType (has no TypeScript mapping)"
       assert message =~ "field :identifier"
       assert message =~ "typescript_type_name/0"
       assert message =~ "type_mapping_overrides"
@@ -294,6 +338,140 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
       end)
 
       assert silent_verify_for_domains([DomainWithOverriddenType]) == :ok
+    end
+  end
+
+  describe "custom type conflicts" do
+    test "accepts a scalar NewType with constraints and a TypeScript name" do
+      defmodule ResourceWithConstrainedScalar do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithConstrainedScalar"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :percentage,
+                    AshTypescript.Manifest.VerifyMappableTypesTest.ConstrainedScalarNamedType do
+            public? true
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithConstrainedScalar do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithConstrainedScalar do
+            rpc_action :list_constrained_scalar, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithConstrainedScalar
+        end
+      end
+
+      assert silent_verify_for_domains([DomainWithConstrainedScalar]) == :ok
+    end
+
+    test "accepts a custom type with a defaulted constraint and a TypeScript name" do
+      defmodule ResourceWithDefaultedConstraint do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithDefaultedConstraint"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :amount,
+                    AshTypescript.Manifest.VerifyMappableTypesTest.DefaultedConstraintNamedType do
+            public? true
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithDefaultedConstraint do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithDefaultedConstraint do
+            rpc_action :list_defaulted_constraint, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithDefaultedConstraint
+        end
+      end
+
+      assert silent_verify_for_domains([DomainWithDefaultedConstraint]) == :ok
+    end
+
+    test "rejects a map NewType with both a TypeScript name and fields constraints" do
+      defmodule ResourceWithConstrainedNamedType do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithConstrainedNamedType"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :value,
+                    AshTypescript.Manifest.VerifyMappableTypesTest.ConstrainedNamedCustomType do
+            public? true
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithConstrainedNamedType do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithConstrainedNamedType do
+            rpc_action :list_constrained, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithConstrainedNamedType
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithConstrainedNamedType])
+
+      assert message =~
+               "ConstrainedNamedCustomType (defines both `typescript_type_name/0` and `fields` constraints)"
+
+      assert message =~ "These are mutually exclusive"
+      assert message =~ "Remove one or the other"
     end
   end
 
