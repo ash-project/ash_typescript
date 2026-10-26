@@ -82,8 +82,8 @@ export function testInvalidSchemaMethodUsage() {
     userId: "user-123",
   });
 
-  // @ts-expect-error - validate doesn't exist on Zod schemas
-  const invalidMethod2 = createTodoZodSchema.validate({
+  // @ts-expect-error - validateSync doesn't exist on Zod schemas
+  const invalidMethod2 = createTodoZodSchema.validateSync({
     title: "Valid title",
     userId: "user-123",
   });

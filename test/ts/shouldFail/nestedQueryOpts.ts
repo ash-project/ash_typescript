@@ -167,9 +167,9 @@ export const pageWithLimit = await getTodo({
   fields: [
     "id",
     {
+      // @ts-expect-error - page and bare limit are mutually exclusive
       comments: {
         page: { limit: 2 },
-        // @ts-expect-error - page and bare limit are mutually exclusive
         limit: 3,
         fields: ["id"],
       },
@@ -183,9 +183,9 @@ export const pageWithOffset = await getTodo({
   fields: [
     "id",
     {
+      // @ts-expect-error - page and bare offset are mutually exclusive
       comments: {
         page: { limit: 2 },
-        // @ts-expect-error - page and bare offset are mutually exclusive
         offset: 1,
         fields: ["id"],
       },
