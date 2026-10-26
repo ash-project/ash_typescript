@@ -492,14 +492,20 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   end
 
   describe "the built-in Money entry" do
-    test "AshMoney.Types.Money is an object of its declared fields" do
+    test "AshMoney.Types.Money references its named schema" do
       action = AshTypescript.Test.SpecHelpers.spec_action(AshTypescript.Test.Task, :create)
 
       schema =
         ZodSchemaGenerator.generate_zod_schema(AshTypescript.Test.Task, action, "create_task")
 
-      assert schema =~
-               "price: z.object({ currency: z.string(), amount: z.string() }).nullable().optional(),"
+      assert schema =~ "price: MoneyZodSchema.nullable().optional(),"
+    end
+
+    test "the named Money schema is an object of its declared fields" do
+      section = AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas(ZodSchemaGenerator)
+
+      assert section =~
+               "export const MoneyZodSchema = z.object({ currency: z.string(), amount: z.string() });"
     end
   end
 

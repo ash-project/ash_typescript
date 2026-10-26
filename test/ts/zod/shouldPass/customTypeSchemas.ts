@@ -9,7 +9,12 @@
 // Kept separate from constraintValidation.ts: these assert how a *type* resolves
 // to a schema, not how declared constraints are rendered.
 
-import { createTodoZodSchema, createTaskZodSchema } from "../../ash_zod";
+import {
+  createTodoZodSchema,
+  createTaskZodSchema,
+  LineItemZodSchema,
+  MoneyZodSchema,
+} from "../../ash_zod";
 
 function createValidTodoData() {
   return {
@@ -87,6 +92,40 @@ export function testOverriddenGeoPointAccepted() {
   }
 
   return validated;
+}
+
+// ─── Named schemas of declared custom types ─────────────────────────────────
+//
+// Every declared custom type without a `zod` replacement gets a named schema.
+// LineItem references MoneyZodSchema (emitted before it) and the resource
+// schema TaskMetadataZodSchema lazily (resource schemas come later in the
+// file), so parsing it with `meta` proves the lazy reference resolves.
+
+export function testMoneyZodSchemaAccepted() {
+  const validated = MoneyZodSchema.parse({ currency: "NOK", amount: "1.00" });
+
+  if (validated.currency !== "NOK" || validated.amount !== "1.00") {
+    throw new Error("Expected Money to round-trip through its named schema");
+  }
+
+  return validated;
+}
+
+export function testLineItemZodSchemaAccepted() {
+  const price = { currency: "NOK", amount: "1.00" };
+  const withoutMeta = LineItemZodSchema.parse({ label: "Pen", price });
+
+  if (withoutMeta.price.amount !== "1.00" || withoutMeta.meta !== undefined) {
+    throw new Error("Expected a LineItem without meta to round-trip");
+  }
+
+  const withMeta = LineItemZodSchema.parse({ label: "Pen", price, meta: { createdBy: "me" } });
+
+  if (withMeta.meta?.createdBy !== "me") {
+    throw new Error("Expected LineItem.meta to round-trip through the lazy reference");
+  }
+
+  return withMeta;
 }
 
 console.log("Custom type schema tests should compile and pass successfully!");

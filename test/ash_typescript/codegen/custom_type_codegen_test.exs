@@ -13,6 +13,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   alias AshTypescript.CustomTypes.Scalar
   alias AshTypescript.Test.{CustomIdentifier, ExternalCode}
   alias AshTypescript.Test.Todo.PriorityScore
+  alias AshTypescript.TypeSystem.Introspection
 
   setup_all do
     {:ok, content} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
@@ -213,8 +214,23 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
             :input
           )
 
-        assert theme =~ "code: string, codes?: Array<string> | null}"
+        # Theme is referenced by its input alias, whose body is its input object.
+        assert theme == "ThemeInput"
+
+        assert TypeMapper.expand_input(
+                 Introspection.named_type_definition(AshTypescript.Test.Theme)
+               ) =~
+                 "code: string, codes?: Array<string> | null}"
+
         assert theme_map =~ ~s(code: "a" | "b", codes?: Array<"a" | "b"> | null})
+      end)
+    end
+
+    test "alias bodies", %{entry: entry} do
+      with_entries(:declared, &Map.put(&1, ExternalCode, entry), fn ->
+        definition = Introspection.named_type_definition(AshTypescript.Test.Theme)
+
+        assert TypeMapper.expand_plain(definition) =~ "code: string, codes: Array<string> | null}"
       end)
     end
   end
@@ -231,8 +247,11 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       assert content =~ "themeMap: " <> @theme_result
     end
 
-    test "in a declared custom type's input object", %{content: content} do
-      assert content =~ "theme?: " <> @theme_input
+    test "in a declared custom type's input alias", %{content: content} do
+      assert content =~ "theme?: ThemeInput | null;"
+
+      assert content =~
+               "export type ThemeInput = " <> String.replace_suffix(@theme_input, " | null;", ";")
     end
 
     test "in a NewType over :map's input object", %{content: content} do
@@ -240,15 +259,15 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
   end
 
-  describe "built-in scalars without aliases" do
-    test "no ULID, Ltree or Money alias is generated" do
+  describe "built-in types and aliases" do
+    test "no ULID or Ltree alias is generated; Money has one" do
       aliases =
         Codegen.generate_ash_type_aliases([AshTypescript.Test.Task, AshTypescript.Test.Todo])
 
       refute aliases =~ "export type ULID"
       refute aliases =~ "AshPostgresLtreeArray"
       refute aliases =~ "AshPostgresLtreeFlexible"
-      refute aliases =~ "export type Money"
+      assert aliases =~ "export type Money = {currency: string, amount: Decimal};"
     end
 
     test "Ltree attributes map per escape? through the built-in's MFA", %{content: content} do
@@ -268,31 +287,40 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
                ~s(price: {currency: string, amount: Decimal, __type: "TypedMap", __primitiveFields: "currency" | "amount"} | null;)
     end
 
-    test "the input type is an object of its fields", %{content: content} do
-      assert content =~ "price?: {currency: string, amount: Decimal} | null;"
+    test "the input type references its alias", %{content: content} do
+      assert content =~ "price?: Money | null;"
     end
 
-    test "the zod and valibot schemas are objects of its fields", %{content: content} do
+    test "the zod and valibot schemas reference its named schemas", %{content: content} do
+      assert content =~ "price: MoneyZodSchema.nullable().optional(),"
+      assert content =~ "price: v.optional(v.nullable(MoneyValibotSchema)),"
+    end
+
+    test "the named schemas are objects of its fields", %{content: content} do
       assert content =~
-               "price: z.object({ currency: z.string(), amount: z.string() }).nullable().optional(),"
+               "export const MoneyZodSchema = z.object({ currency: z.string(), amount: z.string() });"
 
       assert content =~
-               "price: v.optional(v.nullable(v.object({ currency: v.string(), amount: v.string() }))),"
+               "export const MoneyValibotSchema = v.object({ currency: v.string(), amount: v.string() });"
     end
   end
 
   describe "a type declaring typescript_fields/0 (Todo.color_palette)" do
-    test "the input type is an object of its fields", %{content: content} do
-      assert content =~
-               "colorPalette?: {primary: string, secondary: string, accent: string} | null;"
+    test "the input type references its alias", %{content: content} do
+      assert content =~ "colorPalette?: ColorPalette | null;"
     end
 
-    test "the zod and valibot schemas are objects of its fields", %{content: content} do
+    test "the zod and valibot schemas reference its named schemas", %{content: content} do
+      assert content =~ "colorPalette: ColorPaletteZodSchema.nullable().optional(),"
+      assert content =~ "colorPalette: v.optional(v.nullable(ColorPaletteValibotSchema)),"
+    end
+
+    test "the named schemas are objects of its fields", %{content: content} do
       assert content =~
-               "colorPalette: z.object({ primary: z.string(), secondary: z.string(), accent: z.string() })"
+               "export const ColorPaletteZodSchema = z.object({ primary: z.string(), secondary: z.string(), accent: z.string() });"
 
       assert content =~
-               "colorPalette: v.optional(v.nullable(v.object({ primary: v.string(), secondary: v.string(), accent: v.string() })))"
+               "export const ColorPaletteValibotSchema = v.object({ primary: v.string(), secondary: v.string(), accent: v.string() });"
     end
   end
 end

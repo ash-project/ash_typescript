@@ -17,7 +17,10 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     * constraints the type rejects (`Ash.Type.init/2`). A field typed by a
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
-      field winning per key). A field typed by a `map` entry isn't checked.
+      field winning per key). A field typed by a `map` entry isn't checked;
+    * a `map`'s `type_name` that isn't a TypeScript identifier, or is a
+      reserved word (`string`, `object`, `default`, …;
+      `AshTypescript.CustomTypes.check_name/2`).
 
   The persisted constraints are the user's (regexes already converted by the
   entity transforms), merged for scalar-typed fields. `Ash.Type.init/2` only
@@ -98,9 +101,19 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
   defp normalize(%MapType{} = map, by_module) do
     with :ok <- check_duplicate_fields(map),
-         {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)) do
+         {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)),
+         :ok <- check_type_name(map) do
       {:ok, %{map | fields: fields}}
     end
+  end
+
+  defp check_type_name(%MapType{type_name: nil}), do: :ok
+
+  defp check_type_name(%MapType{type_name: name} = map) do
+    subject = "The type_name #{inspect(name)} of #{inspect(map.module)}"
+
+    with {:error, message} <- CustomTypes.check_name(name, subject),
+         do: {:error, {map, [:map, map.module, :type_name], message}}
   end
 
   defp check_duplicate_fields(%MapType{} = map) do

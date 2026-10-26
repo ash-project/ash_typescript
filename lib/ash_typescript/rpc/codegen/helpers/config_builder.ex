@@ -10,10 +10,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   including tenant, primary key, input, pagination, filters, and metadata fields.
   """
 
-  import AshTypescript.Codegen
   import AshTypescript.Helpers
 
-  alias AshTypescript.Codegen.ClientNames
+  alias AshTypescript.Codegen.{ClientNames, TypeMapper}
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -206,7 +205,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     if Enum.count(primary_key_attrs) == 1 do
       attr_name = Enum.at(primary_key_attrs, 0)
       attr = Ash.Info.Manifest.get_field(resource_lookup, resource, attr_name)
-      base_type = get_ts_type(attr)
+      base_type = TypeMapper.map_plain_type(attr.type, :input)
 
       if validation_function? do
         maybe_add_string_union(base_type)
@@ -218,7 +217,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         Enum.map_join(primary_key_attrs, "; ", fn attr_name ->
           attr = Ash.Info.Manifest.get_field(resource_lookup, resource, attr_name)
           formatted_attr_name = get_formatted_field_name(resource, attr.name)
-          base_type = get_ts_type(attr)
+          base_type = TypeMapper.map_plain_type(attr.type, :input)
 
           type =
             if validation_function? do
@@ -243,7 +242,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         Enum.map_join(identity.keys, "; ", fn key ->
           formatted_key = get_formatted_field_name(resource, key)
           attr = Ash.Info.Manifest.get_field(resource_lookup, resource, key)
-          base_type = get_ts_type(attr)
+          base_type = TypeMapper.map_plain_type(attr.type, :input)
 
           type =
             if validation_function? do
@@ -403,7 +402,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
           formatted_field_name =
             ClientNames.resource_field(Map.fetch!(resource_lookup, resource), field_name)
 
-          "    #{formatted_field_name}: #{get_ts_type(attr)};"
+          "    #{formatted_field_name}: #{TypeMapper.map_plain_type(attr.type, :input)};"
         end)
 
       ["  #{formatted_get_by}: {"] ++ field_lines ++ ["  };"]

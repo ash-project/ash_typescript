@@ -6,7 +6,12 @@
 // enforce something, rather than being permissive shapes that accept anything.
 
 import * as v from "valibot";
-import { createTodoValibotSchema, createTaskValibotSchema } from "../../ash_valibot";
+import {
+  createTodoValibotSchema,
+  createTaskValibotSchema,
+  LineItemValibotSchema,
+  MoneyValibotSchema,
+} from "../../ash_valibot";
 
 function expectValiError(fn: () => unknown, message: string) {
   try {
@@ -58,6 +63,28 @@ export function testOverriddenGeoPointMissingField() {
   return expectValiError(
     () => v.parse(createTaskValibotSchema, { title: "Partial", geoPoint: { lat: 59.91 } }),
     "Should have thrown for a geoPoint missing lng",
+  );
+}
+
+// Named schemas of declared custom types enforce their fields, and LineItem's
+// lazy reference to TaskMetadataValibotSchema validates `meta`.
+
+export function testMoneyValibotSchemaRejectsMissingAmount() {
+  return expectValiError(
+    () => v.parse(MoneyValibotSchema, { currency: "NOK" }),
+    "Should have thrown for a Money without amount",
+  );
+}
+
+export function testLineItemValibotSchemaRejectsBadMeta() {
+  return expectValiError(
+    () =>
+      v.parse(LineItemValibotSchema, {
+        label: "Pen",
+        price: { currency: "NOK", amount: "1.00" },
+        meta: { createdBy: 42 },
+      }),
+    "Should have thrown for a LineItem whose meta has a non-string createdBy",
   );
 }
 

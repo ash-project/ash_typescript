@@ -8,7 +8,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
   module's `custom_types` section:
 
     * `AshMoney.Types.Money`: a map of `currency` (string) and `amount`
-      (decimal), both non-null;
+      (decimal), both non-null, exported as `Money` (`type_name`);
     * `AshDoubleEntry.ULID`: a scalar over `:string`;
     * `AshPostgres.Ltree`: a scalar over `{:array, :string}` whose
       `typescript`, `zod` and `valibot` depend on the `escape?` constraint.
@@ -26,6 +26,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
     [
       %MapType{
         module: AshMoney.Types.Money,
+        type_name: "Money",
         fields: [
           %Field{name: :currency, type: Ash.Type.String, allow_nil?: false},
           %Field{name: :amount, type: Ash.Type.Decimal, allow_nil?: false}

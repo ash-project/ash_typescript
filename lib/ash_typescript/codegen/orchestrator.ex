@@ -22,6 +22,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
   """
 
   alias AshTypescript.Codegen.{
+    CustomTypeAliases,
     ImportResolver,
     SchemaCore,
     SharedSchemaGenerator,
@@ -31,6 +32,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
     ZodSchemaGenerator
   }
 
+  alias AshTypescript.CustomTypes
   alias AshTypescript.Rpc.Codegen, as: RpcCodegen
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.TypedChannel.Codegen, as: ChannelCodegen
@@ -81,6 +83,23 @@ defmodule AshTypescript.Codegen.Orchestrator do
       {:error, error_message} -> throw({:error, error_message})
     end
 
+    # Before any alias or schema is rendered: expanding a recursive declared
+    # type doesn't terminate.
+    CustomTypeAliases.check_recursive_types!()
+
+    alias_modules = custom_type_alias_modules()
+    validate_alias_import_names!(alias_modules)
+
+    schema_formatters =
+      for {formatter, true} <- [
+            {ZodSchemaGenerator, zod_enabled?},
+            {ValibotSchemaGenerator, valibot_enabled?}
+          ],
+          do: formatter
+
+    Enum.each(schema_formatters, &validate_schema_import_names!/1)
+    name_hints = custom_type_name_hints(alias_modules, schema_formatters)
+
     emit_unlisted_typed_modules_warning(otp_app)
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
@@ -129,7 +148,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
             types_content <> "\n" <> channel_types
           end
 
-        type_names = extract_exported_type_names(full_types_content)
+        type_names =
+          extract_exported_type_names(full_types_content, types_output_file, name_hints)
+
         {Map.put(files, types_output_file, full_types_content), type_names}
       else
         {files, []}
@@ -259,6 +280,20 @@ defmodule AshTypescript.Codegen.Orchestrator do
         files
       end
 
+    validate_generated_names!(
+      files,
+      [
+        types_output_file,
+        zod_output_file,
+        valibot_output_file,
+        rpc_output_file,
+        routes_output_file,
+        typed_channels_output_file
+      ],
+      types_output_file,
+      name_hints
+    )
+
     files =
       if rpc_output_file && AshTypescript.Rpc.enable_namespace_files?() do
         grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
@@ -335,14 +370,22 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     additional_schemas = rpc_schemas ++ controller_schemas
 
+    custom_type_schemas = SchemaCore.generate_custom_type_schemas(formatter)
+
     resource_schemas_str =
       SchemaCore.generate_schemas_for_resources(formatter, schema_resources)
 
-    all_schema_strings = [resource_schemas_str | additional_schemas]
-    validate_unique_schema_names!(formatter, all_schema_strings)
+    all_schema_strings = [custom_type_schemas, resource_schemas_str | additional_schemas]
+
+    validate_unique_schema_names!(
+      formatter,
+      all_schema_strings,
+      SchemaCore.custom_type_schema_names(formatter)
+    )
 
     content =
       SharedSchemaGenerator.generate(formatter,
+        custom_type_schemas: custom_type_schemas,
         resource_schemas: resource_schemas_str,
         types_output_file: types_output_file,
         schema_output_file: output_file,
@@ -352,7 +395,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
     Map.put(files, output_file, content)
   end
 
-  defp validate_unique_schema_names!(formatter, schema_strings) do
+  # `custom_type_names` maps the named custom-type schemas to their modules,
+  # so a duplicate among them says how to rename the custom type's alias.
+  defp validate_unique_schema_names!(formatter, schema_strings, custom_type_names) do
     all_names =
       schema_strings
       |> Enum.flat_map(fn schema ->
@@ -371,25 +416,232 @@ defmodule AshTypescript.Codegen.Orchestrator do
       library_name = formatter.library_name()
       names_list = Enum.map_join(duplicates, "\n  - ", & &1)
 
+      {custom_type_duplicates, other_duplicates} =
+        Enum.split_with(duplicates, &Map.has_key?(custom_type_names, &1))
+
+      custom_type_hints =
+        Enum.map(custom_type_duplicates, fn name ->
+          "`#{name}` is the generated schema of the custom type " <>
+            "#{inspect(Map.fetch!(custom_type_names, name))}, named after its alias: " <>
+            "rename the alias #{CustomTypes.rename_hint()}.\n"
+        end)
+
+      route_hint =
+        if other_duplicates != [],
+          do: [
+            "This usually happens when an RPC action and a typed controller route share the same name.\n",
+            "To fix this, add a custom schema name to the typed controller route definition.\n"
+          ],
+          else: []
+
       throw(
         {:error,
          """
          Duplicate #{library_name} schema names detected:
            - #{names_list}
 
-         This usually happens when an RPC action and a typed controller route share the same name.
-         To fix this, add a custom schema name to the typed controller route definition.
+         #{Enum.join(custom_type_hints ++ route_hint)}\
          """}
       )
     end
   end
 
-  defp extract_exported_type_names(typescript_content) do
+  # The names the shared types file exports, after checking that none is
+  # exported twice (a declared custom type's alias equal to a channel payload
+  # type, or anything else `VerifyCustomTypeNames` can't see).
+  defp extract_exported_type_names(typescript_content, types_output_file, name_hints) do
+    duplicates =
+      ~r/^export type (\w+)/m
+      |> Regex.scan(typescript_content)
+      |> Enum.map(fn [_, name] -> name end)
+      |> Enum.frequencies()
+      |> Enum.filter(fn {_name, count} -> count > 1 end)
+      |> Enum.map(fn {name, _count} -> name end)
+      |> Enum.sort()
+
+    if duplicates != [] do
+      throw(
+        {:error,
+         """
+         Duplicate exported type names in #{types_output_file}:
+           - #{Enum.join(duplicates, "\n  - ")}
+
+         #{hints_for(duplicates, name_hints)}\
+         Each type must be exported once: rename one of the declarations.
+         """}
+      )
+    end
+
     Regex.scan(~r/export type (\w+)/, typescript_content)
     |> Enum.map(fn [_, name] -> name end)
     |> Enum.uniq()
     |> Enum.sort()
   end
+
+  # Each generated file binds every name once. A name it imports from the
+  # shared types file (it imports the shared types it mentions by name) must
+  # not be one it declares itself (`ListTodosInput` in the RPC file, TS2440),
+  # and neither may be a name it imports from elsewhere (`Channel` from
+  # phoenix, `z` from zod, `v` from valibot, an `import * as` hooks module).
+  defp validate_generated_names!(files, paths, types_output_file, name_hints) do
+    for path <- Enum.uniq(paths), content = path && Map.get(files, path) do
+      types_import_path =
+        if path != types_output_file,
+          do: ImportResolver.resolve_import_path(path, types_output_file)
+
+      validate_file_names!(path, content, types_import_path, name_hints)
+    end
+
+    :ok
+  end
+
+  defp validate_file_names!(file, content, types_import_path, name_hints) do
+    {from_types, foreign} =
+      content
+      |> imported_names()
+      |> Enum.split_with(fn {_name, from} -> from == types_import_path end)
+
+    imported = MapSet.new(from_types, &elem(&1, 0))
+
+    declared =
+      ~r/^export (?:type|interface|const|function|async function) (\w+)/m
+      |> Regex.scan(content)
+      |> MapSet.new(fn [_, name] -> name end)
+
+    redeclared = imported |> MapSet.intersection(declared) |> Enum.sort()
+
+    if redeclared != [] do
+      throw(
+        {:error,
+         """
+         #{file} imports types from #{AshTypescript.types_output_file()} that it also declares:
+           - #{Enum.join(redeclared, "\n  - ")}
+
+         #{hints_for(redeclared, name_hints)}\
+         """}
+      )
+    end
+
+    clashes =
+      foreign
+      |> Enum.filter(fn {name, _from} ->
+        MapSet.member?(imported, name) or MapSet.member?(declared, name)
+      end)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    if clashes != [] do
+      names = Enum.map(clashes, &elem(&1, 0))
+
+      throw(
+        {:error,
+         """
+         #{file} imports names that it also imports from #{AshTypescript.types_output_file()} \
+         or declares:
+           - #{Enum.map_join(clashes, "\n  - ", fn {name, from} -> ~s(#{name} (imported from "#{from}"\)) end)}
+
+         #{hints_for(names, name_hints)}\
+         A file can bind each name once: rename what generates the clashing name.
+         """}
+      )
+    end
+  end
+
+  # `{local_name, from}` for every name a file's import lines bind
+  # (`import { a, b as c }`, `import type { … }`, `import * as X`,
+  # `import X`).
+  defp imported_names(content) do
+    named =
+      for [_, specs, from] <-
+            Regex.scan(~r/^import (?:type )?\{([^}]*)\} from "([^"]+)";/m, content),
+          spec <- String.split(specs, ",", trim: true),
+          spec = String.trim(spec),
+          spec != "",
+          do: {spec |> String.split(~r/\s+as\s+/) |> List.last() |> local_name(), from}
+
+    bound =
+      for [_, name, from] <-
+            Regex.scan(~r/^import (?:type )?(?:\* as )?(\w+) from "([^"]+)";/m, content),
+          do: {name, from}
+
+    named ++ bound
+  end
+
+  defp local_name("type " <> name), do: String.trim(name)
+  defp local_name(name), do: String.trim(name)
+
+  # An alias equal to an `import_name` clashes with the `import * as` of the
+  # files that config imports into.
+  defp validate_alias_import_names!(alias_modules) do
+    errors =
+      for key <- [:import_into_generated, :typed_controller_import_into_generated],
+          name <- import_names(Application.get_env(:ash_typescript, key, [])),
+          module = Map.get(alias_modules, name) do
+        "The TypeScript alias `#{name}` of the custom type #{inspect(module)} is an " <>
+          "`import_name` in the `#{inspect(key)}` config: rename it " <>
+          "#{CustomTypes.rename_hint()}, or change the `import_name`."
+      end
+
+    throw_errors!(errors)
+  end
+
+  defp validate_schema_import_names!(formatter) do
+    schema_modules = SchemaCore.custom_type_schema_names(formatter)
+    key = :"#{formatter.library()}_import_into_generated"
+
+    errors =
+      for name <- import_names(formatter.custom_imports()),
+          module = Map.get(schema_modules, name) do
+        "The #{formatter.library_name()} schema `#{name}` of the custom type " <>
+          "#{inspect(module)} is an `import_name` in the `#{inspect(key)}` config: rename " <>
+          "its alias #{CustomTypes.rename_hint()}, or change the `import_name`."
+      end
+
+    throw_errors!(errors)
+  end
+
+  defp import_names(imports), do: Enum.map(imports, &(&1[:import_name] || &1["import_name"]))
+
+  defp throw_errors!([]), do: :ok
+  defp throw_errors!(errors), do: throw({:error, Enum.join(errors, "\n")})
+
+  # Alias name (plain and input) => the declared custom type it belongs to.
+  defp custom_type_alias_modules do
+    for definition <- CustomTypeAliases.definitions(),
+        name <- [
+          CustomTypeAliases.plain_name(definition),
+          CustomTypeAliases.input_name(definition)
+        ],
+        name,
+        into: %{},
+        do: {name, definition.module}
+  end
+
+  # Generated name => the hints naming the custom type it belongs to and how
+  # to rename its alias: aliases, and the named schemas (named after the
+  # alias) of the enabled schema libraries.
+  defp custom_type_name_hints(alias_modules, schema_formatters) do
+    alias_hints =
+      for {name, module} <- alias_modules do
+        {name,
+         "`#{name}` is the TypeScript alias of the custom type #{inspect(module)}: " <>
+           "rename it #{CustomTypes.rename_hint()}.\n"}
+      end
+
+    schema_hints =
+      for formatter <- schema_formatters,
+          {name, module} <- SchemaCore.custom_type_schema_names(formatter) do
+        {name,
+         "`#{name}` is the #{formatter.library_name()} schema of the custom type " <>
+           "#{inspect(module)}, named after its alias: rename the alias " <>
+           "#{CustomTypes.rename_hint()}.\n"}
+      end
+
+    Enum.group_by(alias_hints ++ schema_hints, &elem(&1, 0), &elem(&1, 1))
+  end
+
+  defp hints_for(names, name_hints),
+    do: Enum.map_join(names, &Enum.join(Map.get(name_hints, &1, [])))
 
   @doc false
   # Typed channels with at least one stored publication, with their DSL topic.

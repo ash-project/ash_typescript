@@ -40,10 +40,24 @@ defmodule AshTypescript.Test.Manifest do
 
     # The schemas replace the object of the fields with one that checks ranges.
     map AshTypescript.Test.GeoPoint do
+      type_name "GeoPoint"
       field :lat, :float, allow_nil?: false
       field :lng, :float, allow_nil?: false
       zod "NestedZodSchemas.geoPoint"
       valibot "NestedValibotSchemas.geoPoint"
+    end
+
+    # A declared type with a nested declared type and an embedded resource.
+    map AshTypescript.Test.LineItem do
+      type_name "LineItem"
+      field :label, :string, allow_nil?: false
+      field :price, AshMoney.Types.Money, allow_nil?: false
+      field :meta, AshTypescript.Test.TaskMetadata
+    end
+
+    # A declared type with a non-embedded resource field, only returned.
+    map AshTypescript.Test.TodoRef do
+      field :todo, :struct, constraints: [instance_of: AshTypescript.Test.Todo]
     end
   end
 end

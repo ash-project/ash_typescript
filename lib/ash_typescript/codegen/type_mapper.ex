@@ -12,6 +12,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.ClientNames
+  alias AshTypescript.Codegen.CustomTypeAliases
   alias AshTypescript.Codegen.Helpers
   alias AshTypescript.CustomTypes.Scalar
   alias AshTypescript.Manifest.Custom
@@ -197,9 +198,15 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp map_type_info(%Type{} = type_info, direction, custom_fields?) do
     case type_info.kind do
       :type_ref ->
-        # Resolve the named type module to its full definition and re-dispatch
+        # Resolve the named type module to its full definition and re-dispatch.
+        # An input position references a declared custom type's input alias;
+        # output (schema) positions keep the inline form.
         full_type = Introspection.named_type_definition(type_info.module)
-        map_type(full_type, [], direction)
+
+        case direction == :input && CustomTypeAliases.input_name(full_type) do
+          name when is_binary(name) -> name
+          _ -> map_type(full_type, [], direction)
+        end
 
       :array ->
         inner_ts = map_type_info(type_info.item_type, direction, custom_fields?)
@@ -468,11 +475,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
   A pushed payload has no field selection, so it maps like a route result
   (`map_route_result_type/1`): typed containers, nested ones and array items
   included, are plain object types without the `__type`/`__primitiveFields`
-  metadata RPC output types carry. Field names come from the types'
-  decoration, so they match the pushed payload.
+  metadata RPC output types carry, and declared custom types reference their
+  alias (`AshTypescript.Codegen.CustomTypeAliases`). Field names come from the
+  types' decoration, so they match the pushed payload.
   """
   @spec map_channel_payload_type(Type.t()) :: String.t()
-  def map_channel_payload_type(%Type{} = type), do: map_plain_output_type(type)
+  def map_channel_payload_type(%Type{} = type), do: map_plain_output_type(type, false)
 
   @doc """
   Maps a typed controller route's decorated `returns` type (from the manifest
@@ -485,28 +493,80 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   Field names come from each type's decoration (read through
   `Codegen.ClientNames`), so they are the names the runtime sends.
-  Named types (NewTypes, enums) are expanded from the manifest: route-only
-  named types are in it. Resources and unions are rejected at compile time by
+  Declared custom types reference their alias
+  (`AshTypescript.Codegen.CustomTypeAliases`); other named types (NewTypes,
+  enums) are expanded from the manifest: route-only named types are in it.
+  Resources and unions are rejected at compile time by
   `AshTypescript.TypedController.Transformers.FoldArgumentConstraints`.
   """
   @spec map_route_result_type(Type.t()) :: String.t()
-  def map_route_result_type(%Type{} = type), do: map_plain_output_type(type)
+  def map_route_result_type(%Type{} = type), do: map_plain_output_type(type, false)
 
-  defp map_plain_output_type(%Type{kind: :type_ref, module: module}),
-    do: module |> Introspection.named_type_definition() |> map_plain_output_type()
+  @doc """
+  Maps a type at a plain position: one where the client writes or receives the
+  value as data, with no field selection, so typed maps carry no
+  `__type`/`__primitiveFields` metadata.
 
-  defp map_plain_output_type(%Type{kind: :array, item_type: item_type}),
-    do: wrap_array(map_plain_output_type(item_type))
+  - `:output`, for filter operator values and action metadata: the
+    `map_route_result_type/1` mapping. Typed containers (nested ones and array
+    items included) are plain objects with every key present, and declared
+    custom types reference their alias. A filter value is cast with the
+    attribute's type and compared whole, so it takes the full shape. Unions,
+    resources and scalars map as in `map_type/3`.
+  - `:input`, for identity and `getBy` values: the `map_type/3` input mapping
+    (declared custom types reference their input alias).
+  """
+  @spec map_plain_type(Type.t(), direction()) :: String.t()
+  def map_plain_type(%Type{} = type, :output), do: map_plain_output_type(type, false)
+  def map_plain_type(%Type{} = type, :input), do: map_type(type, [], :input)
 
-  defp map_plain_output_type(%Type{kind: kind} = type_info)
+  @doc """
+  A declared custom type's plain rendering, from its own fields: the body of
+  its alias (`AshTypescript.Codegen.CustomTypeAliases`). Every key is
+  present, nullable members are `T | null`, and nested declared types
+  reference their aliases.
+  """
+  @spec expand_plain(Type.t()) :: String.t()
+  def expand_plain(%Type{} = definition),
+    do:
+      plain_object_type(
+        definition,
+        Type.get_fields(definition),
+        &map_plain_output_type(&1, true)
+      )
+
+  @doc """
+  A declared custom type's input rendering, from its own fields: the body of
+  its `Input` alias when it differs from `expand_plain/1`. Nullable members are
+  optional, and nested declared types reference their input aliases.
+  """
+  @spec expand_input(Type.t()) :: String.t()
+  def expand_input(%Type{} = definition), do: build_field_input_type(definition)
+
+  # `custom_fields?` as in `map_type_info/3`: true for a member of a declared
+  # custom type's definition.
+  defp map_plain_output_type(%Type{kind: :type_ref, module: module}, _custom_fields?) do
+    definition = Introspection.named_type_definition(module)
+    CustomTypeAliases.plain_name(definition) || map_plain_output_type(definition, false)
+  end
+
+  defp map_plain_output_type(%Type{kind: :array, item_type: item_type}, custom_fields?),
+    do: wrap_array(map_plain_output_type(item_type, custom_fields?))
+
+  defp map_plain_output_type(%Type{kind: kind} = type_info, _custom_fields?)
        when kind in [:map, :keyword, :tuple, :struct] do
     case Type.get_fields(type_info) do
-      [] -> AshTypescript.untyped_map_type()
-      fields -> plain_object_type(type_info, fields, &map_plain_output_type/1)
+      [] ->
+        AshTypescript.untyped_map_type()
+
+      fields ->
+        custom_fields? = AshRpc.Manifest.Custom.custom_type?(type_info)
+        plain_object_type(type_info, fields, &map_plain_output_type(&1, custom_fields?))
     end
   end
 
-  defp map_plain_output_type(type_info), do: map_type(type_info, [], :output)
+  defp map_plain_output_type(type_info, custom_fields?),
+    do: map_type_info(type_info, :output, custom_fields?)
 
   # A typed container as a plain object type, with field names taken from the
   # type's decoration (read through `Codegen.ClientNames`), so the generated

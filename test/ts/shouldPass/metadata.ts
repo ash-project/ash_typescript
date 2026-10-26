@@ -14,6 +14,7 @@ import {
   markCompletedTask,
   destroyTask,
 } from "../generated";
+import type { ReadTasksWithTypedMapMetadataMetadata } from "../generated";
 
 // Test 1: Read action with metadata - selecting all metadata fields
 export const readWithAllMetadata = await readTasksWithMetadata({
@@ -335,5 +336,12 @@ if (readWithSnakeMappedMetadata.success) {
     const someStringValue: string = task.some_string_value;
   }
 }
+
+// Typed-map metadata values are plain data (no TypedMap markers), so a value
+// can be written by hand
+export const completionInfo: ReadTasksWithTypedMapMetadataMetadata["completionInfo"] = {
+  completedAt: null,
+  completedBy: "a",
+};
 
 console.log("Metadata tests should compile successfully!");

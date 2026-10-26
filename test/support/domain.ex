@@ -226,6 +226,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_task_stats, :list_task_stats
       rpc_action :get_suggestion, :get_suggestion
       rpc_action :list_suggestions, :list_suggestions
+      rpc_action :echo_line_item, :echo_line_item
+      rpc_action :get_todo_ref, :get_todo_ref
+      rpc_action :describe_style, :describe_style
 
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
         show_metadata: [:meta_1, :is_valid?, :field_2],

@@ -7,6 +7,7 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
   Generates a shared validation schema file for any `SchemaFormatter` implementation.
 
   Assembles all schemas into a single dedicated file:
+  - Named schemas of declared custom types
   - Resource-level schemas (embedded resources, struct arguments)
   - Per-action RPC schemas
   - Per-route controller schemas
@@ -22,6 +23,9 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
     * `formatter` - A module implementing `AshTypescript.Codegen.SchemaFormatter`
     * `opts` - A keyword list with:
       * `:resource_schemas` - Pre-generated resource schema string (required)
+      * `:custom_type_schemas` - Pre-generated named custom-type schemas
+        (`AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas/1`),
+        placed before the resource schemas so they can reference them (optional)
       * `:types_output_file` - Path to the shared types file (required)
       * `:schema_output_file` - Path to this schema file (required, for import resolution)
       * `:additional_schemas` - Pre-rendered schema strings to append (optional)
@@ -32,6 +36,7 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
   """
   def generate(formatter, opts) do
     resource_schemas = Keyword.fetch!(opts, :resource_schemas)
+    custom_type_schemas = Keyword.get(opts, :custom_type_schemas, "")
     types_output_file = Keyword.fetch!(opts, :types_output_file)
     schema_output_file = Keyword.fetch!(opts, :schema_output_file)
     additional_schemas = Keyword.get(opts, :additional_schemas, [])
@@ -51,6 +56,11 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
 
     custom_import_lines = custom_import_lines(formatter, schema_output_file)
 
+    leading_schemas =
+      [custom_type_schemas, resource_schemas]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+
     additional_section =
       additional_schemas
       |> Enum.reject(&(&1 == ""))
@@ -62,7 +72,7 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
 
     #{formatter.import_statement(import_path)}
     #{custom_import_lines}#{type_import_line}
-    #{resource_schemas}
+    #{leading_schemas}
 
     #{additional_section}
     """

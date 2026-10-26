@@ -19,7 +19,10 @@ defmodule AshTypescript.Manifest.Decorator do
 
     * `manifest.types[i].custom.ash_typescript` — the `type_name` for type
       modules that export `typescript_field_names/0` or `typescript_type_name/0`,
-      except declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`).
+      except declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`),
+      which get their `custom_type_names` instead
+      (`AshTypescript.CustomTypes.names/2`, read through
+      `AshTypescript.Manifest.Custom.custom_type_names/1`).
 
     * `manifest.entrypoints[i].custom.ash_typescript` — mirrors the
       `config.ash_typescript` payload that `RpcConfigCollector` passed into
@@ -43,16 +46,27 @@ defmodule AshTypescript.Manifest.Decorator do
   """
 
   alias Ash.Info.Manifest
-  alias AshTypescript.Helpers
+  alias AshTypescript.{CustomTypes, Helpers}
 
   @doc """
   Returns a decorated copy of `manifest`.
 
-  Options: `hint:`, the text for an undeclared map-like custom type a typed
-  query reaches (`t:AshRpc.Manifest.UntypedStructError.hint/0`), passed to
-  `AshRpc.Manifest.Decorator.check_untyped_structs!/4`.
+  Options:
+
+    * `hint:`, the text for an undeclared map-like custom type a typed query
+      reaches (`t:AshRpc.Manifest.UntypedStructError.hint/0`), passed to
+      `AshRpc.Manifest.Decorator.check_untyped_structs!/4`;
+    * `custom_types:`, the persisted `custom_types`
+      (`%{declared: entries, builtin: entries}`) the names of declared custom
+      types come from (default: no declarations, the built-ins).
   """
-  @spec decorate(Manifest.t(), hint: AshRpc.Manifest.UntypedStructError.hint()) :: Manifest.t()
+  @spec decorate(Manifest.t(),
+          hint: AshRpc.Manifest.UntypedStructError.hint(),
+          custom_types: %{
+            declared: AshTypescript.CustomTypes.entries(),
+            builtin: AshTypescript.CustomTypes.entries()
+          }
+        ) :: Manifest.t()
   def decorate(%Manifest{} = manifest, opts \\ []) do
     lookups = %{
       resource_lookup: AshRpc.Manifest.resource_lookup(manifest),
@@ -61,10 +75,15 @@ defmodule AshTypescript.Manifest.Decorator do
 
     hint = Keyword.get(opts, :hint)
 
+    custom_types =
+      Keyword.get_lazy(opts, :custom_types, fn ->
+        %{declared: %{}, builtin: AshTypescript.CustomTypes.Builtin.by_module()}
+      end)
+
     %Manifest{
       manifest
       | resources: Enum.map(manifest.resources, &decorate_resource/1),
-        types: Enum.map(manifest.types, &decorate_type/1),
+        types: Enum.map(manifest.types, &decorate_type(&1, custom_types)),
         entrypoints: Enum.map(manifest.entrypoints, &decorate_entrypoint(&1, lookups, hint))
     }
   end
@@ -89,13 +108,14 @@ defmodule AshTypescript.Manifest.Decorator do
   # ─────────────────────────────────────────────────────────────────
 
   defp decorate_type(
-         %Manifest.Type{kind: :embedded_resource, resource: %Manifest.Resource{} = res} = type
+         %Manifest.Type{kind: :embedded_resource, resource: %Manifest.Resource{} = res} = type,
+         _custom_types
        ) do
     %Manifest.Type{type | resource: decorate_resource(res)}
   end
 
-  defp decorate_type(%Manifest.Type{} = type) do
-    case build_type_custom(type) do
+  defp decorate_type(%Manifest.Type{} = type, custom_types) do
+    case build_type_custom(type, custom_types) do
       nil -> type
       custom -> %Manifest.Type{type | custom: put_namespace(type.custom, custom)}
     end
@@ -104,14 +124,21 @@ defmodule AshTypescript.Manifest.Decorator do
   # Only types whose effective module exports `typescript_field_names/0` or
   # `typescript_type_name/0` get decorated (codegen reads `type_name`). Field
   # name overrides live under `custom.ash_rpc`. A declared custom type
-  # (`AshRpc.Manifest.Custom.custom_type?/1`) gets none: its TypeScript comes
-  # from its fields, and `VerifyMappableTypes` rejects a `typescript_type_name/0`.
-  defp build_type_custom(%Manifest.Type{} = type) do
+  # (`AshRpc.Manifest.Custom.custom_type?/1`) gets no `type_name`: its
+  # TypeScript comes from its fields, and `VerifyMappableTypes` rejects a
+  # `typescript_type_name/0`. It gets the names of its alias and schemas.
+  defp build_type_custom(%Manifest.Type{} = type, custom_types) do
     module = Manifest.Type.effective_module(type)
 
-    if not AshRpc.Manifest.Custom.custom_type?(type) and
-         (Helpers.has_typescript_field_names?(module) or type_name_exported?(module)) do
-      %{type_name: resolve_type_module_name(module)}
+    cond do
+      AshRpc.Manifest.Custom.custom_type?(type) ->
+        %{custom_type_names: CustomTypes.names(type.module, custom_types)}
+
+      Helpers.has_typescript_field_names?(module) or type_name_exported?(module) ->
+        %{type_name: resolve_type_module_name(module)}
+
+      true ->
+        nil
     end
   end
 

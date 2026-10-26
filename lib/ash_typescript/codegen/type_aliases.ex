@@ -4,10 +4,13 @@
 
 defmodule AshTypescript.Codegen.TypeAliases do
   @moduledoc """
-  Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.).
+  Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.),
+  followed by the aliases of declared custom types
+  (`AshTypescript.Codegen.CustomTypeAliases`).
   """
 
   alias Ash.Info.Manifest.Type
+  alias AshTypescript.Codegen.CustomTypeAliases
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.TypeSystem.Introspection
 
@@ -32,6 +35,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   `extra_types` are additional `%Ash.Info.Manifest.Type{}` roots rendered into
   the same file outside any resource (e.g. typed channel payload types).
+  Declared custom type definitions are roots too (route-only ones included),
+  and their aliases follow the primitive aliases.
   """
   def generate_ash_type_aliases(resources, resource_lookup \\ nil, extra_types \\ [])
 
@@ -64,9 +69,16 @@ defmodule AshTypescript.Codegen.TypeAliases do
         end
       end)
 
-    extra_types
-    |> Enum.reduce(types, &collect_type_module/2)
-    |> generate_aliases()
+    custom_type_aliases = CustomTypeAliases.generate()
+
+    primitive_aliases =
+      (extra_types ++ CustomTypeAliases.definitions())
+      |> Enum.reduce(types, &collect_type_module/2)
+      |> generate_aliases()
+
+    [primitive_aliases, custom_type_aliases]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n\n")
   end
 
   defp collect_types_from_api_resource(api_resource, types) do
@@ -196,6 +208,34 @@ defmodule AshTypescript.Codegen.TypeAliases do
     |> Enum.join("\n")
   end
 
+  # Primitive types with a declared alias: {module, alias name, TypeScript type}.
+  @fixed_aliases [
+    {Ash.Type.UUID, "UUID", "string"},
+    {Ash.Type.UUIDv7, "UUIDv7", "string"},
+    {Ash.Type.Decimal, "Decimal", "string"},
+    {Ash.Type.Date, "AshDate", "string"},
+    {Ash.Type.Time, "Time", "string"},
+    {Ash.Type.TimeUsec, "TimeUsec", "string"},
+    {Ash.Type.UtcDatetime, "UtcDateTime", "string"},
+    {Ash.Type.UtcDatetimeUsec, "UtcDateTimeUsec", "string"},
+    {Ash.Type.DateTime, "DateTime", "string"},
+    {Ash.Type.NaiveDatetime, "NaiveDateTime", "string"},
+    {Ash.Type.Duration, "Duration", "string"},
+    {Ash.Type.DurationName, "DurationName", "string"},
+    {Ash.Type.Binary, "Binary", "string"},
+    {Ash.Type.Vector, "AshVector", "number[]"},
+    {Ash.Type.UrlEncodedBinary, "UrlEncodedBinary", "string"},
+    {Ash.Type.File, "File", "any"},
+    {Ash.Type.Function, "Function", "any"},
+    {Ash.Type.Module, "ModuleName", "string"}
+  ]
+
+  @doc false
+  # The names of the primitive aliases, reserved against declared custom
+  # types' aliases (`VerifyCustomTypeNames`).
+  @spec fixed_alias_names() :: [String.t()]
+  def fixed_alias_names, do: Enum.map(@fixed_aliases, &elem(&1, 1))
+
   # Primitive types that don't need aliases
   defp generate_ash_type_alias(Ash.Type.Struct), do: ""
   defp generate_ash_type_alias(Ash.Type.Union), do: ""
@@ -211,30 +251,10 @@ defmodule AshTypescript.Codegen.TypeAliases do
   defp generate_ash_type_alias(Ash.Type.Term), do: ""
 
   # Types that need TypeScript aliases
-  defp generate_ash_type_alias(Ash.Type.UUID), do: "export type UUID = string;"
-  defp generate_ash_type_alias(Ash.Type.UUIDv7), do: "export type UUIDv7 = string;"
-  defp generate_ash_type_alias(Ash.Type.Decimal), do: "export type Decimal = string;"
-  defp generate_ash_type_alias(Ash.Type.Date), do: "export type AshDate = string;"
-  defp generate_ash_type_alias(Ash.Type.Time), do: "export type Time = string;"
-  defp generate_ash_type_alias(Ash.Type.TimeUsec), do: "export type TimeUsec = string;"
-  defp generate_ash_type_alias(Ash.Type.UtcDatetime), do: "export type UtcDateTime = string;"
-
-  defp generate_ash_type_alias(Ash.Type.UtcDatetimeUsec),
-    do: "export type UtcDateTimeUsec = string;"
-
-  defp generate_ash_type_alias(Ash.Type.DateTime), do: "export type DateTime = string;"
-  defp generate_ash_type_alias(Ash.Type.NaiveDatetime), do: "export type NaiveDateTime = string;"
-  defp generate_ash_type_alias(Ash.Type.Duration), do: "export type Duration = string;"
-  defp generate_ash_type_alias(Ash.Type.DurationName), do: "export type DurationName = string;"
-  defp generate_ash_type_alias(Ash.Type.Binary), do: "export type Binary = string;"
-  defp generate_ash_type_alias(Ash.Type.Vector), do: "export type AshVector = number[];"
-
-  defp generate_ash_type_alias(Ash.Type.UrlEncodedBinary),
-    do: "export type UrlEncodedBinary = string;"
-
-  defp generate_ash_type_alias(Ash.Type.File), do: "export type File = any;"
-  defp generate_ash_type_alias(Ash.Type.Function), do: "export type Function = any;"
-  defp generate_ash_type_alias(Ash.Type.Module), do: "export type ModuleName = string;"
+  for {module, name, ts_type} <- @fixed_aliases do
+    defp generate_ash_type_alias(unquote(module)),
+      do: unquote("export type #{name} = #{ts_type};")
+  end
 
   defp generate_ash_type_alias(type) do
     cond do
@@ -248,7 +268,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
           Ash.Resource.Info.embedded?(type) ->
         ""
 
-      # A declared custom type is mapped through its `:type_ref`, from its fields.
+      # A declared custom type is mapped through its `:type_ref`; its alias
+      # comes from `CustomTypeAliases`.
       declared_custom_type?(type) ->
         ""
 

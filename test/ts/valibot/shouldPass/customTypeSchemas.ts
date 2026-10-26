@@ -10,7 +10,12 @@
 // to a schema, not how declared constraints are rendered.
 
 import * as v from "valibot";
-import { createTodoValibotSchema, createTaskValibotSchema } from "../../ash_valibot";
+import {
+  createTodoValibotSchema,
+  createTaskValibotSchema,
+  LineItemValibotSchema,
+  MoneyValibotSchema,
+} from "../../ash_valibot";
 
 function createValidTodoData() {
   return {
@@ -88,6 +93,45 @@ export function testOverriddenGeoPointAccepted() {
   }
 
   return validated;
+}
+
+// ─── Named schemas of declared custom types ─────────────────────────────────
+//
+// Every declared custom type without a `valibot` replacement gets a named
+// schema. LineItem references MoneyValibotSchema (emitted before it) and the
+// resource schema TaskMetadataValibotSchema lazily (resource schemas come
+// later in the file), so parsing it with `meta` proves the lazy reference
+// resolves.
+
+export function testMoneyValibotSchemaAccepted() {
+  const validated = v.parse(MoneyValibotSchema, { currency: "NOK", amount: "1.00" });
+
+  if (validated.currency !== "NOK" || validated.amount !== "1.00") {
+    throw new Error("Expected Money to round-trip through its named schema");
+  }
+
+  return validated;
+}
+
+export function testLineItemValibotSchemaAccepted() {
+  const price = { currency: "NOK", amount: "1.00" };
+  const withoutMeta = v.parse(LineItemValibotSchema, { label: "Pen", price });
+
+  if (withoutMeta.price.amount !== "1.00" || withoutMeta.meta !== undefined) {
+    throw new Error("Expected a LineItem without meta to round-trip");
+  }
+
+  const withMeta = v.parse(LineItemValibotSchema, {
+    label: "Pen",
+    price,
+    meta: { createdBy: "me" },
+  });
+
+  if (withMeta.meta?.createdBy !== "me") {
+    throw new Error("Expected LineItem.meta to round-trip through the lazy reference");
+  }
+
+  return withMeta;
 }
 
 console.log("Valibot custom type schema tests should compile and pass successfully!");

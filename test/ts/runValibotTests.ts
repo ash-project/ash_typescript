@@ -150,6 +150,10 @@ runTest("testPriorityScoreStringRejected", () => customFail.testPriorityScoreStr
 runTest("testOverriddenCustomIdTooShort", () => customFail.testOverriddenCustomIdTooShort());
 runTest("testOverriddenGeoPointOutOfRange", () => customFail.testOverriddenGeoPointOutOfRange());
 runTest("testOverriddenGeoPointMissingField", () => customFail.testOverriddenGeoPointMissingField());
+runTest("testMoneyValibotSchemaAccepted", () => customPass.testMoneyValibotSchemaAccepted());
+runTest("testLineItemValibotSchemaAccepted", () => customPass.testLineItemValibotSchemaAccepted());
+runTest("testMoneyValibotSchemaRejectsMissingAmount", () => customFail.testMoneyValibotSchemaRejectsMissingAmount());
+runTest("testLineItemValibotSchemaRejectsBadMeta", () => customFail.testLineItemValibotSchemaRejectsBadMeta());
 
 console.log("\n========================================");
 console.log("Test Results Summary");

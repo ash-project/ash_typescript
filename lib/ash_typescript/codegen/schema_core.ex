@@ -15,7 +15,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   """
 
   alias Ash.Info.Manifest.Type, as: SpecType
-  alias AshTypescript.Codegen.ClientNames
+  alias AshTypescript.Codegen.{ClientNames, CustomTypeAliases}
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.CustomTypes
   alias AshTypescript.CustomTypes.{MapType, Scalar}
@@ -73,14 +73,19 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # `allow_empty?: false` (the Ash string default), mirroring what the server
   # accepts — independent of the field's nilability.
   #
-  # `custom_fields?` is true for a member of a declared custom type's
-  # definition: a scalar entry's base mapping then uses the member's own
-  # constraints. It follows arrays, and nested containers set their own.
-  defp map_spec_type(formatter, type_info, custom_fields? \\ false)
+  # Options:
+  #
+  #   * `custom_fields?` is true for a member of a declared custom type's
+  #     definition: a scalar entry's base mapping then uses the member's own
+  #     constraints. It follows arrays, and nested containers set their own.
+  #   * `lazy?` defers references to resource schemas (`wrap_lazy/1`), for the
+  #     named custom-type schemas, which come before the resource schemas. It
+  #     follows every nested type.
+  defp map_spec_type(formatter, type_info, opts \\ [])
 
-  defp map_spec_type(_formatter, nil, _custom_fields?), do: nil
+  defp map_spec_type(_formatter, nil, _opts), do: nil
 
-  defp map_spec_type(formatter, %SpecType{} = type_info, custom_fields?) do
+  defp map_spec_type(formatter, %SpecType{} = type_info, opts) do
     case type_info.kind do
       kind when kind in [:string, :ci_string] ->
         constraints = type_info.constraints || []
@@ -103,31 +108,43 @@ defmodule AshTypescript.Codegen.SchemaCore do
         # Item constraints already live on `item_type`; `type_info.constraints`
         # carries the array's own cardinality (`min_length`/`max_length`), which
         # the formatter renders alongside the item schema.
-        inner =
-          map_spec_type(formatter, type_info.item_type, custom_fields?) || formatter.any_schema()
+        inner = map_spec_type(formatter, type_info.item_type, opts) || formatter.any_schema()
 
         formatter.format_array(inner, type_info.constraints || [])
 
       :union ->
-        map_spec_union(formatter, type_info)
+        map_spec_union(formatter, type_info, opts)
 
       kind when kind in [:resource, :embedded_resource] ->
-        map_resource_ref(formatter, SpecType.effective_resource(type_info))
+        map_resource_ref(formatter, SpecType.effective_resource(type_info), opts)
 
       kind when kind in [:map, :keyword, :tuple, :struct] ->
-        map_typed_container(formatter, type_info)
+        map_typed_container(formatter, type_info, opts)
 
       :type_ref ->
-        map_entry_schema(formatter, type_info) ||
-          map_spec_type(formatter, Introspection.named_type_definition(type_info.module))
+        map_type_ref(formatter, type_info, opts)
 
       :unknown ->
-        map_unknown_module(formatter, type_info, custom_fields?)
+        map_unknown_module(formatter, type_info, Keyword.get(opts, :custom_fields?, false))
 
       _primitive_kind ->
         lookup_primitive(formatter, type_info)
     end
   end
+
+  # A named type: its entry's replacement, else the definition's named
+  # custom-type schema, else the definition inline.
+  defp map_type_ref(formatter, %SpecType{} = type_info, opts) do
+    with nil <- map_entry_schema(formatter, type_info) do
+      definition = Introspection.named_type_definition(type_info.module)
+
+      custom_type_schema_name(formatter, definition) ||
+        map_spec_type(formatter, definition, nested_opts(opts))
+    end
+  end
+
+  # The options a nested type inherits: `custom_fields?` is the container's.
+  defp nested_opts(opts), do: Keyword.take(opts, [:lazy?])
 
   # Leaf lookup, mirroring the precedence `TypeMapper.map_type/3` documents:
   # the type's own module wins over the kind table. `kind` is a coarse bucket
@@ -153,25 +170,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # fields (no entry or `typescript_fields/0` of its own) inherits its
   # subtype's entry too.
   defp map_entry_schema(formatter, %SpecType{module: module} = type_info) do
-    case map_entry(module) do
+    case CustomTypes.map_entry(module, &Custom.custom_type_entry(nil, &1)) do
       %MapType{} = entry -> CustomTypes.mapping(entry, formatter.library(), type_info.constraints)
-      _ -> nil
+      nil -> nil
     end
   end
-
-  defp map_entry(module) do
-    case Custom.custom_type_entry(nil, module) do
-      nil -> if inherits_fields?(module), do: Custom.custom_type_entry(nil, subtype(module))
-      entry -> entry
-    end
-  end
-
-  defp inherits_fields?(module) do
-    Code.ensure_loaded?(module) and Ash.Type.NewType.new_type?(module) and
-      not function_exported?(module, :typescript_fields, 0) and subtype(module) != module
-  end
-
-  defp subtype(module), do: Ash.Type.NewType.subtype_of(module)
 
   # Handles `:unknown` kinds — hand-rolled `use Ash.Type` modules:
   #
@@ -401,6 +404,143 @@ defmodule AshTypescript.Codegen.SchemaCore do
     generate_schema_impl(formatter, resource, lookup)
   end
 
+  @doc """
+  The name of a declared custom type's named schema for `formatter`'s
+  library: its TypeScript alias followed by the configured `schema_suffix/0`
+  (`MoneyZodSchema`). `nil` when it has none: a `zod` / `valibot`
+  replacement, a definition that reaches a non-embedded resource
+  (`AshTypescript.Codegen.CustomTypeAliases.reaches_resource?/1`: such a
+  resource has no schema to reference), or one that isn't a declared custom
+  type.
+  """
+  @spec custom_type_schema_name(module(), SpecType.t()) :: String.t() | nil
+  def custom_type_schema_name(formatter, %SpecType{} = definition) do
+    names = Custom.custom_type_names(definition)
+
+    cond do
+      is_nil(names) or is_nil(Map.fetch!(names, formatter.library())) -> nil
+      CustomTypeAliases.reaches_resource?(definition) -> nil
+      true -> names.typescript <> formatter.schema_suffix()
+    end
+  end
+
+  @doc """
+  The named custom-type schemas for `formatter`, as `%{schema_name => module}`.
+  """
+  @spec custom_type_schema_names(module()) :: %{String.t() => module()}
+  def custom_type_schema_names(formatter) do
+    formatter
+    |> custom_type_schema_definitions()
+    |> Map.new(fn {name, definition} -> {name, definition.module} end)
+  end
+
+  @doc """
+  Generates the named schemas of the declared custom types (manifest
+  definitions with `AshRpc.Manifest.Custom.custom_type?/1` and a schema name,
+  `custom_type_schema_name/2`), under a "Schemas for Custom Types" section
+  header. Returns `""` when there are none.
+
+  The section goes before the resource schemas, so every later schema can
+  reference the names. Each schema follows the named schemas its fields
+  reference (Kahn's algorithm, ties by name); references to resource schemas
+  are deferred with `wrap_lazy/1`. Named schemas that reference each other in
+  a cycle throw `{:error, message}`
+  (`AshTypescript.Codegen.CustomTypeAliases.recursion_message/1`); codegen
+  rejects recursive declared types before rendering any schema
+  (`CustomTypeAliases.check_recursive_types!/0`).
+
+  Definitions are read from the configured manifest
+  (`AshTypescript.with_manifest/2` applies).
+  """
+  @spec generate_custom_type_schemas(module()) :: String.t()
+  def generate_custom_type_schemas(formatter) do
+    case custom_type_schema_definitions(formatter) do
+      [] ->
+        ""
+
+      named ->
+        schemas =
+          named
+          |> sort_custom_type_schemas(formatter)
+          |> Enum.map_join("\n", fn {name, definition} ->
+            "export const #{name} = #{map_spec_type(formatter, definition, lazy?: true)};"
+          end)
+
+        """
+        // ============================
+        // #{formatter.library_name()} Schemas for Custom Types
+        // ============================
+
+        #{schemas}
+        """
+    end
+  end
+
+  defp custom_type_schema_definitions(formatter) do
+    AshTypescript.manifest().types
+    |> Enum.flat_map(fn definition ->
+      case custom_type_schema_name(formatter, definition) do
+        nil -> []
+        name -> [{name, definition}]
+      end
+    end)
+  end
+
+  defp sort_custom_type_schemas(named, formatter) do
+    by_module =
+      Map.new(named, fn {name, definition} -> {definition.module, {name, definition}} end)
+
+    modules = Map.keys(by_module)
+
+    deps_map =
+      Map.new(named, fn {_name, definition} ->
+        {definition.module, custom_type_schema_deps(formatter, definition, by_module)}
+      end)
+
+    {sorted, remaining} = kahns_sort(modules, deps_map, &elem(Map.fetch!(by_module, &1), 0))
+
+    if MapSet.size(remaining) == 0 do
+      Enum.map(sorted, &Map.fetch!(by_module, &1))
+    else
+      throw({:error, CustomTypeAliases.recursion_message(remaining)})
+    end
+  end
+
+  # The named custom-type schemas a definition's fields reference, through
+  # arrays, union members, inline typed containers and inline (unnamed)
+  # named types. Resource schemas aren't dependencies: they're referenced
+  # lazily. A recursion through a named schema ends at its name; one among
+  # inline types only would not terminate when rendered either.
+  defp custom_type_schema_deps(formatter, %SpecType{} = definition, by_module) do
+    definition
+    |> SpecType.get_fields()
+    |> Enum.flat_map(&schema_deps(formatter, &1.type, by_module))
+    |> Enum.uniq()
+  end
+
+  defp schema_deps(formatter, %SpecType{kind: :type_ref, module: module} = type, by_module) do
+    cond do
+      map_entry_schema(formatter, type) != nil -> []
+      Map.has_key?(by_module, module) -> [module]
+      true -> schema_deps(formatter, Introspection.named_type_definition(module), by_module)
+    end
+  end
+
+  defp schema_deps(formatter, %SpecType{kind: :array, item_type: item}, by_module),
+    do: schema_deps(formatter, item, by_module)
+
+  defp schema_deps(formatter, %SpecType{kind: :union} = union, by_module),
+    do: Enum.flat_map(union.members || [], &schema_deps(formatter, &1.type, by_module))
+
+  defp schema_deps(formatter, %SpecType{kind: kind} = container, by_module)
+       when kind in [:map, :keyword, :tuple, :struct] do
+    container
+    |> SpecType.get_fields()
+    |> Enum.flat_map(&schema_deps(formatter, &1.type, by_module))
+  end
+
+  defp schema_deps(_formatter, _type, _by_module), do: []
+
   defp manifest_lookup!(resources) do
     lookup = AshTypescript.resource_lookup()
 
@@ -450,16 +590,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — type-specific dispatch
   # ─────────────────────────────────────────────────────────────────
 
-  defp map_typed_container(formatter, %SpecType{} = type_info) do
+  defp map_typed_container(formatter, %SpecType{} = type_info, opts) do
     fields = SpecType.get_fields(type_info)
 
     cond do
       fields != [] ->
-        build_object_from_fields(formatter, type_info, fields)
+        build_object_from_fields(formatter, type_info, fields, opts)
 
       type_info.kind == :struct and type_info.instance_of != nil and
           Spark.Dsl.is?(type_info.instance_of, Ash.Resource) ->
-        map_resource_ref(formatter, type_info.instance_of)
+        map_resource_ref(formatter, type_info.instance_of, opts)
 
       type_info.kind == :struct and type_info.instance_of != nil ->
         formatter.wrap_object("")
@@ -469,9 +609,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  defp map_resource_ref(formatter, resource) do
+  defp map_resource_ref(formatter, resource, opts) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
-    "#{resource_name}#{formatter.schema_suffix()}"
+    name = "#{resource_name}#{formatter.schema_suffix()}"
+
+    if Keyword.get(opts, :lazy?, false), do: formatter.wrap_lazy(name), else: name
   end
 
   defp format_enum_values(formatter, values) do
@@ -488,8 +630,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   # Field names come from the container's decoration.
-  defp build_object_from_fields(formatter, %SpecType{} = container, fields) do
-    custom_fields? = AshRpc.Manifest.Custom.custom_type?(container)
+  defp build_object_from_fields(formatter, %SpecType{} = container, fields, opts) do
+    field_opts =
+      [custom_fields?: AshRpc.Manifest.Custom.custom_type?(container)] ++ nested_opts(opts)
 
     field_schemas =
       Enum.map_join(fields, ", ", fn %{
@@ -497,7 +640,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
                                        type: %SpecType{} = field_type,
                                        allow_nil?: allow_nil
                                      } ->
-        schema_type = map_spec_type(formatter, field_type, custom_fields?)
+        schema_type = map_spec_type(formatter, field_type, field_opts)
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
         "#{ClientNames.type_field(container, field_name)}: #{schema_type}"
@@ -506,7 +649,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
     formatter.wrap_object(field_schemas)
   end
 
-  defp map_spec_union(formatter, %SpecType{} = union) do
+  defp map_spec_union(formatter, %SpecType{} = union, opts) do
     case union.members || [] do
       [] ->
         formatter.any_schema()
@@ -515,7 +658,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         union_schemas =
           Enum.map_join(members, ", ", fn %{name: name, type: %SpecType{} = type} ->
             formatted_name = ClientNames.union_member(union, name)
-            schema_type = map_spec_type(formatter, type)
+            schema_type = map_spec_type(formatter, type, nested_opts(opts))
             formatter.wrap_object("#{formatted_name}: #{schema_type}")
           end)
 
@@ -598,23 +741,25 @@ defmodule AshTypescript.Codegen.SchemaCore do
         {resource, find_resource_dependencies(resource, resource_set, resource_lookup)}
       end)
 
-    {sorted, remaining} = kahns_sort(resources, deps_map)
+    {sorted, remaining} = kahns_sort(resources, deps_map, &inspect/1)
 
     sorted ++ Enum.filter(resources, &MapSet.member?(remaining, &1))
   end
 
-  defp kahns_sort(resources, deps_map) do
-    do_kahns_sort([], MapSet.new(resources), deps_map)
+  # Returns `{sorted, remaining}`: `remaining` is non-empty when there's a
+  # cycle. Nodes that become ready together are ordered by `sort_key`.
+  defp kahns_sort(nodes, deps_map, sort_key) do
+    do_kahns_sort([], MapSet.new(nodes), deps_map, sort_key)
   end
 
-  defp do_kahns_sort(sorted, remaining, deps_map) do
+  defp do_kahns_sort(sorted, remaining, deps_map, sort_key) do
     ready =
       remaining
-      |> Enum.filter(fn resource ->
-        deps = Map.get(deps_map, resource, [])
+      |> Enum.filter(fn node ->
+        deps = Map.get(deps_map, node, [])
         Enum.all?(deps, fn dep -> not MapSet.member?(remaining, dep) end)
       end)
-      |> Enum.sort_by(&inspect/1)
+      |> Enum.sort_by(sort_key)
 
     case ready do
       [] ->
@@ -622,7 +767,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
       _ ->
         new_remaining = Enum.reduce(ready, remaining, &MapSet.delete(&2, &1))
-        do_kahns_sort(sorted ++ ready, new_remaining, deps_map)
+        do_kahns_sort(sorted ++ ready, new_remaining, deps_map, sort_key)
     end
   end
 

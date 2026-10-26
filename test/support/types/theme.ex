@@ -8,7 +8,8 @@ defmodule AshTypescript.Test.Theme do
   Its members are scalar types with their own TypeScript mapping: a NewType
   with `typescript_type_name/0` (`HexColor`), a `use Ash.Type` with
   `typescript_type_name/0` (`PriorityScore`) and an external type declared in
-  the test manifest (`ExternalCode`).
+  the test manifest (`ExternalCode`). It names its alias with
+  `typescript_alias_name/0`.
   """
   use Ash.Type
 
@@ -40,6 +41,9 @@ defmodule AshTypescript.Test.Theme do
       codes: [type: {:array, AshTypescript.Test.ExternalCode}]
     ]
   end
+
+  @doc "The TypeScript alias name (ash_typescript's `typescript_alias_name/0` callback)."
+  def typescript_alias_name, do: "Theme"
 end
 
 defmodule AshTypescript.Test.ThemeMap do

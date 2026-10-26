@@ -75,6 +75,14 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   """
   @callback wrap_nullable(schema :: String.t()) :: String.t()
 
+  @doc """
+  A deferred reference, for a schema defined later in the file: in zod
+  `z.lazy(() => schema)`, in valibot `v.lazy(() => schema)`. Named schemas of
+  declared custom types are emitted before the resource schemas, so their
+  references to resource schemas are deferred.
+  """
+  @callback wrap_lazy(schema :: String.t()) :: String.t()
+
   @doc "Wrap a comma-joined set of `key: schema` fields in an inline object schema."
   @callback wrap_object(fields :: String.t()) :: String.t()
 

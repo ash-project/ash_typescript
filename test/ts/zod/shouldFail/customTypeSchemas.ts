@@ -6,7 +6,12 @@
 // enforce something, rather than being permissive shapes that accept anything.
 
 import { z } from "zod";
-import { createTodoZodSchema, createTaskZodSchema } from "../../ash_zod";
+import {
+  createTodoZodSchema,
+  createTaskZodSchema,
+  LineItemZodSchema,
+  MoneyZodSchema,
+} from "../../ash_zod";
 
 function expectZodError(fn: () => unknown, message: string) {
   try {
@@ -58,6 +63,28 @@ export function testOverriddenGeoPointMissingField() {
   return expectZodError(
     () => createTaskZodSchema.parse({ title: "Partial", geoPoint: { lat: 59.91 } }),
     "Should have thrown for a geoPoint missing lng",
+  );
+}
+
+// Named schemas of declared custom types enforce their fields, and LineItem's
+// lazy reference to TaskMetadataZodSchema validates `meta`.
+
+export function testMoneyZodSchemaRejectsMissingAmount() {
+  return expectZodError(
+    () => MoneyZodSchema.parse({ currency: "NOK" }),
+    "Should have thrown for a Money without amount",
+  );
+}
+
+export function testLineItemZodSchemaRejectsBadMeta() {
+  return expectZodError(
+    () =>
+      LineItemZodSchema.parse({
+        label: "Pen",
+        price: { currency: "NOK", amount: "1.00" },
+        meta: { createdBy: 42 },
+      }),
+    "Should have thrown for a LineItem whose meta has a non-string createdBy",
   );
 }
 

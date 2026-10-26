@@ -180,7 +180,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   end
 
   defp spec_field_filter(%Ash.Info.Manifest.Field{} = field, api_resource) do
-    base_type = TypeMapper.map_type(field.type, [], :output)
+    base_type = TypeMapper.map_plain_type(field.type, :output)
     operator_lines = manifest_operations(field, base_type)
     function_lines = manifest_function_operations(field, base_type)
     lines = operator_lines ++ function_lines

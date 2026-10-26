@@ -15,8 +15,9 @@ defmodule AshTypescript.Test.InlineManifest do
   `body:` is quoted DSL for the module body (a `custom_types` section);
   the other options go to `use AshTypescript.Manifest`. It defaults to the
   test manifest's `custom_types` entries (`app_custom_types/0`): a manifest
-  over the test app reaches its custom types (`GeoPoint`, `CustomIdentifier`,
-  `ExternalCode`), which decoration and codegen can't map without them.
+  over the test app reaches its custom types (`GeoPoint`, `LineItem`,
+  `TodoRef`, `CustomIdentifier`, `ExternalCode`), which decoration and codegen
+  can't map without them.
   Pass `body: nil` for a manifest without a `custom_types` section.
   """
 
@@ -80,10 +81,24 @@ defmodule AshTypescript.Test.InlineManifest do
         end
 
         map AshTypescript.Test.GeoPoint do
+          type_name "GeoPoint"
           field :lat, :float, allow_nil?: false
           field :lng, :float, allow_nil?: false
           zod "NestedZodSchemas.geoPoint"
           valibot "NestedValibotSchemas.geoPoint"
+        end
+
+        # A declared type with a nested declared type and an embedded resource.
+        map AshTypescript.Test.LineItem do
+          type_name "LineItem"
+          field :label, :string, allow_nil?: false
+          field :price, AshMoney.Types.Money, allow_nil?: false
+          field :meta, AshTypescript.Test.TaskMetadata
+        end
+
+        # A declared type with a non-embedded resource field, only returned.
+        map AshTypescript.Test.TodoRef do
+          field :todo, :struct, constraints: [instance_of: AshTypescript.Test.Todo]
         end
       end
     end

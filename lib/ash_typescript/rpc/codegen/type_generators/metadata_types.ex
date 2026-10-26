@@ -10,9 +10,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
   Actions can expose specific metadata fields via the `show_metadata` option.
   """
 
-  import AshTypescript.Codegen
-
-  alias AshTypescript.Codegen.ClientNames
+  alias AshTypescript.Codegen.{ClientNames, TypeMapper}
 
   defdelegate get_exposed_metadata_fields(rpc_action, ash_action), to: AshRpc.Introspection
   defdelegate metadata_enabled?(exposed_fields), to: AshRpc.Introspection
@@ -58,7 +56,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
       metadata_field_defs =
         Enum.map(metadata_fields_to_include, fn metadata_field ->
-          ts_type = get_ts_type(metadata_field)
+          ts_type = TypeMapper.map_plain_type(metadata_field.type, :output)
 
           optional = Map.get(metadata_field, :allow_nil?, true)
 

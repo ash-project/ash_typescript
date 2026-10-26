@@ -100,12 +100,11 @@ defmodule AshTypescript.CustomTypesTest do
                ~s({primary: string, secondary: string, accent: string, __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"})
     end
 
-    test "a declared custom type generates no type alias of its own" do
+    test "a declared custom type generates an alias of its fields" do
       result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo])
-      refute result =~ "type ColorPalette = {"
-      refute result =~ "primary: string;"
-      refute result =~ "secondary: string;"
-      refute result =~ "accent: string;"
+
+      assert result =~
+               "export type ColorPalette = {primary: string, secondary: string, accent: string};"
     end
   end
 

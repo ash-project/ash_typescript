@@ -41,7 +41,7 @@ defmodule AshTypescript.Test.CustomTypeOutput.Item do
   end
 end
 
-defmodule AshTypescript.Test.CustomTypeOutput.Channel do
+defmodule AshTypescript.Test.CustomTypeOutput.ItemChannel do
   @moduledoc false
   use Phoenix.Channel
   use AshTypescript.TypedChannel
@@ -93,7 +93,8 @@ defmodule AshTypescript.CustomTypeOutputTest do
   @moduletag :ash_typescript
 
   alias AshTypescript.Codegen.TypeMapper
-  alias AshTypescript.Test.CustomTypeOutput.{Channel, Item, Session}
+  alias AshTypescript.Test.CodegenTestHelper
+  alias AshTypescript.Test.CustomTypeOutput.{Item, ItemChannel, Session}
   alias AshTypescript.TypedChannel.PayloadFormatter
   alias AshTypescript.TypedController.RequestHandler
 
@@ -131,14 +132,14 @@ defmodule AshTypescript.CustomTypeOutputTest do
   defp manifest do
     AshTypescript.Test.InlineManifest.build!(
       typed_controllers: [Session],
-      typed_channels: [Channel]
+      typed_channels: [ItemChannel]
     )
   end
 
   describe "generated TypeScript" do
-    # The route result and channel payload types codegen emits: Money is an
-    # object of its declared fields, not an alias or a record.
-    test "a route result types a declared custom type by its fields" do
+    # The route result and channel payload types codegen emits: Money is
+    # referenced by its alias (`export type Money` in the types file).
+    test "a route result references the declared custom type's alias" do
       route = AshTypescript.Manifest.Custom.route(manifest(), Session, :reply)
 
       result =
@@ -146,15 +147,14 @@ defmodule AshTypescript.CustomTypeOutputTest do
           TypeMapper.map_route_result_type(route.returns)
         end)
 
-      assert result =~ ~r/price\??: \{currency: string, amount: Decimal\}/
-      refute result =~ "Money"
+      assert result =~ ~r/price\??: Money/
     end
 
-    test "a channel payload types a declared custom type by its fields" do
+    test "a channel payload references the declared custom type's alias" do
       publication =
         AshTypescript.Manifest.Custom.publication(
           manifest(),
-          Channel,
+          ItemChannel,
           Item,
           "custom_output_created"
         )
@@ -166,16 +166,27 @@ defmodule AshTypescript.CustomTypeOutputTest do
 
       # A pushed payload has no field selection: nested typed containers are
       # plain objects too, without the TypedMap metadata, as in route results.
-      assert payload =~ ~r/price\??: \{currency: string, amount: Decimal\}/
+      assert payload =~ ~r/price\??: Money/
       refute payload =~ "__type"
-      refute payload =~ "Money"
 
       assert AshTypescript.with_manifest(manifest(), fn ->
                TypeMapper.map_channel_payload_type(%Ash.Info.Manifest.Type{
                  kind: :type_ref,
                  module: AshMoney.Types.Money
                })
-             end) == "{currency: string, amount: Decimal}"
+             end) == "Money"
+    end
+
+    test "the routes file imports Money" do
+      {:ok, files} = CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest())
+
+      import_line =
+        files
+        |> CodegenTestHelper.routes_content()
+        |> String.split("\n")
+        |> Enum.find(&String.starts_with?(&1, "import type {"))
+
+      assert import_line =~ ~r/\bMoney\b/
     end
   end
 
@@ -194,7 +205,7 @@ defmodule AshTypescript.CustomTypeOutputTest do
   test "a typed channel payload sends declared fields only" do
     formatted =
       AshTypescript.with_manifest(manifest(), fn ->
-        PayloadFormatter.format_payload(Channel, Item, "custom_output_created", payload())
+        PayloadFormatter.format_payload(ItemChannel, Item, "custom_output_created", payload())
       end)
 
     assert formatted |> Jason.encode!() |> Jason.decode!() == @expected

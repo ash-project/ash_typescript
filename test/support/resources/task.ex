@@ -87,6 +87,14 @@ defmodule AshTypescript.Test.Task do
     timestamps()
   end
 
+  # A declared custom type as a calculation argument.
+  calculations do
+    calculate :theme_label, :string, expr("themed") do
+      argument :theme, AshTypescript.Test.Theme, allow_nil?: false
+      public? true
+    end
+  end
+
   relationships do
     # Renamed for the client (owner_1 -> "owner"), so filter keys must use the override
     belongs_to :owner_1, AshTypescript.Test.User, public?: true
@@ -134,6 +142,9 @@ defmodule AshTypescript.Test.Task do
             completed_by: [type: :string]
           ]
         ]
+
+      # A declared custom type as action metadata.
+      metadata :total, AshMoney.Types.Money
 
       prepare fn query, _context ->
         Ash.Query.after_action(query, fn _query, results ->
@@ -349,6 +360,30 @@ defmodule AshTypescript.Test.Task do
       run fn _input, _context ->
         {:ok, %{name: "Test Suggestion", category: nil, score: 85}}
       end
+    end
+
+    action :echo_line_item, AshTypescript.Test.LineItem do
+      argument :line_item, AshTypescript.Test.LineItem, allow_nil?: false, public?: true
+
+      run fn input, _context -> {:ok, input.arguments.line_item} end
+    end
+
+    # A declared custom type as a union input member.
+    action :describe_style, :string do
+      argument :style, :union,
+        allow_nil?: false,
+        constraints: [
+          types: [
+            theme: [type: AshTypescript.Test.Theme],
+            label: [type: :string]
+          ]
+        ]
+
+      run fn _input, _context -> {:ok, "styled"} end
+    end
+
+    action :get_todo_ref, AshTypescript.Test.TodoRef do
+      run fn _input, _context -> {:ok, %{todo: nil}} end
     end
 
     action :list_suggestions, {:array, AshTypescript.Test.Suggestion} do

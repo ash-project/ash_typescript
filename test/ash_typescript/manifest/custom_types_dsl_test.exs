@@ -461,7 +461,9 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
                [
                  AshTypescript.Test.CustomIdentifier,
                  AshTypescript.Test.ExternalCode,
-                 AshTypescript.Test.GeoPoint
+                 AshTypescript.Test.GeoPoint,
+                 AshTypescript.Test.LineItem,
+                 AshTypescript.Test.TodoRef
                ]
     end
   end

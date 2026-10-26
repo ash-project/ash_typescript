@@ -129,6 +129,14 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     use Ash.Type.NewType, subtype_of: AshMoney.Types.Money
   end
 
+  # Fields from the built-in entry, alias from its own callback.
+  defmodule NamedNewOverMoney do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshMoney.Types.Money
+
+    def typescript_alias_name, do: "NamedMoney"
+  end
+
   defmodule NewOverComposite do
     @moduledoc false
     use Ash.Type.NewType, subtype_of: AshTypescript.CustomTypes.FieldsForTest.Composite
@@ -419,7 +427,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
         custom: %{ash_rpc: %{custom_type: true}}
       }
 
-    test "lists the modules whose callbacks supplied a definition's fields" do
+    test "lists the modules whose callbacks supplied a definition's fields or alias" do
       declared = %{
         T.NamesOnly => map_entry(T.NamesOnly, [%Field{name: :x, type: Ash.Type.Integer}])
       }
@@ -432,6 +440,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
           custom_type(T.NewWithOwn),
           custom_type(T.NewOverComposite),
           custom_type(T.NewOverMoney),
+          custom_type(T.NamedNewOverMoney),
           custom_type(AshMoney.Types.Money),
           custom_type(T.NamesOnly),
           %Ash.Info.Manifest.Type{kind: :map, module: T.CallbacksOnly}
@@ -439,7 +448,13 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
       }
 
       assert manifest |> CustomTypes.compile_dependencies(declared, builtin()) |> Enum.sort() ==
-               Enum.sort([T.WithCallbacks, T.Composite, T.NewWithOwn, T.NewOverComposite])
+               Enum.sort([
+                 T.WithCallbacks,
+                 T.Composite,
+                 T.NewWithOwn,
+                 T.NewOverComposite,
+                 T.NamedNewOverMoney
+               ])
     end
 
     test "the test manifest depends on ColorPalette" do

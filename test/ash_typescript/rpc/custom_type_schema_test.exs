@@ -142,6 +142,14 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   defp ref_valibot(module),
     do: SchemaCore.get_type(ValibotSchemaGenerator, %SpecType{kind: :type_ref, module: module})
 
+  # A named type's definition rendered inline: for a declared custom type, the
+  # body of its named schema (uses reference the name).
+  defp body_zod(module),
+    do: SchemaCore.get_type(ZodSchemaGenerator, Introspection.named_type_definition(module))
+
+  defp body_valibot(module),
+    do: SchemaCore.get_type(ValibotSchemaGenerator, Introspection.named_type_definition(module))
+
   # Runs `fun` against a copy of the test manifest whose `custom_types`
   # `kind` (`:declared` or `:builtin`) entries are updated by `update`.
   defp with_entries(kind, update, fun) do
@@ -335,9 +343,10 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     test "a built-in map entry's zod applies to a declared custom type" do
       entry = %MapType{module: Theme, fields: [], zod: {__MODULE__, :echo_schema, ["theme"]}}
 
+      # Valibot keeps Theme's named schema (names are fixed at decoration).
       with_entries(:builtin, &Map.put(&1, Theme, entry), fn ->
         assert ref_zod(Theme) == "theme:[]"
-        assert ref_valibot(Theme) =~ "v.object({ color: "
+        assert ref_valibot(Theme) == "ThemeValibotSchema"
       end)
     end
 
@@ -388,8 +397,20 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
                   constraints: [match: ~r/^code-/, max_length: 20]
 
                 map AshTypescript.Test.GeoPoint do
+                  type_name "GeoPoint"
                   field :lat, :float, allow_nil?: false
                   field :lng, :float, allow_nil?: false
+                end
+
+                map AshTypescript.Test.LineItem do
+                  type_name "LineItem"
+                  field :label, :string, allow_nil?: false
+                  field :price, AshMoney.Types.Money, allow_nil?: false
+                  field :meta, AshTypescript.Test.TaskMetadata
+                end
+
+                map AshTypescript.Test.TodoRef do
+                  field :todo, :struct, constraints: [instance_of: AshTypescript.Test.Todo]
                 end
               end
             end
@@ -405,7 +426,8 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
         code = Enum.find(Introspection.named_type_definition(Theme).fields, &(&1.name == :code))
         assert Keyword.get(code.type.constraints, :max_length) == 20
 
-        schema = ref_zod(Theme)
+        assert ref_zod(Theme) == "ThemeZodSchema"
+        schema = body_zod(Theme)
         assert schema =~ "code: z.string().max(20).regex(/^code-/)"
         assert schema =~ "codes: z.array(z.string().max(20).regex(/^code-/))"
       end)
@@ -423,9 +445,12 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
 
   describe "scalar members carry the regex" do
     test "in a declared custom type and a NewType over :map" do
-      for module <- [Theme, ThemeMap] do
-        assert ref_zod(module) =~ "color: z.string().min(1).regex(/^#[0-9a-fA-F]{6}$/)"
-        assert ref_valibot(module) =~ "v.regex(/^#[0-9a-fA-F]{6}$/)"
+      for {zod, valibot} <- [
+            {body_zod(Theme), body_valibot(Theme)},
+            {ref_zod(ThemeMap), ref_valibot(ThemeMap)}
+          ] do
+        assert zod =~ "color: z.string().min(1).regex(/^#[0-9a-fA-F]{6}$/)"
+        assert valibot =~ "v.regex(/^#[0-9a-fA-F]{6}$/)"
       end
     end
   end
@@ -447,8 +472,10 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       content: content
     } do
       assert content =~ "priorityScore: z.number().int()"
-      # ColorPalette declares its fields, so it is an object of them.
-      assert content =~ "colorPalette: z.object("
+      # ColorPalette declares its fields, so its named schema is an object of
+      # them.
+      assert content =~ "colorPalette: ColorPaletteZodSchema"
+      assert content =~ "export const ColorPaletteZodSchema = z.object("
       refute content =~ "priorityScore: z.string()"
       refute content =~ "colorPalette: z.string()"
     end

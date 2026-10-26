@@ -103,6 +103,8 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def wrap_nullable(schema), do: "v.nullable(#{schema})"
   @impl true
+  def wrap_lazy(schema), do: "v.lazy(() => #{schema})"
+  @impl true
   def wrap_object(fields), do: "v.object({ #{fields} })"
   @impl true
   def wrap_union(schemas), do: "v.union([#{schemas}])"

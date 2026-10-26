@@ -94,6 +94,8 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def wrap_nullable(schema), do: "#{schema}.nullable()"
   @impl true
+  def wrap_lazy(schema), do: "z.lazy(() => #{schema})"
+  @impl true
   def wrap_object(fields), do: "z.object({ #{fields} })"
   @impl true
   def wrap_union(schemas), do: "z.union([#{schemas}])"

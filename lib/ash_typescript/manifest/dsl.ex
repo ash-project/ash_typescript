@@ -101,6 +101,7 @@ defmodule AshTypescript.Manifest.Dsl do
     examples: [
       """
       map SomeLib.ColorPalette do
+        type_name "Palette"
         field :primary, SomeLib.HexColor, allow_nil?: false
         field :accent_color, SomeLib.HexColor, client_name: "accentColour"
         zod "MyZod.colorPalette"
@@ -118,6 +119,13 @@ defmodule AshTypescript.Manifest.Dsl do
       valibot: [
         type: @mapping_type,
         doc: "A valibot schema in place of the generated one. #{@mapping_doc}"
+      ],
+      type_name: [
+        type: :string,
+        doc:
+          "The name of the generated TypeScript alias (default: the module name joined, " <>
+            "`SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot " <>
+            "schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`."
       ]
     ]
   }
@@ -157,6 +165,7 @@ defmodule AshTypescript.Manifest.Dsl do
       AshTypescript.Manifest.Verifiers.VerifyRpc,
       AshTypescript.Manifest.Verifiers.VerifyActionTypes,
       AshTypescript.Manifest.Verifiers.VerifyMappableTypes,
+      AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames,
       AshTypescript.Manifest.Verifiers.VerifyUniqueInputFieldNames,
       AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames,
       AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields,

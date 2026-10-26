@@ -23,22 +23,33 @@ defmodule AshTypescript.Codegen.Helpers do
     end
   end
 
-  defp derive_resource_type_name(resource_module) do
+  @doc false
+  # The name `build_resource_type_name/1` gives a resource that has no decorated
+  # `type_name`, read without the configured manifest (`VerifyCustomTypeNames`
+  # verifies a manifest while it compiles).
+  def derive_resource_type_name(resource_module) do
     case AshTypescript.Resource.Info.typescript_type_name(resource_module) do
-      {:ok, name} ->
-        name
-
-      _ ->
-        resource_module
-        |> Module.split()
-        |> then(fn [first | rest] = list ->
-          if first == "Elixir" do
-            Enum.join(rest, "")
-          else
-            Enum.join(list, "")
-          end
-        end)
+      {:ok, name} -> name
+      _ -> module_type_name(resource_module)
     end
+  end
+
+  @doc false
+  # The default TypeScript name of a module: its segments joined
+  # (`MyApp.Blog.Post` → `MyAppBlogPost`), for resources without a
+  # `type_name` and declared custom types without a name
+  # (`AshTypescript.CustomTypes.names/2`).
+  @spec module_type_name(module()) :: String.t()
+  def module_type_name(module) do
+    module
+    |> Module.split()
+    |> then(fn [first | rest] = list ->
+      if first == "Elixir" do
+        Enum.join(rest, "")
+      else
+        Enum.join(list, "")
+      end
+    end)
   end
 
   @doc """

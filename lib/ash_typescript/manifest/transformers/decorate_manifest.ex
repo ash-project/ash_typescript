@@ -31,6 +31,10 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   actions, typed queries, routes and publications) carries the hint closed
   over the same declarations (`AshTypescript.CustomTypes.hint/3`), so it
   also says to remove a `scalar` entry that covers the type.
+  `AshTypescript.Manifest.Decorator` gets the declarations too, for the
+  names of the declared custom types' aliases and schemas. A
+  `typescript_alias_name/0` that returns no valid alias is a
+  `Spark.Error.DslError` (`AshTypescript.CustomTypes.check_alias_names/2`).
   """
 
   use Spark.Dsl.Transformer
@@ -57,7 +61,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
         routes = Transformer.get_persisted(dsl_state, :typed_routes, [])
         publications = Transformer.get_persisted(dsl_state, :typed_publications, [])
 
-        decorated =
+        rpc_decorated =
           manifest
           |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
             custom_type_fields: fields_fun,
@@ -65,25 +69,43 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
             extra_types: TypedRoutes.types(routes, publications)
           )
           |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
-          |> Decorator.decorate(hint: hint_fun)
-          |> put_custom_types(custom_types)
-          |> AshRpc.Manifest.put_lookups()
 
-        dsl_state =
-          dsl_state
-          |> track_type_modules(decorated, custom_types)
-          |> Transformer.persist(:manifest, decorated)
-          |> Transformer.persist(:resource_lookup, AshRpc.Manifest.resource_lookup(decorated))
-          |> Transformer.persist(:action_lookup, AshRpc.Manifest.action_lookup(decorated))
-          |> Transformer.persist(:type_lookup, AshRpc.Manifest.type_lookup(decorated))
-          |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
+        with :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
+          decorated =
+            rpc_decorated
+            |> Decorator.decorate(hint: hint_fun, custom_types: custom_types)
+            |> put_custom_types(custom_types)
+            |> AshRpc.Manifest.put_lookups()
 
-        {:ok, dsl_state}
+          {:ok, persist(dsl_state, decorated, custom_types)}
+        end
+    end
+  end
+
+  defp persist(dsl_state, decorated, custom_types) do
+    dsl_state
+    |> track_type_modules(decorated, custom_types)
+    |> Transformer.persist(:manifest, decorated)
+    |> Transformer.persist(:resource_lookup, AshRpc.Manifest.resource_lookup(decorated))
+    |> Transformer.persist(:action_lookup, AshRpc.Manifest.action_lookup(decorated))
+    |> Transformer.persist(:type_lookup, AshRpc.Manifest.type_lookup(decorated))
+    |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
+  end
+
+  defp check_alias_names(dsl_state, manifest, custom_types) do
+    with {:error, message} <- AshTypescript.CustomTypes.check_alias_names(manifest, custom_types) do
+      {:error,
+       Spark.Error.DslError.exception(
+         module: Transformer.get_persisted(dsl_state, :module),
+         path: [:custom_types],
+         message: message
+       )}
     end
   end
 
   # Each type module whose `typescript_fields/0` or `composite_types/1`
-  # supplied a declared custom type's fields gets a compile-time edge, so the
+  # supplied a declared custom type's fields, or whose
+  # `typescript_alias_name/0` its alias, gets a compile-time edge, so the
   # manifest recompiles when it changes. Such modules must never read the
   # manifest at compile time: it depends on them.
   defp track_type_modules(dsl_state, manifest, %{declared: declared, builtin: builtin}) do

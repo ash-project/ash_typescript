@@ -5,7 +5,22 @@
 // Custom Types Tests - shouldPass
 // Tests for custom type field selection and usage
 
-import { getTodo, createTodo, listTasks, createTask } from "../generated";
+import {
+  getTodo,
+  createTodo,
+  listTasks,
+  createTask,
+  echoLineItem,
+} from "../generated";
+import type {
+  Money,
+  Theme,
+  ThemeInput,
+  GeoPoint,
+  ColorPalette,
+  LineItem,
+  LineItemInput,
+} from "../generated";
 import type { Decimal } from "../ash_types";
 
 // Test 0: Custom type field selection
@@ -83,6 +98,10 @@ export const priceTest = await listTasks({
 
 if (priceTest.success) {
   for (const task of priceTest.data) {
+    // A selected Money result is assignable to the alias
+    const price: Money | null = task.price;
+    console.log(price);
+
     if (task.price) {
       const currency: string = task.price.currency;
       const amount: Decimal = task.price.amount;
@@ -106,5 +125,69 @@ if (themeTest.success && themeTest.data.theme) {
   const accent: `#${string}` | null = themeTest.data.theme.accent;
   console.log(`Theme: ${color} ${accent}`);
 }
+
+// Test 8: declared custom types have exported aliases (Money, GeoPoint,
+// ColorPalette, Theme, LineItem) and Input aliases where the input shape
+// differs (ThemeInput, LineItemInput)
+
+// An alias value is accepted as input
+const money: Money = { currency: "NOK", amount: "10.00" };
+export const pricedTask = await createTask({
+  input: { title: "Priced", price: money },
+  fields: ["id"],
+});
+
+const geoPoint: GeoPoint = { lat: 59.9, lng: 10.7 };
+const palette: ColorPalette = {
+  primary: "#FF5733",
+  secondary: "#33FF57",
+  accent: "#3357FF",
+};
+console.log(geoPoint, palette);
+
+// ThemeInput omits nullable keys
+const themeInput: ThemeInput = { color: "#336699", code: "code-a1" };
+export const themedTask = await createTask({
+  input: { title: "Themed", theme: themeInput },
+  fields: ["id"],
+});
+
+// A full Theme is a ThemeInput
+const fullTheme: Theme = {
+  color: "#336699",
+  accent: null,
+  score: null,
+  code: "code-a1",
+  codes: null,
+};
+const asInput: ThemeInput = fullTheme;
+console.log(asInput);
+
+// LineItem: a nested declared type (Money) and an embedded resource
+export const lineItemTest = await echoLineItem({
+  input: { lineItem: { label: "A", price: money } },
+  fields: ["label", { price: ["currency", "amount"] }],
+});
+
+if (lineItemTest.success) {
+  const label: string = lineItemTest.data.label;
+  const lineItemPrice: Money = lineItemTest.data.price;
+  console.log(label, lineItemPrice);
+}
+
+const lineItemInput: LineItemInput = { label: "A", price: money };
+const lineItem: LineItem = { label: "A", price: money, meta: null };
+console.log(lineItemInput, lineItem);
+
+// A Money filter value is writable: filter values are plain (no TypedMap
+// markers) and reference the alias
+export const moneyEqFilter = await listTasks({
+  fields: ["id"],
+  filter: { price: { eq: money } },
+});
+export const moneyInFilter = await listTasks({
+  fields: ["id"],
+  filter: { price: { in: [money] } },
+});
 
 console.log("Custom types tests should compile successfully!");

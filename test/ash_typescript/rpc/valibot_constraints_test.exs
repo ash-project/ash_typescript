@@ -494,7 +494,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
   end
 
   describe "the built-in Money entry" do
-    test "AshMoney.Types.Money is an object of its declared fields" do
+    test "AshMoney.Types.Money references its named schema" do
       action = AshTypescript.Test.SpecHelpers.spec_action(AshTypescript.Test.Task, :create)
 
       schema =
@@ -504,8 +504,15 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
           "create_task"
         )
 
-      assert schema =~
-               "price: v.optional(v.nullable(v.object({ currency: v.string(), amount: v.string() }))),"
+      assert schema =~ "price: v.optional(v.nullable(MoneyValibotSchema)),"
+    end
+
+    test "the named Money schema is an object of its declared fields" do
+      section =
+        AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas(ValibotSchemaGenerator)
+
+      assert section =~
+               "export const MoneyValibotSchema = v.object({ currency: v.string(), amount: v.string() });"
     end
   end
 

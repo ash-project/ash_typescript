@@ -30,10 +30,14 @@ defmodule AshTypescript.Manifest.Custom do
 
   @typedoc """
   The decoration map persisted under `custom.ash_typescript` on a
-  `%Manifest.Type{}` for NewTypes/TypedStructs that export
-  `typescript_field_names/0`.
+  `%Manifest.Type{}`: the `type_name` of NewTypes/TypedStructs that export
+  `typescript_field_names/0` or `typescript_type_name/0`, or the
+  `custom_type_names` of a declared custom type.
   """
-  @type type_custom :: %{optional(:type_name) => String.t() | nil}
+  @type type_custom :: %{
+          optional(:type_name) => String.t() | nil,
+          optional(:custom_type_names) => AshTypescript.CustomTypes.names()
+        }
 
   @typedoc """
   The decoration map persisted under `custom.ash_typescript` on a
@@ -105,6 +109,17 @@ defmodule AshTypescript.Manifest.Custom do
   def type_name(%Manifest.Resource{custom: %{ash_typescript: %{type_name: name}}}), do: name
   def type_name(%Manifest.Type{custom: %{ash_typescript: %{type_name: name}}}), do: name
   def type_name(_), do: nil
+
+  @doc """
+  Returns the names codegen gives a declared custom type's definition
+  (`AshRpc.Manifest.Custom.custom_type?/1`): `t:AshTypescript.CustomTypes.names/0`,
+  from `custom.ash_typescript.custom_type_names`. `nil` for any other type.
+  """
+  @spec custom_type_names(Manifest.Type.t() | nil) :: AshTypescript.CustomTypes.names() | nil
+  def custom_type_names(%Manifest.Type{custom: %{ash_typescript: %{custom_type_names: names}}}),
+    do: names
+
+  def custom_type_names(_), do: nil
 
   # ─────────────────────────────────────────────────────────────────
   # Resource accessors

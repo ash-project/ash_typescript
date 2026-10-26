@@ -11,6 +11,12 @@ defmodule AshTypescript.CustomTypes.MapType do
   (`AshTypescript.CustomTypes.Field`), so the entry has no `typescript`.
   `zod` and `valibot` are optional escape hatches: a string, or an MFA called
   as `apply(m, f, [constraints | a])` that returns one.
+
+  `type_name` is the exported TypeScript alias (default: the joined module
+  name, `SomeLib.Coordinates` → `SomeLibCoordinates`;
+  `AshTypescript.CustomTypes.alias_name/2`). The named zod / valibot schemas
+  are the alias followed by the configured schema suffix; a replacement gets
+  none.
   """
 
   alias AshTypescript.CustomTypes.{Field, Scalar}
@@ -20,6 +26,7 @@ defmodule AshTypescript.CustomTypes.MapType do
           fields: [Field.t()],
           zod: Scalar.mapping(),
           valibot: Scalar.mapping(),
+          type_name: String.t() | nil,
           __spark_metadata__: term()
         }
 
@@ -27,6 +34,7 @@ defmodule AshTypescript.CustomTypes.MapType do
     :module,
     :zod,
     :valibot,
+    :type_name,
     fields: [],
     __spark_metadata__: nil
   ]

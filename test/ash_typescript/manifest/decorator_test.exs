@@ -265,7 +265,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       end
     end
 
-    test "a declared custom type gets no type_name, a NewType with field names does" do
+    test "a declared custom type gets names but no type_name, a NewType with field names gets a type_name" do
       type_lookup =
         [domains: [NamedFieldsDomain]]
         |> AshTypescript.Test.InlineManifest.build!()
@@ -274,7 +274,14 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       declared = type_lookup[NamedFields]
       assert AshRpc.Manifest.Custom.custom_type?(declared)
       assert AshRpc.Manifest.Custom.type_field_names(declared) == %{is_on?: "isOn"}
-      refute Map.has_key?(declared.custom, :ash_typescript)
+
+      assert declared.custom.ash_typescript == %{
+               custom_type_names: %{
+                 typescript: "AshTypescriptManifestDecoratorTestNamedFields",
+                 zod: :derive,
+                 valibot: :derive
+               }
+             }
 
       named_map = type_lookup[NamedFieldsMap]
       refute AshRpc.Manifest.Custom.custom_type?(named_map)
