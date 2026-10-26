@@ -154,10 +154,10 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
-| `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names |
+| `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names, including the named schemas of custom types (`MoneyZodSchema`) |
 | `generate_valibot_schemas` | `boolean` | `false` | Whether to generate Valibot validation schemas |
 | `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
-| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for generated Valibot schema names |
+| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for generated Valibot schema names, including the named schemas of custom types (`MoneyValibotSchema`) |
 | `generate_validation_functions` | `boolean` | `false` | Whether to generate form validation functions |
 | `generate_phx_channel_rpc_actions` | `boolean` | `false` | Whether to generate Phoenix channel-based RPC functions |
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |

@@ -18,9 +18,9 @@ AshTypescript generates runtime validation schemas alongside TypeScript types. T
 
 The schema generation uses a **formatter behaviour pattern** to avoid duplication:
 
-- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~26 output-syntax callbacks (e.g. `wrap_optional`, `format_enum`, `format_string`, `format_array`, `library_prefix`)
+- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~26 output-syntax callbacks (e.g. `wrap_optional`, `wrap_lazy`, `format_enum`, `format_string`, `format_array`, `library_prefix`)
 - **`SchemaCore`** (`codegen/schema_core.ex`) — All shared logic: topological sort, field/action introspection, type mapping dispatch, regex safety. Delegates output syntax to the formatter.
-- **`SharedSchemaGenerator`** (`codegen/shared_schema_generator.ex`) — `generate/2` assembles the final schema file (imports, resource schemas, per-action schemas) for any formatter.
+- **`SharedSchemaGenerator`** (`codegen/shared_schema_generator.ex`) — `generate/2` assembles the final schema file (imports, the custom-type schemas section, resource schemas, per-action schemas) for any formatter. The orchestrator's `validate_unique_schema_names!/3` checks for duplicate `export const` names across all of them, naming the custom type and its `*_schema_name` option when a custom-type schema is involved.
 
 **Manifest-only input**: `SchemaCore.get_type/3` accepts `%Ash.Info.Manifest.Type{}`,
 anything carrying one under `:type` (`Argument`/`Field`), or a bare aggregate kind atom.
@@ -115,11 +115,21 @@ own, whichever source declared the fields). `typescript_type_name/0` has no sche
 counterpart, so it never replaces a built-in's schema.
 
 A declared custom type (Money, a DSL `map`, `typescript_fields/0`) is a
-`:type_ref` to its `kind: :map` definition, so its schema is `z.object(...)` of
-its fields. Its `map` entry (the manifest's, else the built-in) may replace that
-with `zod` / `valibot`; `map_spec_type/3` checks this on the `:type_ref` branch. A
-NewType with no entry or `typescript_fields/0` of its own (one that inherits its
-subtype's fields) uses its subtype's entry.
+`:type_ref` to its `kind: :map` definition. Its `map` entry (the manifest's, else
+the built-in) may replace its schema with `zod` / `valibot`; the `:type_ref`
+branch of `map_spec_type/3` checks this first. A NewType with no entry or
+`typescript_fields/0` of its own (one that inherits its subtype's fields) uses its
+subtype's entry. Otherwise a definition with a schema name
+(`SchemaCore.custom_type_schema_name/2`: its alias plus the suffix,
+`<Alias><suffix>`) is referenced by that name, and
+`SchemaCore.generate_custom_type_schemas/1` emits its `export const` (the
+`z.object(...)` of its fields) in a "Schemas for Custom Types" section before the
+resource schemas: ordered so each follows the named schemas it references,
+references to resource schemas deferred with `wrap_lazy/1`, a cycle a codegen
+error (`CustomTypeAliases.recursion_message/1`; codegen rejects recursive
+declared types earlier, `check_recursive_types!/0`). A type whose fields reach
+a non-embedded resource (`CustomTypeAliases.reaches_resource?/1`: that resource
+has no schema) has no schema name, so its object stays inline.
 
 #### Controlling a custom type's schema
 
@@ -326,6 +336,8 @@ whether the action is a read/create/update/destroy/generic.
 | Valibot constraints | `test/ash_typescript/rpc/valibot_constraints_test.exs` |
 | Zod declaration order | `test/ash_typescript/rpc/zod_declaration_order_test.exs` |
 | Zod mapped fields | `test/ash_typescript/rpc/zod_mapped_fields_test.exs` |
+| Custom-type schema bodies | `test/ash_typescript/rpc/custom_type_schema_test.exs` |
+| Named custom-type schemas (names, order, `wrap_lazy`, cycles, duplicates) | `test/ash_typescript/rpc/named_custom_type_schemas_test.exs` |
 | TS shouldPass/shouldFail | `test/ts/zod/`, `test/ts/valibot/` |
 | TS runtime runners | `test/ts/runZodTests.ts`, `test/ts/runValibotTests.ts` |
 

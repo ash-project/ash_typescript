@@ -62,6 +62,7 @@ SPDX-License-Identifier: MIT
 | **Scalar Custom Type** | `def typescript_type_name, do: "CustomTypes.X"` | Own single-value type |
 | **Map-Like Custom Type** | `def typescript_fields, do: [primary: [type: :string]]` | `:map`/composite type; select `{ palette: ["primary"] }` |
 | **Types You Don't Own** | manifest `custom_types do scalar Mod, :string; map Mod do field :a, :string end end` | Replaces the removed `type_mapping_overrides` / `zod_`/`valibot_mapping_overrides` config |
+| **Custom Type Alias** | `import type { Money, ThemeInput } from "./ash_rpc"` | A declared map-like custom type is exported as `Money` (and `ThemeInput` when its input shape differs), with schemas `MoneyZodSchema` / `MoneyValibotSchema`; import it instead of redeclaring it. The alias is a `map` entry's `type_name "…"`, else the type's `typescript_alias_name/0`, else the joined module name (`SomeLibCoordinates`); schemas are the alias plus the suffix |
 | **Typed Controller** | `use AshTypescript.TypedController` | Controller-style routes |
 | **Controller Module** | `typed_controller do module_name MyWeb.Ctrl` | Generated controller module |
 | **Verb Shortcut** | `get :auth do run fn ... end end` | Preferred route syntax |
@@ -389,6 +390,8 @@ for (const action of manifest.actions) {
 | "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |
 | "Map-like custom types that declare a TypeScript type" | Remove `typescript_type_name/0` (or the `scalar` entry); TS comes from the fields |
 | `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |
+| "Declared custom types with colliding TypeScript names found" (compile warning, codegen error), "Duplicate exported type names" / "imports types from ... that it also declares" / "imports names that it also imports from ... or declares" / "is an `import_name`" / "Duplicate Zod schema names detected" (codegen) | Rename the alias (and so its schemas) with `type_name "…"` on a `map` entry, or `typescript_alias_name/0` on a type without one |
+| "These declared custom types contain themselves" | Recursive custom types aren't supported: expand the type to a fixed depth |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
 

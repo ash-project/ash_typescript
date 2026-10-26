@@ -473,10 +473,11 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   `__type`/`__primitiveFields` field-selection metadata). It recurses through arrays
   and typed maps/structs of the decorated `%Ash.Info.Manifest.Type{}`, using their
   decorated client names (`typescript_field_names` overrides included). Containers
-  without `fields` map to `AshTypescript.untyped_map_type()`. NewType/enum
-  `:type_ref`s are expanded through `named_type_definition/1` (the manifest type
-  lookup). Enums become inline literal unions, so result types never depend on
-  types in `ash_types.ts` beyond scalar aliases (`UUID`, `UtcDateTime`, …).
+  without `fields` map to `AshTypescript.untyped_map_type()`. A declared custom
+  type references its alias (`Money`, from `Codegen.CustomTypeAliases`); other
+  NewType/enum `:type_ref`s are expanded through `named_type_definition/1` (the
+  manifest type lookup). Enums become inline literal unions, so result types
+  depend on types in `ash_types.ts` only for scalar and custom-type aliases.
 - `returns` doesn't enforce anything: `RequestHandler` never checks the handler's
   response. Handlers opt in to matching output via `AshTypescript.TypedController.json/2`.
 - `FoldArgumentConstraints` runs `Ash.Type.init/2` after validation, for arguments and

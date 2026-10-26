@@ -504,6 +504,8 @@ defmodule MyApp.ColorPalette do
       accent: [type: MyApp.HexColor]
     ]
   end
+
+  def typescript_alias_name, do: "ColorPalette"
 end
 ```
 
@@ -517,6 +519,7 @@ custom_types do
   end
 
   map SomeLib.ColorPalette do
+    type_name "ColorPalette"
     field :primary, SomeLib.HexColor, allow_nil?: false
     field :secondary, SomeLib.HexColor, allow_nil?: false
     field :accent, SomeLib.HexColor
@@ -526,7 +529,8 @@ end
 
 Either form generates
 ``{primary: `#${string}`, secondary: `#${string}`, accent: `#${string}` | null, __type: "TypedMap", …}``
-for results, ``{primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null}``
+for results, the aliases `ColorPalette` and
+``ColorPaletteInput = {primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null}``
 for inputs, and zod/valibot string schemas with the regex. These are
 client-side only: on the server the value is cast by `ColorPalette`'s own
 `cast_input/2`, which enforces the regex only if it casts each entry through
@@ -539,13 +543,44 @@ These are built-in declarations now:
 
 - `AshMoney.Types.Money` is a map of `currency` and `amount`. Select
   `{ price: ["currency", "amount"] }` instead of `"price"`. Responses no longer
-  contain `format_options`. The generated `Money` alias is removed: fields of
-  the type are typed from its fields, and a project that imported `Money` from
-  the generated file declares its own alias.
+  contain `format_options`. The generated `Money` alias stays, now generated
+  from its fields like every declared custom type's alias (see below):
+  `{currency: string, amount: Decimal}`, was `{ amount: string; currency: string }`.
+  `Decimal` is `string`, so values stay assignable both ways.
 - The `ULID`, `AshPostgresLtreeArray` and `AshPostgresLtreeFlexible` aliases
   are removed. Fields of those types are typed `string`, `string[]` and
   `string | string[]` directly. Their zod/valibot schemas are unchanged.
 - A `custom_types` entry for one of these modules replaces the built-in.
+
+### Declared custom types are exported
+
+Every map-like custom type with declared fields is exported from the types
+file as an alias, plus `<Name>Input` when its input shape differs (nullable
+fields optional). The alias is the `map` entry's `type_name`, else the type's
+`typescript_alias_name/0`, else the module name joined (`MyApp.ColorPalette`
+becomes `MyAppColorPalette`); the built-in Money keeps `Money`. Inputs,
+typed controller route results, typed channel payloads, filter values,
+identity and `getBy` values and action metadata reference it; result types
+keep the field-selection form. The zod and valibot schemas get one named
+schema per type, the alias plus the schema suffix (`MoneyZodSchema`),
+referenced at each use. See
+[Naming the Type](../advanced/custom-types.md#naming-the-type) and
+[Generated TypeScript](../advanced/custom-types.md#generated-typescript).
+
+- Hand-written aliases for these types can be replaced by imports of the
+  generated ones. A `Money` (or other alias) of your own that your code
+  imports next to the generated names needs one of them renamed: set
+  `type_name "…"` on a `map` entry, or `typescript_alias_name/0` on a type
+  without one.
+- An alias that collides with a generated name is a warning when the manifest
+  compiles (an error under `--warnings-as-errors`) and fails codegen, naming
+  both (see
+  [Name Collisions](../advanced/custom-types.md#name-collisions)).
+- Filter operator values, identity and `getBy` values and action metadata of
+  typed maps no longer carry `__type` / `__primitiveFields`: they are plain
+  objects, so a filter like `{ price: { eq: { currency: "NOK", amount: "1" } } }`
+  type-checks. Code that read those keys from a metadata type no longer
+  compiles. Union filter values are unchanged.
 
 ### Typed maps and structs send declared fields only
 
@@ -559,8 +594,9 @@ values (an `Ash.TypedStruct`, `%Money{}`) no longer crash formatting.
 
 If you implement `AshTypescript.Codegen.SchemaFormatter` yourself, it drops
 `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0` and
-`ltree_union/0`, and gains `library/0` (`:zod` or `:valibot`). The two in-tree
-formatters are updated.
+`ltree_union/0`, and gains `library/0` (`:zod` or `:valibot`) and
+`wrap_lazy/1` (a deferred reference: `z.lazy(() => schema)`,
+`v.lazy(() => schema)`). The two in-tree formatters are updated.
 
 ## Unknown metadata fields, sort and filter names are errors
 

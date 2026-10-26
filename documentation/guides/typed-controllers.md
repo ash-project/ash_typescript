@@ -623,6 +623,7 @@ if (response.ok) {
 | `:struct` **without** `fields` constraints (or with `fields: []`, unless `instance_of` is an Ash type) | Rejected when the manifest compiles (use an `Ash.TypedStruct`, `fields` constraints or a plain `:map`) |
 | `{:array, inner}` | `Array<inner>` |
 | `Ash.Type.NewType` of any of the above | Expanded inline |
+| A map-like custom type with declared fields | Its exported alias (`Money`, see [Custom Types](../advanced/custom-types.md#generated-typescript)) |
 
 Resources, embedded resources (including `:struct` with `instance_of` a resource)
 and unions are rejected when the manifest compiles, at any depth, including inside

@@ -29,7 +29,8 @@ manifest
   custom_type_fields_hint: hint_fun,
   extra_types: TypedRoutes.types(routes, publications))
 |> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications, fields_fun, hint_fun) # custom.ash_typescript.routes / .publications
-|> AshTypescript.Manifest.Decorator.decorate(hint: hint_fun)           # writes custom.ash_typescript
+|> AshTypescript.Manifest.Decorator.decorate(hint: hint_fun,           # writes custom.ash_typescript
+  custom_types: custom_types)                                          # names of declared custom types
 |> AshRpc.Manifest.put_lookups()                                       # rebuilds custom.ash_rpc.lookups
 ```
 

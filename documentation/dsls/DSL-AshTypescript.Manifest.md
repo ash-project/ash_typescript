@@ -108,6 +108,7 @@ at least one field.
 ### Examples
 ```
 map SomeLib.ColorPalette do
+  type_name "Palette"
   field :primary, SomeLib.HexColor, allow_nil?: false
   field :accent_color, SomeLib.HexColor, client_name: "accentColour"
   zod "MyZod.colorPalette"
@@ -128,6 +129,7 @@ end
 |------|------|---------|------|
 | [`zod`](#custom_types-map-zod){: #custom_types-map-zod } | `String.t \| mfa` |  | A zod schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`valibot`](#custom_types-map-valibot){: #custom_types-map-valibot } | `String.t \| mfa` |  | A valibot schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
+| [`type_name`](#custom_types-map-type_name){: #custom_types-map-type_name } | `String.t` |  | The name of the generated TypeScript alias (default: the module name joined, `SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`. |
 
 
 ### custom_types.map.field

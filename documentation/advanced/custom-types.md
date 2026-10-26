@@ -202,6 +202,48 @@ A field's type can be any Ash type, a type with its own `scalar` or `map`
 entry, or a built-in. When it is a declared `scalar`, the field's
 `constraints` are merged over the scalar's, the field winning per key.
 
+### Naming the Type
+
+Every declared type is exported under one name, its alias (see
+[Generated TypeScript](#generated-typescript)); its named zod and valibot
+schemas are that name followed by the schema suffix (see
+[Named Schemas](#named-schemas)). The alias is the first of:
+
+1. the manifest `map` entry's `type_name`. A type with a `map` entry and no
+   `type_name` gets the joined module name (step 4);
+2. the type's `typescript_alias_name/0`;
+3. a built-in entry's name (`Money`, see [Built-In Types](#built-in-types));
+4. the module name with its segments joined, as for resources
+   (`SomeLib.ColorPalette` becomes `SomeLibColorPalette`).
+
+```elixir
+custom_types do
+  map SomeLib.ColorPalette do
+    type_name "Palette"   # the alias; schemas PaletteZodSchema, PaletteValibotSchema
+    field :primary, :string, allow_nil?: false
+  end
+end
+```
+
+A type you own that declares its fields with `typescript_fields/0` (or
+`composite_types/1`) names itself with the optional callback:
+
+```elixir
+defmodule MyApp.Theme do
+  use Ash.Type
+  # ...
+  def typescript_fields, do: [color: [type: :string, allow_nil?: false]]
+  def typescript_alias_name, do: "Theme"
+end
+```
+
+Both must be a TypeScript identifier that isn't a reserved word (`string`,
+`object`, `default`, `class`, `await`, `eval`, …), or the manifest fails to
+compile; for the callback the error names the module, and a result that isn't
+a string fails the same way. The callback isn't read when the manifest has a
+`map` entry for the type. Every declared type gets an alias: there is no
+option to keep a type inline.
+
 ### Where Fields Come From
 
 For each custom type, the first of these that applies supplies its fields:
@@ -225,7 +267,9 @@ An `Ash.Type.NewType` over a custom type inherits the subtype's fields (its
 `custom_types` entry, its `typescript_fields/0`, or its built-in) unless the
 NewType declares its own. The NewType's `typescript_field_names/0` win over
 the subtype's. When it inherits the subtype's `map` entry, it inherits that
-entry's `zod` / `valibot` too.
+entry's `zod` / `valibot` too. Names aren't inherited: the NewType gets its
+own alias and schemas, from its own `map` entry or `typescript_alias_name/0`,
+else its joined module name (`MyAppNewMoney`), never the subtype's.
 
 A field typed by a scalar custom type with a `scalar` entry (yours or a
 built-in) gets the entry's `constraints`, with the field's own `constraints`
@@ -255,19 +299,86 @@ drop the rest.
 
 ### Generated TypeScript
 
-The TypeScript of a map-like custom type is generated from its fields: a
-`TypedMap` in result types, and an object in input types, route results and
-channel payloads. Its zod and valibot schemas are objects of its fields, unless
-its `map` entry has `zod` / `valibot`.
+The TypeScript of a map-like custom type is generated from its fields. Each
+one is exported from the shared types file (`ash_types.ts`) as an alias (see
+[Naming the Type](#naming-the-type)):
 
 ```typescript
-// result
+// ash_types.ts
+// Declared custom types
+export type Money = {currency: string, amount: Decimal};
+export type Theme = {color: `#${string}`, accent: `#${string}` | null, code: `code-${string}`};
+export type ThemeInput = {color: `#${string}`, accent?: `#${string}` | null, code: `code-${string}`};
+```
+
+The alias has every key, with nullable fields typed `T | null`: the shape the
+server sends. When the type's input shape differs (nullable fields are
+optional in inputs), a second alias, `<Name>Input`, is generated too. Money
+has no nullable fields, so one alias serves both.
+
+A type whose fields reach a resource that isn't embedded (a `:struct` field
+`instance_of` one, directly or through arrays, unions, typed maps and other
+declared types) gets only its alias: no `<Name>Input` and no named schemas.
+Such a resource has neither an input schema nor a zod/valibot schema, so the
+type's input and schema uses stay inline.
+
+Positions that carry plain data reference the aliases:
+
+| Position | References |
+|----------|------------|
+| Action inputs, calculation arguments, identity and `getBy` values | the input alias (`Money`, `ThemeInput`) |
+| Typed controller route results and typed channel payloads | the alias (`Money`, `Theme`) |
+| Filter operator values (`{ price: { eq: money } }`) | the alias |
+| Action metadata | the alias |
+| Fields of another declared type | the alias (`LineItem = {…, price: Money, …}`); inside an `Input` alias, the nested type's input alias |
+
+Result types keep the inline field-selection form, since clients select the
+type's sub-fields there:
+
+```typescript
+// result (field selection)
 colorPalette: {primary: string, secondary: string, accent: string | null,
   __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"} | null;
 
 // input
-colorPalette?: {primary: string, secondary: string, accent?: string | null} | null;
+colorPalette?: ColorPaletteInput | null;
 ```
+
+A result with every field selected is assignable to the alias:
+
+```typescript
+import type { Money } from "./ash_rpc"; // or "./ash_types"
+
+const tasks = await listTasks({ fields: ["id", { price: ["currency", "amount"] }] });
+if (tasks.success) {
+  const price: Money | null = tasks.data[0].price;
+}
+```
+
+The RPC file re-exports everything from the types file (`export type *`), so
+the aliases can be imported from either. Import them instead of declaring your
+own. Code that declares its own `Money` next to an import of the generated
+names needs one of them renamed (`type_name "…"`, see
+[Name Collisions](#name-collisions)).
+
+Filter values of every typed map (a custom type or not) are plain objects with
+no `__type` / `__primitiveFields` keys, and so are typed-map values in action
+metadata. Union filter values keep their field-selection form.
+
+> #### Embedded resources inside a declared type {: .warning}
+>
+> An embedded-resource field of a declared type is rendered as the resource's
+> field-selection schema in the type's alias
+> (`LineItem = {…, meta: TaskMetadataResourceSchema | null}`), and so is one of
+> any typed map in filter values. That schema requires the `__type` /
+> `__primitiveFields` keys, so such a value can't be written by hand unless the
+> field is `null`. The input alias
+> (`LineItemInput = {…, meta?: TaskMetadataInputSchema | null}`) isn't
+> affected.
+
+Its zod and valibot schemas are objects of its fields, named once per type
+(see [Named Schemas](#named-schemas)), unless its `map` entry has `zod` /
+`valibot`.
 
 ### Map-Like Types Can't Declare a TypeScript Type
 
@@ -299,7 +410,8 @@ After:
    instead of `"colorPalette"`).
 
 The hand-written `CustomTypes.ColorPalette` is no longer referenced by the
-generated code. Delete it, or keep it for your own code.
+generated code. Delete it and import the generated `ColorPalette` alias
+instead, or keep it for your own code.
 
 ### Precise Member Types
 
@@ -349,8 +461,9 @@ Either form generates:
 colorPalette: {primary: `#${string}`, secondary: `#${string}`, accent: `#${string}` | null,
   __type: "TypedMap", __primitiveFields: "primary" | "secondary" | "accent"} | null;
 
-// input
-colorPalette?: {primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null} | null;
+// aliases, referenced by inputs (`colorPalette?: ColorPaletteInput | null`)
+export type ColorPalette = {primary: `#${string}`, secondary: `#${string}`, accent: `#${string}` | null};
+export type ColorPaletteInput = {primary: `#${string}`, secondary: `#${string}`, accent?: `#${string}` | null};
 ```
 
 and zod/valibot string schemas with the regex from `match`.
@@ -403,10 +516,54 @@ still exports `typescript_type_name/0`.
 
 ### Compile-Time Rules
 
-The manifest module reads `typescript_fields/0` and `composite_types/1` when it
-compiles, and recompiles when a type module it read them from changes. The
+The manifest module reads `typescript_fields/0`, `composite_types/1` and
+`typescript_alias_name/0` when it compiles, and recompiles when a type module
+it read them from changes. The
 manifest depends on those type modules at compile time, so they must never
 read the manifest at compile time.
+
+### Name Collisions
+
+The aliases share the types file with the names ash_typescript generates.
+The manifest's verifier reports "Declared custom types with colliding
+TypeScript names found", listing every collision, when an alias equals:
+
+- another declared type's alias (`Billing.Money` and `Shop.Money` both given
+  `type_name "Money"`), or another alias followed by `Input` (`ShadeInput`
+  next to `Shade`);
+- a name generated for a resource or embedded resource `X`: `XResourceSchema`,
+  `XAttributesOnlySchema`, `XInputSchema`, `XFilterInput`, `XFilterField` or
+  `XSortField`;
+- a fixed generated name: a primitive alias (`UUID`, `Decimal`, `AshDate`, …)
+  or a utility type (`InferResult`, `SortString`, `ValidationResult`, …).
+
+Like the other manifest verifiers, it is a warning when the manifest compiles,
+which fails `mix compile --warnings-as-errors`, and an error that fails
+`mix ash_typescript.codegen` before any file is written.
+
+Codegen checks what the manifest can't see, and fails before writing any file:
+
+- "Duplicate exported type names in `<types file>`": an alias equal to another
+  export of the types file, such as a typed channel payload type;
+- "`<file>` imports types from `<types file>` that it also declares": an alias
+  equal to a name the RPC, routes or typed channels file declares itself (an
+  action's `ListTodosInput`);
+- "`<file>` imports names that it also imports from `<types file>` or
+  declares": an alias or schema name equal to a name a generated file imports
+  itself, such as `Channel` (the RPC file imports it from phoenix when
+  channel RPC actions are generated), `z` (the zod file's import of zod), `v`
+  (valibot's) or an `import * as` hooks module;
+- an alias equal to an `import_name` in `import_into_generated` or
+  `typed_controller_import_into_generated`, or a schema name equal to one in
+  `zod_import_into_generated` / `valibot_import_into_generated`;
+- "Duplicate Zod schema names detected" (or Valibot): a named schema equal to
+  another schema of the file, such as an alias `User` whose `UserZodSchema` is
+  also the schema of the resource `User`.
+
+Each message names the custom type and its fix: rename its alias with
+`type_name "…"` on its `map` entry (or `typescript_alias_name/0` on a type
+without one). A schema is named after the alias, so renaming the alias renames
+its schemas.
 
 ## Built-In Types
 
@@ -415,9 +572,23 @@ the same shape as `custom_types`:
 
 | Type module | Entry | Generated TypeScript |
 |-------------|-------|---------------------|
-| `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | a `TypedMap` / input object of its fields (select `{ price: ["currency", "amount"] }`) |
+| `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | the alias `Money = {currency: string, amount: Decimal}` and the schemas `MoneyZodSchema` / `MoneyValibotSchema`; results select `{ price: ["currency", "amount"] }` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
 | `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | `string[]` (`escape?: true`) or `string \| string[]` |
+
+ULID and Ltree get no alias: their fields are typed directly. To rename
+Money's alias or schemas, declare it with a `map` entry that restates its
+fields:
+
+```elixir
+custom_types do
+  map AshMoney.Types.Money do
+    type_name "Price"
+    field :currency, :string, allow_nil?: false
+    field :amount, :decimal, allow_nil?: false
+  end
+end
+```
 
 Built-ins rank below the type's own callbacks: if a library adds
 `typescript_fields/0` to Money, those fields replace the built-in's, and
@@ -469,6 +640,48 @@ from `storage_type/1`:
 
 This is permissive but never wrong. A `scalar` entry is generated from its base
 type and constraints instead, and map-like types from their fields.
+
+### Named Schemas
+
+Each map-like custom type gets one named zod and one named valibot schema, the
+object of its fields, and every schema that uses the type references it:
+
+```typescript
+// ash_zod.ts
+// ============================
+// Zod Schemas for Custom Types
+// ============================
+
+export const MoneyZodSchema = z.object({ currency: z.string(), amount: z.string() });
+export const LineItemZodSchema = z.object({ label: z.string(), price: MoneyZodSchema, meta: z.lazy(() => TaskMetadataZodSchema).nullable().optional() });
+
+// ...
+export const createTaskZodSchema = z.object({
+  price: MoneyZodSchema.nullable().optional(),
+  // ...
+});
+```
+
+A schema is named after the type's alias (see
+[Naming the Type](#naming-the-type)) followed by `zod_schema_suffix` /
+`valibot_schema_suffix` (`ZodSchema` / `ValibotSchema` by default). There is
+no per-type schema name, and no way to inline a type's schema at every use.
+
+The section comes first in the file, so every later schema can use the names.
+Within it, each schema follows the named schemas its fields reference, ties
+ordered by name. A reference to a resource schema (an embedded-resource field)
+is deferred with `z.lazy(() => …)` / `v.lazy(() => …)`, since resource schemas
+come later. A type whose fields reach a resource that isn't embedded gets no
+named schema (see [Generated TypeScript](#generated-typescript)).
+
+Recursive declared custom types aren't supported. Codegen fails before
+rendering anything with "These declared custom types contain themselves,
+directly or through other named types", when a type's fields reach the type
+itself (through arrays, unions, typed maps or other named types; a resource
+field ends the search). Expand the type to a fixed depth.
+
+A type whose `map` entry has `zod` (or `valibot`) gets no named schema for that
+library: the replacement is used at every use, as below.
 
 ### Schema Overrides
 

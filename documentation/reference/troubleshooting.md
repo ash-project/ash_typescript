@@ -250,6 +250,24 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Solution:** Select its sub-fields: `{ colorPalette: ["primary", "secondary"] }`.
 
+#### Error: "Declared custom types with colliding TypeScript names found"
+
+**Cause:** A map-like custom type's generated alias (its `type_name`, its `typescript_alias_name/0`, or its joined module name) equals another declared type's alias, another alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
+
+**Solution:** Rename one of the types: set `type_name "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_alias_name/0` on a type without one. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
+
+#### Error: "The type_name … is not a TypeScript identifier" / "The typescript_alias_name/0 result … is a TypeScript reserved word"
+
+**Cause:** A `map` entry's `type_name`, or a custom type's `typescript_alias_name/0`, isn't a name TypeScript can export: not an identifier (`Geo-Point`), or a reserved word (`string`, `default`, `class`, `await`, …). A `typescript_alias_name/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
+
+**Solution:** Return or set a TypeScript identifier that isn't a reserved word. `type_name` takes a string only (`false` is no longer accepted: every declared type gets an alias).
+
+#### Codegen error: "Duplicate exported type names", "... imports types from ... that it also declares", "... imports names that it also imports from ... or declares", or an alias / schema that "is an `import_name`"
+
+**Cause:** A custom type's alias equals another export of the types file (a typed channel payload type), a name the RPC, routes or typed channels file declares itself (an action's `XInput`), a name a generated file imports itself (`Channel` from phoenix in the RPC file, `z` / `v` in the schema files, an `import * as` module), or an `import_name` of `import_into_generated` / `typed_controller_import_into_generated`; or its named schema (the alias plus the schema suffix) equals such an imported name or an `import_name` of `zod_import_into_generated` / `valibot_import_into_generated`. Codegen stops before writing any file. The import check covers every generated name, so a typed channel module named `Channel` fails it too when channel RPC actions are generated.
+
+**Solution:** The message names the custom type: rename its alias (and with it its schemas) with `type_name "…"` on its `map` entry, or `typescript_alias_name/0` on a type without one, or change the `import_name`.
+
 #### Errors about resources/modules that only exist in another environment
 
 **Cause:** Codegen ran in an environment where those modules (and possibly the manifest config pointing at them) don't compile — common for projects that define test-only resources.
@@ -257,6 +275,18 @@ See [Custom Types](../advanced/custom-types.md).
 **Solution:** Run codegen in the environment where the resources compile, e.g. `MIX_ENV=test mix ash_typescript.codegen`, or set up a `test.codegen` alias with `preferred_envs` (see [Mix Tasks Reference](mix-tasks.md#test-environment-code-generation)).
 
 ### Validation Schema Issues
+
+#### Codegen error: "These declared custom types contain themselves, directly or through other named types"
+
+**Cause:** A map-like custom type's fields reach the type itself, through arrays, unions, typed maps or other named types. Codegen expands a declared type's fields into its input alias and its zod/valibot schemas, which doesn't end for a recursive type, and a named schema would have to be defined before itself. Codegen stops before rendering anything.
+
+**Solution:** Recursive declared custom types aren't supported: expand the type to a fixed depth.
+
+#### Codegen error: "Duplicate Zod schema names detected" naming a custom type
+
+**Cause:** A custom type's named schema (its alias plus the schema suffix, `MoneyZodSchema`) equals another schema in the file: a resource's (an alias `User` next to the resource `User`), an action's or a route's.
+
+**Solution:** Rename the custom type's alias, which names its schemas: `type_name "…"` on its `map` entry, or `typescript_alias_name/0` on a type without one.
 
 #### A custom type generates `z.any()` / `v.any()`
 

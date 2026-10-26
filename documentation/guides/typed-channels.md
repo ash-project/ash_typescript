@@ -341,7 +341,7 @@ Fields inside a payload may be anything a typed field can be, untyped ones (`:te
 at every depth, including inside NewTypes and custom types declared in the manifest
 module's `custom_types` section.
 
-Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
+Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system. A map-like custom type with declared fields references its exported alias (`Money`, see [Custom Types](../advanced/custom-types.md#generated-typescript)).
 
 ### Multi-Channel Payload Deduplication
 
