@@ -417,6 +417,27 @@ defmodule AshTypescript.Manifest.Custom do
   def custom_type_entry(source, module),
     do: declared_custom_type(source, module) || builtin_custom_type(source, module)
 
+  @doc """
+  The persisted `custom_types` (`t:AshTypescript.CustomTypes.custom_types/0`):
+  the manifest's entries, the built-ins and `alias_all_types?`. Without
+  decoration, no declarations, the built-ins, `alias_all_types?` off. `nil`
+  source reads the configured manifest (`with_manifest/2` override included).
+  """
+  @spec custom_types(module() | Manifest.t() | nil) :: AshTypescript.CustomTypes.custom_types()
+  def custom_types(source \\ nil) do
+    case typed_data(source, :custom_types) do
+      empty when map_size(empty) == 0 -> AshTypescript.CustomTypes.builtin_only()
+      custom_types -> custom_types
+    end
+  end
+
+  @doc """
+  The `custom_types` section's `alias_all_types?` option (default `false`).
+  `nil` source reads the configured manifest.
+  """
+  @spec alias_all_types?(module() | Manifest.t() | nil) :: boolean()
+  def alias_all_types?(source \\ nil), do: Map.get(custom_types(source), :alias_all_types?, false)
+
   defp custom_type(source, kind, module) do
     source |> typed_data(:custom_types) |> Map.get(kind, %{}) |> Map.get(module)
   end

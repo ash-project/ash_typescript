@@ -12,6 +12,10 @@ defmodule AshTypescript.CustomTypes.Scalar do
   `{Spark.Regex, :cache, [source, opts]}` so the entry can be persisted.
   `typescript`, `zod` and `valibot` are a string, or an MFA called as
   `apply(m, f, [constraints | a])` that returns one.
+
+  `type_name` is the exported TypeScript alias: a string, or an MFA like
+  `typescript` returning a name, or `nil` to stay inline at that use. An MFA
+  `type_name` needs an MFA `typescript`.
   """
 
   @type mapping :: String.t() | {module(), atom(), list()} | nil
@@ -23,6 +27,7 @@ defmodule AshTypescript.CustomTypes.Scalar do
           typescript: mapping(),
           zod: mapping(),
           valibot: mapping(),
+          type_name: mapping(),
           __spark_metadata__: term()
         }
 
@@ -32,6 +37,7 @@ defmodule AshTypescript.CustomTypes.Scalar do
     :typescript,
     :zod,
     :valibot,
+    :type_name,
     constraints: [],
     __spark_metadata__: nil
   ]

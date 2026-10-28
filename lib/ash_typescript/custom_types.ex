@@ -10,7 +10,9 @@ defmodule AshTypescript.CustomTypes do
   `fields_for/3` checks, in order:
 
     1. the manifest module's `custom_types` entry for the module: a `map`
-       entry's fields (with their `client_name`), or `nil` for a `scalar`;
+       entry's fields (with their `client_name`), or `nil` for a `scalar` or
+       a field-less `map` entry (one that opts a field-bearing NewType into
+       an alias and declares no fields);
     2. the type's `typescript_fields/0`, named by its
        `typescript_field_names/0`;
     3. the built-in `map` entry (`AshTypescript.CustomTypes.Builtin`), named by
@@ -56,7 +58,15 @@ defmodule AshTypescript.CustomTypes do
           valibot: :derive | nil
         }
 
-  @type custom_types :: %{declared: entries(), builtin: entries()}
+  @typedoc """
+  The persisted `custom_types` (`NormalizeCustomTypes`): the manifest's
+  entries, the built-ins, and the `alias_all_types?` section option.
+  """
+  @type custom_types :: %{
+          required(:declared) => entries(),
+          required(:builtin) => entries(),
+          optional(:alias_all_types?) => boolean()
+        }
 
   @rename_hint "with `type_name \"…\"` on its `map` entry (or `typescript_alias_name/0` on " <>
                  "a type without one)"
@@ -91,17 +101,23 @@ defmodule AshTypescript.CustomTypes do
   @doc false
   # The `custom_type_fields:` closure over persisted `custom_types`
   # (`%{declared: …, builtin: …}`), or over the built-ins alone for `nil`.
-  @spec fields_fun(%{declared: entries(), builtin: entries()} | nil) :: fields_fun()
+  @spec fields_fun(custom_types() | nil) :: fields_fun()
   def fields_fun(%{declared: declared, builtin: builtin}), do: &fields_for(&1, declared, builtin)
-  def fields_fun(nil), do: fields_fun(%{declared: %{}, builtin: Builtin.by_module()})
+  def fields_fun(nil), do: fields_fun(builtin_only())
 
   @doc false
   # The hint closure over persisted `custom_types` (`%{declared: …, builtin: …}`),
   # or over the built-ins alone for `nil`: `hint/3` as a function of the module,
   # for ash_rpc's `custom_type_fields_hint:` and `hint:` options.
-  @spec hint_fun(%{declared: entries(), builtin: entries()} | nil) :: (module() -> String.t())
+  @spec hint_fun(custom_types() | nil) :: (module() -> String.t())
   def hint_fun(%{declared: declared, builtin: builtin}), do: &hint(&1, declared, builtin)
-  def hint_fun(nil), do: hint_fun(%{declared: %{}, builtin: Builtin.by_module()})
+  def hint_fun(nil), do: hint_fun(builtin_only())
+
+  @doc false
+  # The persisted `custom_types` of a manifest without declarations: the
+  # built-ins, `alias_all_types?` off.
+  @spec builtin_only() :: custom_types()
+  def builtin_only, do: %{declared: %{}, builtin: Builtin.by_module(), alias_all_types?: false}
 
   @doc false
   # The type modules whose `typescript_fields/0` or `composite_types/1`
@@ -267,11 +283,15 @@ defmodule AshTypescript.CustomTypes do
   The `map` entry a declared custom type's uses resolve to (`entry_of` maps a
   module to its entry, or `nil`): its own, else, for a NewType without an
   entry or `typescript_fields/0` of its own, its subtype's. `nil` when that
-  entry is a `scalar` or there is none.
+  entry is a `scalar` or a field-less `map` entry (which declares nothing),
+  or there is none.
   """
   @spec map_entry(module(), (module() -> Scalar.t() | MapType.t() | nil)) :: MapType.t() | nil
   def map_entry(module, entry_of) do
     case entry_of.(module) do
+      %MapType{fields: []} ->
+        nil
+
       %MapType{} = entry ->
         entry
 
@@ -284,8 +304,35 @@ defmodule AshTypescript.CustomTypes do
     end
   end
 
-  defp map_entry_only(%MapType{} = entry), do: entry
+  defp map_entry_only(%MapType{fields: [_ | _]} = entry), do: entry
   defp map_entry_only(_), do: nil
+
+  @field_bearing_kinds [:map, :keyword, :tuple, :struct]
+
+  @doc false
+  # A field-bearing NewType: an `Ash.Type.NewType` whose definition is
+  # map-like (`:map`, `:keyword`, `:tuple` or `:struct`) with fields, and
+  # not a declared custom type (`AshRpc.Manifest.Custom.custom_type?/1`).
+  # Its fields come from the type, so its `map` entry has none.
+  @spec field_bearing_new_type?(Manifest.Type.t()) :: boolean()
+  def field_bearing_new_type?(%Manifest.Type{module: module, kind: kind} = definition)
+      when kind in @field_bearing_kinds and is_atom(module) and not is_nil(module) do
+    new_type?(module) and Manifest.Type.get_fields(definition) != [] and
+      not AshRpc.Manifest.Custom.custom_type?(definition)
+  end
+
+  def field_bearing_new_type?(_definition), do: false
+
+  @doc false
+  # `field_bearing_new_type?/1` for a module, from its own definition
+  # (`TypeResolver.resolve_definition/1`), so no manifest is needed. Compiles
+  # the module first (`Code.ensure_compiled/1`); `false` for a module that
+  # doesn't exist.
+  @spec field_bearing_new_type_module?(module()) :: boolean()
+  def field_bearing_new_type_module?(module) when is_atom(module) do
+    match?({:module, _}, Code.ensure_compiled(module)) and new_type?(module) and
+      field_bearing_new_type?(Manifest.Generator.TypeResolver.resolve_definition(module))
+  end
 
   # `effective` is a `map` entry or `nil`.
   defp schema_name(effective, library) do
@@ -368,6 +415,10 @@ defmodule AshTypescript.CustomTypes do
   # over `module`'s own.
   defp own(module, names_module, declared, builtin) do
     case Map.fetch(declared, module) do
+      # A field-less entry declares no fields: the NewType's come from itself.
+      {:ok, %MapType{fields: []}} ->
+        :scalar
+
       {:ok, %MapType{fields: fields}} ->
         {:fields, Enum.map(fields, &field_spec(&1, &1.client_name)), []}
 
@@ -467,8 +518,10 @@ defmodule AshTypescript.CustomTypes do
   # carries: a module with a `scalar` entry (`entry_of.(module)`) resolves to
   # the entry's base type, with the entry's constraints merged under the
   # field's (`Keyword.merge/2`, the field winning per key; under `items:` for
-  # an array). `:map` for a module with a `map` entry, and `{:error, type}`
-  # for a module that is neither an entry nor an Ash type.
+  # an array). `:map` for a module with a `map` entry that has fields, and
+  # `{:error, type}` for a module that is neither an entry nor an Ash type.
+  # A field-less `map` entry counts as no entry, so the NewType itself checks
+  # the field's constraints.
   @spec resolve_field_type(term(), keyword(), (term() -> Scalar.t() | MapType.t() | nil)) ::
           {:ok, term(), keyword()} | :map | {:error, term()}
   def resolve_field_type({:array, inner}, constraints, entry_of) do
@@ -482,8 +535,8 @@ defmodule AshTypescript.CustomTypes do
   def resolve_field_type(type, constraints, entry_of) do
     case entry_of.(type) do
       %Scalar{} = scalar -> {:ok, scalar.type, Keyword.merge(scalar.constraints, constraints)}
-      %MapType{} -> :map
-      nil -> if Ash.Type.ash_type?(type), do: {:ok, type, constraints}, else: {:error, type}
+      %MapType{fields: [_ | _]} -> :map
+      _none -> if Ash.Type.ash_type?(type), do: {:ok, type, constraints}, else: {:error, type}
     end
   end
 

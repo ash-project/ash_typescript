@@ -215,7 +215,8 @@ A custom type that declares fields becomes a typed map: decoration turns it into
 (`AshRpc.Manifest.Custom.custom_type?/1`), and codegen, selection, input and output
 go through the typed-map paths. Fields come from, in order
 (`AshTypescript.CustomTypes.fields_for/3`): a `map` entry in the manifest module's
-`custom_types` section, the type's `typescript_fields/0` (named by
+`custom_types` section (one with fields: a field-less entry only opts a field-bearing
+NewType into an alias and declares nothing), the type's `typescript_fields/0` (named by
 `typescript_field_names/0`), a built-in entry (`AshTypescript.CustomTypes.Builtin`:
 `AshMoney.Types.Money`), the subtype's for a NewType, then `composite_types/1`. A
 malformed `typescript_fields/0` result is passed on for ash_rpc to reject

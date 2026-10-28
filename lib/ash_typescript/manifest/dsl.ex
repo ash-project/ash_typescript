@@ -56,7 +56,8 @@ defmodule AshTypescript.Manifest.Dsl do
     Declares a custom type you don't own whose values are a single value of
     a base Ash type. Its TypeScript, zod and valibot are generated from the
     base type and constraints unless `typescript`, `zod` or `valibot` is
-    given.
+    given. With `type_name`, its TypeScript is exported as an alias of that
+    name.
     """,
     examples: [
       """
@@ -65,7 +66,8 @@ defmodule AshTypescript.Manifest.Dsl do
         typescript "`#${string}`"
       end
       """,
-      "scalar SomeLib.Percentage, :integer, constraints: [min: 0, max: 100]"
+      "scalar SomeLib.Percentage, :integer, constraints: [min: 0, max: 100]",
+      ~s(scalar SomeLib.Email, :string, type_name: "Email")
     ],
     args: [:module, :type],
     transform: {AshTypescript.CustomTypes.Scalar, :transform, []},
@@ -83,7 +85,15 @@ defmodule AshTypescript.Manifest.Dsl do
       ],
       typescript: [type: @mapping_type, doc: "The TypeScript type. #{@mapping_doc}"],
       zod: [type: @mapping_type, doc: "The zod schema. #{@mapping_doc}"],
-      valibot: [type: @mapping_type, doc: "The valibot schema. #{@mapping_doc}"]
+      valibot: [type: @mapping_type, doc: "The valibot schema. #{@mapping_doc}"],
+      type_name: [
+        type: @mapping_type,
+        doc:
+          "The name of the exported TypeScript alias (`export type Email = string;`), " <>
+            "referenced at every use. A string, or an MFA `{m, f, a}` called as " <>
+            "`apply(m, f, [constraints | a])` with the use's constraints, returning a name, " <>
+            "or `nil` to keep that use inline. An MFA `type_name` needs an MFA `typescript`."
+      ]
     ]
   }
 
@@ -91,12 +101,20 @@ defmodule AshTypescript.Manifest.Dsl do
     name: :map,
     target: AshTypescript.CustomTypes.MapType,
     describe: """
-    Declares the fields of a map-like custom type you don't own (one with
-    `storage_type :map`, or composite). Its TypeScript is generated from its
-    fields, so a map has no `typescript` option: a map-like type that only
-    names a TypeScript type declares its fields instead (see "Migrating
-    from `typescript_type_name/0`" in the Custom Types guide). A map needs
-    at least one field.
+    Has two roles:
+
+      * with fields, declares the fields of a map-like custom type you don't
+        own (one with `storage_type :map`, or composite). Its TypeScript is
+        generated from its fields, so a map has no `typescript` option: a
+        map-like type that only names a TypeScript type declares its fields
+        instead (see "Migrating from `typescript_type_name/0`" in the Custom
+        Types guide);
+      * without fields, opts a field-bearing `Ash.Type.NewType` (an
+        `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
+        `:struct` with `fields`) into an exported alias, named by `type_name`
+        or else the joined module name. Its fields come from the type.
+
+    A map for any other module needs at least one field.
     """,
     examples: [
       """
@@ -106,7 +124,9 @@ defmodule AshTypescript.Manifest.Dsl do
         field :accent_color, SomeLib.HexColor, client_name: "accentColour"
         zod "MyZod.colorPalette"
       end
-      """
+      """,
+      "map MyApp.Types.Address",
+      ~s(map MyApp.Types.Label, type_name: "Label")
     ],
     args: [:module],
     entities: [fields: [@field]],
@@ -139,6 +159,10 @@ defmodule AshTypescript.Manifest.Dsl do
     (`typescript_type_name/0`, `typescript_fields/0`) and its built-in entry,
     if any. Built-in entries cover `AshMoney.Types.Money`,
     `AshDoubleEntry.ULID` and `AshPostgres.Ltree`.
+
+    `alias_all_types?` exports a TypeScript alias for every field-bearing
+    NewType and aliasable scalar the manifest reaches, without an entry
+    for each.
     """,
     examples: [
       """
@@ -149,7 +173,22 @@ defmodule AshTypescript.Manifest.Dsl do
           field :primary, SomeLib.HexColor, allow_nil?: false
         end
       end
+      """,
       """
+      custom_types do
+        alias_all_types? true
+      end
+      """
+    ],
+    schema: [
+      alias_all_types?: [
+        type: :boolean,
+        default: false,
+        doc:
+          "Alias every field-bearing NewType and aliasable scalar the manifest reaches, " <>
+            "named by its joined module name unless it has an explicit name (a `type_name`, " <>
+            "`typescript_alias_name/0`, a built-in name). Declared custom types are always aliased."
+      ]
     ],
     entities: [@scalar, @map]
   }

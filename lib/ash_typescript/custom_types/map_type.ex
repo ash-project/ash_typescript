@@ -9,6 +9,10 @@ defmodule AshTypescript.CustomTypes.MapType do
 
   A map-like custom type's TypeScript is generated from its `fields`
   (`AshTypescript.CustomTypes.Field`), so the entry has no `typescript`.
+  An entry without fields is for a field-bearing `Ash.Type.NewType` (an
+  `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
+  `:struct` with `fields`): it declares nothing and opts the type into an
+  exported alias, whose fields come from the type.
   `zod` and `valibot` are optional escape hatches: a string, or an MFA called
   as `apply(m, f, [constraints | a])` that returns one.
 

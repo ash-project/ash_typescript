@@ -5,22 +5,32 @@
 defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   @moduledoc """
   Validates the manifest module's `custom_types` section and persists it,
-  with the built-in entries, as `:custom_types`:
-  `%{declared: %{module => entry}, builtin: %{module => entry}}`.
+  with the built-in entries and the `alias_all_types?` option, as
+  `:custom_types`:
+  `%{declared: %{module => entry}, builtin: %{module => entry}, alias_all_types?: boolean}`.
 
   Runs before `BuildManifest`. It rejects, with a `Spark.Error.DslError`:
 
     * a module declared more than once;
-    * a `map` with no fields, or with a field name declared twice;
+    * a `map` with no fields for a module that isn't a field-bearing NewType
+      (an `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple`
+      or `:struct` with `fields`), or with a field name declared twice;
+    * a `map` with fields for a field-bearing NewType: its fields come from
+      the type, and a field-less entry opts it into an alias;
+    * a field-less `map` with `zod` or `valibot`, which it would never use;
+    * an alias opt-in (a field-less `map` entry, or a `scalar` with a
+      `type_name`) for a module exporting `typescript_type_name/0`;
     * a `scalar` whose base type isn't an Ash type, or a `field` whose type is
       neither an Ash type nor a module with an entry (declared or built-in);
     * constraints the type rejects (`Ash.Type.init/2`). A field typed by a
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
       field winning per key). A field typed by a `map` entry isn't checked;
-    * a `map`'s `type_name` that isn't a TypeScript identifier, or is a
-      reserved word (`string`, `object`, `default`, …;
-      `AshTypescript.CustomTypes.check_name/2`).
+    * a `type_name` string (`map` or `scalar`) that isn't a TypeScript
+      identifier, or is a reserved word (`string`, `object`, `default`, …;
+      `AshTypescript.CustomTypes.check_name/2`);
+    * a `scalar` with an MFA `type_name` and a `typescript` that isn't an MFA
+      (or none).
 
   The persisted constraints are the user's (regexes already converted by the
   entity transforms), merged for scalar-typed fields. `Ash.Type.init/2` only
@@ -49,7 +59,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
       {:ok,
        Transformer.persist(dsl_state, :custom_types, %{
          declared: Map.new(normalized, &{&1.module, &1}),
-         builtin: builtin
+         builtin: builtin,
+         alias_all_types?:
+           Transformer.get_option(dsl_state, [:custom_types], :alias_all_types?, false)
        })}
     else
       {:error, {entry, path, message}} ->
@@ -84,7 +96,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     path = [:scalar, scalar.module]
 
     if Ash.Type.ash_type?(scalar.type) do
-      with :ok <- init(scalar, path, scalar.type, scalar.constraints, inspect(scalar.module)) do
+      with :ok <- init(scalar, path, scalar.type, scalar.constraints, inspect(scalar.module)),
+           :ok <- check_scalar_type_name(scalar),
+           :ok <- check_no_type_name_callback(scalar) do
         {:ok, scalar}
       end
     else
@@ -94,18 +108,99 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     end
   end
 
+  # A field-less entry opts a field-bearing NewType into an alias.
   defp normalize(%MapType{fields: []} = map, _by_module) do
-    {:error,
-     {map, [:map, map.module], "The map #{inspect(map.module)} needs at least one field."}}
+    if CustomTypes.field_bearing_new_type_module?(map.module) do
+      with :ok <- check_no_schemas(map),
+           :ok <- check_type_name(map),
+           :ok <- check_no_type_name_callback(map) do
+        {:ok, map}
+      end
+    else
+      {:error,
+       {map, [:map, map.module],
+        "The map #{inspect(map.module)} needs at least one field (a field-less `map` entry " <>
+          "is only for an `Ash.Type.NewType` with fields, such as an `Ash.TypedStruct`)."}}
+    end
   end
 
   defp normalize(%MapType{} = map, by_module) do
-    with :ok <- check_duplicate_fields(map),
+    with :ok <- check_fields_not_from_type(map),
+         :ok <- check_duplicate_fields(map),
          {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)),
          :ok <- check_type_name(map) do
       {:ok, %{map | fields: fields}}
     end
   end
+
+  defp check_scalar_type_name(%Scalar{type_name: nil}), do: :ok
+
+  defp check_scalar_type_name(%Scalar{type_name: name} = scalar) when is_binary(name) do
+    subject = "The type_name #{inspect(name)} of #{inspect(scalar.module)}"
+
+    with {:error, message} <- CustomTypes.check_name(name, subject),
+         do: {:error, {scalar, [:scalar, scalar.module, :type_name], message}}
+  end
+
+  defp check_scalar_type_name(%Scalar{typescript: {_m, _f, _a}}), do: :ok
+
+  defp check_scalar_type_name(%Scalar{} = scalar) do
+    {:error,
+     {scalar, [:scalar, scalar.module, :type_name],
+      "#{inspect(scalar.module)}: an MFA `type_name` needs an MFA `typescript`: both must be " <>
+        "computed from the use's constraints."}}
+  end
+
+  # A field-less entry declares nothing, so a `zod` / `valibot` replacement on
+  # it would be ignored.
+  defp check_no_schemas(%MapType{} = map) do
+    case Enum.find([:zod, :valibot], &Map.fetch!(map, &1)) do
+      nil ->
+        :ok
+
+      option ->
+        {:error,
+         {map, [:map, map.module, option],
+          "The `map` entry of #{inspect(map.module)} has no fields, so its `#{option}` would " <>
+            "never be used; remove it (its schemas are generated from the type)."}}
+    end
+  end
+
+  defp check_fields_not_from_type(%MapType{} = map) do
+    if CustomTypes.field_bearing_new_type_module?(map.module) do
+      {:error,
+       {map, [:map, map.module],
+        "The fields of #{inspect(map.module)} come from the type; remove them from its " <>
+          "`map` entry."}}
+    else
+      :ok
+    end
+  end
+
+  # An explicit alias opt-in (a field-less `map` entry, a `scalar` with a
+  # `type_name`) on a type that names its own TypeScript type. The callback
+  # opt-in (`typescript_alias_name/0`) is checked by `DecorateManifest`.
+  defp check_no_type_name_callback(%Scalar{type_name: nil}), do: :ok
+
+  defp check_no_type_name_callback(entry) do
+    if exports_type_name?(entry.module) do
+      {path, source} =
+        case entry do
+          %Scalar{} -> {[:scalar, entry.module, :type_name], "its TypeScript"}
+          %MapType{} -> {[:map, entry.module], "the fields"}
+        end
+
+      {:error,
+       {entry, path,
+        "#{inspect(entry.module)} exports `typescript_type_name/0`: remove it; the alias is " <>
+          "generated from #{source}."}}
+    else
+      :ok
+    end
+  end
+
+  defp exports_type_name?(module),
+    do: Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0)
 
   defp check_type_name(%MapType{type_name: nil}), do: :ok
 

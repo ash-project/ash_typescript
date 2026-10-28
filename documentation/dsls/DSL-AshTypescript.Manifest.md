@@ -13,6 +13,10 @@ once. A declaration replaces the type's own callbacks
 if any. Built-in entries cover `AshMoney.Types.Money`,
 `AshDoubleEntry.ULID` and `AshPostgres.Ltree`.
 
+`alias_all_types?` exports a TypeScript alias for every field-bearing
+NewType and aliasable scalar the manifest reaches, without an entry
+for each.
+
 
 ### Nested DSLs
  * [scalar](#custom_types-scalar)
@@ -32,6 +36,21 @@ end
 
 ```
 
+```
+custom_types do
+  alias_all_types? true
+end
+
+```
+
+
+
+
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`alias_all_types?`](#custom_types-alias_all_types?){: #custom_types-alias_all_types? } | `boolean` | `false` | Alias every field-bearing NewType and aliasable scalar the manifest reaches, named by its joined module name unless it has an explicit name (a `type_name`, `typescript_alias_name/0`, a built-in name). Declared custom types are always aliased. |
 
 
 
@@ -44,7 +63,8 @@ scalar module, type
 Declares a custom type you don't own whose values are a single value of
 a base Ash type. Its TypeScript, zod and valibot are generated from the
 base type and constraints unless `typescript`, `zod` or `valibot` is
-given.
+given. With `type_name`, its TypeScript is exported as an alias of that
+name.
 
 
 
@@ -60,6 +80,10 @@ end
 
 ```
 scalar SomeLib.Percentage, :integer, constraints: [min: 0, max: 100]
+```
+
+```
+scalar SomeLib.Email, :string, type_name: "Email"
 ```
 
 
@@ -78,6 +102,7 @@ scalar SomeLib.Percentage, :integer, constraints: [min: 0, max: 100]
 | [`typescript`](#custom_types-scalar-typescript){: #custom_types-scalar-typescript } | `String.t \| mfa` |  | The TypeScript type. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`zod`](#custom_types-scalar-zod){: #custom_types-scalar-zod } | `String.t \| mfa` |  | The zod schema. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`valibot`](#custom_types-scalar-valibot){: #custom_types-scalar-valibot } | `String.t \| mfa` |  | The valibot schema. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
+| [`type_name`](#custom_types-scalar-type_name){: #custom_types-scalar-type_name } | `String.t \| mfa` |  | The name of the exported TypeScript alias (`export type Email = string;`), referenced at every use. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a name, or `nil` to keep that use inline. An MFA `type_name` needs an MFA `typescript`. |
 
 
 
@@ -93,12 +118,20 @@ map module
 ```
 
 
-Declares the fields of a map-like custom type you don't own (one with
-`storage_type :map`, or composite). Its TypeScript is generated from its
-fields, so a map has no `typescript` option: a map-like type that only
-names a TypeScript type declares its fields instead (see "Migrating
-from `typescript_type_name/0`" in the Custom Types guide). A map needs
-at least one field.
+Has two roles:
+
+* with fields, declares the fields of a map-like custom type you don't
+own (one with `storage_type :map`, or composite). Its TypeScript is
+generated from its fields, so a map has no `typescript` option: a
+map-like type that only names a TypeScript type declares its fields
+instead (see "Migrating from `typescript_type_name/0`" in the Custom
+Types guide);
+* without fields, opts a field-bearing `Ash.Type.NewType` (an
+`Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
+`:struct` with `fields`) into an exported alias, named by `type_name`
+or else the joined module name. Its fields come from the type.
+
+A map for any other module needs at least one field.
 
 
 ### Nested DSLs
@@ -114,6 +147,14 @@ map SomeLib.ColorPalette do
   zod "MyZod.colorPalette"
 end
 
+```
+
+```
+map MyApp.Types.Address
+```
+
+```
+map MyApp.Types.Label, type_name: "Label"
 ```
 
 

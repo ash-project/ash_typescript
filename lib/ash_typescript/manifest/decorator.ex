@@ -57,15 +57,13 @@ defmodule AshTypescript.Manifest.Decorator do
       reaches (`t:AshRpc.Manifest.UntypedStructError.hint/0`), passed to
       `AshRpc.Manifest.Decorator.check_untyped_structs!/4`;
     * `custom_types:`, the persisted `custom_types`
-      (`%{declared: entries, builtin: entries}`) the names of declared custom
-      types come from (default: no declarations, the built-ins).
+      (`t:AshTypescript.CustomTypes.custom_types/0`) the names of declared
+      custom types come from (default: no declarations, the built-ins,
+      `alias_all_types?` off).
   """
   @spec decorate(Manifest.t(),
           hint: AshRpc.Manifest.UntypedStructError.hint(),
-          custom_types: %{
-            declared: AshTypescript.CustomTypes.entries(),
-            builtin: AshTypescript.CustomTypes.entries()
-          }
+          custom_types: CustomTypes.custom_types()
         ) :: Manifest.t()
   def decorate(%Manifest{} = manifest, opts \\ []) do
     lookups = %{
@@ -76,9 +74,7 @@ defmodule AshTypescript.Manifest.Decorator do
     hint = Keyword.get(opts, :hint)
 
     custom_types =
-      Keyword.get_lazy(opts, :custom_types, fn ->
-        %{declared: %{}, builtin: AshTypescript.CustomTypes.Builtin.by_module()}
-      end)
+      Keyword.get_lazy(opts, :custom_types, &CustomTypes.builtin_only/0)
 
     %Manifest{
       manifest

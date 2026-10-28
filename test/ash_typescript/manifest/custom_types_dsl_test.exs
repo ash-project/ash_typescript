@@ -151,8 +151,9 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
           end
         )
 
-      assert message =~ "SomeLib.Empty"
-      assert message =~ "at least one field"
+      assert message =~
+               "The map SomeLib.Empty needs at least one field (a field-less `map` entry is " <>
+                 "only for an `Ash.Type.NewType` with fields, such as an `Ash.TypedStruct`)."
     end
 
     test "a module declared twice is rejected" do

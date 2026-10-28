@@ -26,7 +26,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
-  alias AshTypescript.CustomTypes.{MapType, Scalar}
+  alias AshTypescript.CustomTypes.{Field, MapType, Scalar}
   alias AshTypescript.Test.{ExternalCode, GeoPoint, Theme, ThemeMap}
   alias AshTypescript.Test.Todo.PriorityScore
   alias AshTypescript.TypeSystem.Introspection
@@ -341,7 +341,12 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
 
     test "a built-in map entry's zod applies to a declared custom type" do
-      entry = %MapType{module: Theme, fields: [], zod: {__MODULE__, :echo_schema, ["theme"]}}
+      # A field-less entry declares nothing, so the entry carries a field.
+      entry = %MapType{
+        module: Theme,
+        fields: [%Field{name: :x, type: Ash.Type.String}],
+        zod: {__MODULE__, :echo_schema, ["theme"]}
+      }
 
       # Valibot keeps Theme's named schema (names are fixed at decoration).
       with_entries(:builtin, &Map.put(&1, Theme, entry), fn ->
@@ -356,7 +361,12 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
 
     test "a NewType's own map entry wins over its subtype's" do
-      entry = %MapType{module: NewGeoPoint, fields: [], zod: "Own.geo", valibot: "Own.vgeo"}
+      entry = %MapType{
+        module: NewGeoPoint,
+        fields: [%Field{name: :x, type: Ash.Type.String}],
+        zod: "Own.geo",
+        valibot: "Own.vgeo"
+      }
 
       declare(entry, fn ->
         assert ref_zod(NewGeoPoint) == "Own.geo"

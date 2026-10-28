@@ -14,7 +14,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.{CustomTypeAliases, SchemaCore, SharedSchemaGenerator}
   alias AshTypescript.Codegen.{ValibotSchemaGenerator, ZodSchemaGenerator}
-  alias AshTypescript.CustomTypes.MapType
+  alias AshTypescript.CustomTypes.{Field, MapType}
   alias AshTypescript.Rpc.NamedCustomTypeSchemasTest, as: T
   alias AshTypescript.Test.CodegenTestHelper
 
@@ -487,7 +487,12 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
         |> update_in(
           [Access.key!(:custom), :ash_typescript, :custom_types, :declared],
           fn declared ->
-            Map.put(declared, T.Replaced, %MapType{module: T.Replaced, zod: "Own.replaced"})
+            # A field-less entry declares nothing, so the entry carries a field.
+            Map.put(declared, T.Replaced, %MapType{
+              module: T.Replaced,
+              fields: [%Field{name: :x, type: Ash.Type.String}],
+              zod: "Own.replaced"
+            })
           end
         )
 
