@@ -93,6 +93,14 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   end
 
   @doc """
+  Extracts the typed channels file content from a files map.
+  """
+  def typed_channels_content(files) do
+    path = AshTypescript.typed_channels_output_file()
+    Map.get(files, path, "")
+  end
+
+  @doc """
   Generates typed controller content directly (bypassing the Orchestrator).
 
   Thin passthrough to `AshTypescript.TypedController.Codegen.generate_controller_content/1`.

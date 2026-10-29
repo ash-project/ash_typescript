@@ -52,7 +52,21 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   def generate_ash_type_aliases(resources, resource_lookup, extra_types, opts)
       when is_map(resource_lookup) do
-    roots = roots(resources, resource_lookup, extra_types, opts)
+    resources
+    |> roots(resource_lookup, extra_types, opts)
+    |> generate_aliases_for_roots(CustomTypeAliases.definitions())
+  end
+
+  @doc """
+  The alias block for the types `roots` and the aliased `definitions`
+  (`AshTypescript.Codegen.CustomTypeAliases`) reach: the primitive block
+  (the fixed aliases and the scalar aliases used under `roots` and
+  `definitions`, sorted), then the aliases of `definitions`. `""` when both
+  are empty.
+  """
+  @spec generate_aliases_for_roots([Type.t()], [Type.t()]) :: String.t()
+  def generate_aliases_for_roots(roots, definitions) do
+    roots = Enum.uniq(roots ++ definitions)
 
     primitive_aliases =
       roots
@@ -62,7 +76,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       |> Enum.sort()
       |> Enum.join("\n")
 
-    [primitive_aliases, CustomTypeAliases.generate()]
+    [primitive_aliases, CustomTypeAliases.generate(definitions)]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n\n")
   end
@@ -118,8 +132,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end
   end
 
-  # A resource's field types, and calculation argument types.
-  defp field_types(api_resource) do
+  @doc "A resource's field types and calculation argument types."
+  @spec field_types(Ash.Info.Manifest.Resource.t()) :: [Type.t()]
+  def field_types(api_resource) do
     api_resource.fields
     |> Map.values()
     |> Enum.flat_map(fn field ->

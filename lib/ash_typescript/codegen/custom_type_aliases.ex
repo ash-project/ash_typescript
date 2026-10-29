@@ -170,34 +170,64 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   defp reaches_resource?([type | rest], walked),
     do: reaches_resource?(children(type) ++ rest, walked)
 
+  @doc false
   # The types directly inside a type, as the alias and schema renderings
   # descend: array items, union members, typed container fields and a named
   # type's definition. Resources, embedded ones included, are leaves.
-  defp children(%Type{kind: :array, item_type: item}), do: List.wrap(item)
-  defp children(%Type{kind: :union, members: members}), do: Enum.map(members || [], & &1.type)
+  @spec children(Type.t() | nil) :: [Type.t()]
+  def children(%Type{kind: :array, item_type: item}), do: List.wrap(item)
+  def children(%Type{kind: :union, members: members}), do: Enum.map(members || [], & &1.type)
 
-  defp children(%Type{kind: :type_ref, module: module}),
+  def children(%Type{kind: :type_ref, module: module}),
     do: [Introspection.named_type_definition(module)]
 
-  defp children(%Type{kind: kind} = container) when kind in [:map, :keyword, :tuple, :struct],
+  def children(%Type{kind: kind} = container) when kind in [:map, :keyword, :tuple, :struct],
     do: Enum.map(Type.get_fields(container), & &1.type)
 
-  defp children(_type), do: []
+  def children(_type), do: []
 
   @doc """
-  The `export type` block of the aliases, one per line under a
+  The aliased definitions (`plain_name/1`) that `roots`
+  (`%Ash.Info.Manifest.Type{}` nodes) reach through arrays, union members,
+  typed containers and named types, aliased ones' fields included, sorted
+  like `definitions/0`. Resources end the walk.
+  """
+  @spec reachable([Type.t()]) :: [Type.t()]
+  def reachable(roots) do
+    roots
+    |> reach(%{})
+    |> Map.values()
+    |> Enum.filter(&plain_name/1)
+    |> Enum.sort_by(&plain_name/1)
+  end
+
+  # Named type module => its definition, for every named type reached.
+  defp reach([], walked), do: walked
+
+  defp reach([%Type{kind: :type_ref, module: module} = ref | rest], walked) do
+    if Map.has_key?(walked, module) do
+      reach(rest, walked)
+    else
+      [definition] = children(ref)
+      reach([definition | rest], Map.put(walked, module, definition))
+    end
+  end
+
+  defp reach([type | rest], walked), do: reach(children(type) ++ rest, walked)
+
+  @doc """
+  The `export type` block of the aliases of `definitions` (by default every
+  aliased definition, `definitions/0`), one per line under a
   `// Declared custom types` comment; `""` when there are none.
   """
-  @spec generate() :: String.t()
-  def generate do
-    case definitions() do
-      [] ->
-        ""
+  @spec generate([Type.t()]) :: String.t()
+  def generate(definitions \\ definitions())
 
-      definitions ->
-        lines = Enum.flat_map(definitions, &alias_lines/1)
-        Enum.join(["// Declared custom types" | lines], "\n")
-    end
+  def generate([]), do: ""
+
+  def generate(definitions) do
+    lines = Enum.flat_map(definitions, &alias_lines/1)
+    Enum.join(["// Declared custom types" | lines], "\n")
   end
 
   defp alias_lines(definition) do

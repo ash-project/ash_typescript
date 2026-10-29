@@ -8,7 +8,10 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
   Each piece of generated code lives in exactly one file:
   - `ash_types.ts` — type aliases, resource schemas, filter types, utility types, custom imports,
-                      channel payload type aliases and events maps
+                      channel payload type aliases and events maps. Without RPC output
+                      (no `output_file`), only what the routes and channels files reference
+                      (`SharedTypesGenerator.generate_standalone/1`), and no file when
+                      that is nothing: those files then neither import nor re-export it
   - `ash_zod.ts` — ALL Zod schemas: resource-level + per-action RPC + per-route controller
   - `ash_valibot.ts` — ALL Valibot schemas: resource-level + per-action RPC + per-route controller
   - `ash_rpc.ts` — imports types from ash_types.ts (no Zod), hook types, helper functions,
@@ -168,8 +171,25 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
         {Map.put(files, types_output_file, full_types_content), type_names}
       else
-        {files, []}
+        types_content =
+          SharedTypesGenerator.generate_standalone(
+            route_types: route_types,
+            extra_alias_types: channel_payload_types,
+            channel_types: generate_channel_types_content(channel_entries),
+            types_output_file: types_output_file
+          )
+
+        if types_content == "" do
+          {files, []}
+        else
+          type_names = extract_exported_type_names(types_content, types_output_file, name_hints)
+          {Map.put(files, types_output_file, types_content), type_names}
+        end
       end
+
+    # Without a types file, the routes and channels files neither import nor
+    # re-export one.
+    shared_types_file = if Map.has_key?(files, types_output_file), do: types_output_file
 
     files =
       if zod_enabled? do
@@ -242,10 +262,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
       if routes_output_file do
         router = AshTypescript.router()
 
-        types_import_path =
-          ImportResolver.resolve_import_path(routes_output_file, types_output_file)
-
-        import_paths = %{types: types_import_path}
+        import_paths = %{types: types_import_path(routes_output_file, shared_types_file)}
 
         routes_content =
           ControllerCodegen.generate_controller_content(
@@ -273,10 +290,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
           if body == "" do
             files
           else
-            types_import_path =
-              ImportResolver.resolve_import_path(typed_channels_output_file, types_output_file)
-
-            import_paths = %{types: types_import_path}
+            import_paths = %{
+              types: types_import_path(typed_channels_output_file, shared_types_file)
+            }
 
             imports =
               ImportResolver.build_shared_type_imports(import_paths, shared_type_names, body)
@@ -352,6 +368,11 @@ defmodule AshTypescript.Codegen.Orchestrator do
   catch
     {:error, error_message} -> {:error, error_message}
   end
+
+  defp types_import_path(_output_file, nil), do: nil
+
+  defp types_import_path(output_file, types_output_file),
+    do: ImportResolver.resolve_import_path(output_file, types_output_file)
 
   defp generate_namespace_files(files, grouped, output_dir, content_fn) do
     namespace_files =
