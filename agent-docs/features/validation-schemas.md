@@ -102,7 +102,8 @@ The cascade (entries are read from the manifest, so `with_manifest/2` applies):
    `valibot` (whichever `formatter.library()` names), else its base type
 2. `formatter.simple_primitives()` lookup
 3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`): `AshDoubleEntry.ULID`
-   → its base type (`z.string()`), `AshPostgres.Ltree` → its MFAs, by `escape?`
+   and `AshUUID.UUID` → their base types (`z.string()`, the uuid schema),
+   `AshPostgres.Ltree` → its MFAs, by `escape?`
 4. `Introspection.is_custom_type?/1` → schema derived from `Ash.Type.storage_type/1`
 5. otherwise `formatter.any_schema()`
 

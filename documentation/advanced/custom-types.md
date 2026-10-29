@@ -574,8 +574,9 @@ the same shape as `custom_types`:
 | `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | the alias `Money = {currency: string, amount: Decimal}` and the schemas `MoneyZodSchema` / `MoneyValibotSchema`; results select `{ price: ["currency", "amount"] }` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
 | `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | `string[]` (`escape?: true`) or `string \| string[]` |
+| `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
-ULID and Ltree get no alias: their fields are typed directly. To rename
+ULID, Ltree and AshUUID get no alias: their fields are typed directly. To rename
 Money's alias or schemas, declare it with a `map` entry that restates its
 fields:
 

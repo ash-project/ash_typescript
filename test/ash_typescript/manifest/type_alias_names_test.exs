@@ -120,6 +120,93 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     use Ash.Type.NewType, subtype_of: :string, constraints: [max_length: 10]
   end
 
+  defmodule StringStorage do
+    @moduledoc false
+    defmacro __using__(_) do
+      quote do
+        use Ash.Type
+
+        @impl true
+        def storage_type(_), do: :string
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+      end
+    end
+  end
+
+  # Scalars: NewTypes over primitives and `use Ash.Type` modules.
+  defmodule Email do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+  end
+
+  defmodule EmailNamed do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type_alias, do: "EmailAddress"
+  end
+
+  defmodule EmailTyped do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type, do: "`${string}@${string}`"
+    def typescript_type_alias, do: "TypedEmail"
+  end
+
+  defmodule TermNew do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :term
+  end
+
+  defmodule AtomNew do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :atom
+  end
+
+  defmodule Opaque do
+    @moduledoc false
+    use StringStorage
+  end
+
+  defmodule OpaqueCb do
+    @moduledoc false
+    use StringStorage
+
+    def typescript_type_alias, do: "OpaqueCallback"
+  end
+
+  defmodule Mfa do
+    @moduledoc false
+    use StringStorage
+  end
+
+  # A NewType over a scalar custom type: its definition is `:unknown` under
+  # the NewType's module.
+  defmodule OverOpaque do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: T.Opaque
+  end
+
+  defmodule MfaNames do
+    @moduledoc false
+    def ts_type(_constraints), do: "string"
+    def bad_alias(_constraints), do: :bad
+
+    def ts_alias(constraints) do
+      case Keyword.get(constraints, :max_length) do
+        nil -> nil
+        max when max <= 10 -> "Short"
+        _ -> "Long"
+      end
+    end
+  end
+
   # A generic RPC action whose result reaches every type here, and its domain.
   defmodule Holder do
     @moduledoc false
@@ -307,6 +394,111 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
   end
 
+  # Scalars for the compile checks, all reached through `ScalarHolder`.
+  defmodule OpaqueTyped do
+    @moduledoc false
+    use StringStorage
+
+    def typescript_type, do: "`op-${string}`"
+    def typescript_type_alias, do: "OpaqueTyped"
+  end
+
+  defmodule BadScalar do
+    @moduledoc false
+    use StringStorage
+
+    def typescript_type, do: "string"
+    def typescript_type_alias, do: "bad-name"
+  end
+
+  defmodule AtomScalar do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type_alias, do: :atom
+  end
+
+  # An attribute typed by `OpaqueTyped`, and one generic action per scalar;
+  # each domain below exposes some of them.
+  defmodule ScalarHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "TypeAliasNamesScalarHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :opaque_typed, T.OpaqueTyped, public?: true
+    end
+
+    actions do
+      defaults [:read]
+
+      action :email_typed, T.EmailTyped do
+        run fn _input, _context -> {:ok, "a@b"} end
+      end
+
+      action :bad_scalar, T.BadScalar do
+        run fn _input, _context -> {:ok, "a"} end
+      end
+
+      action :atom_scalar, T.AtomScalar do
+        run fn _input, _context -> {:ok, "a"} end
+      end
+    end
+  end
+
+  defmodule BothScalarDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.ScalarHolder do
+        rpc_action :list_scalar_holders, :read
+        rpc_action :email_typed, :email_typed
+      end
+    end
+
+    resources do
+      resource T.ScalarHolder
+    end
+  end
+
+  defmodule BadScalarDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.ScalarHolder do
+        rpc_action :bad_scalar, :bad_scalar
+      end
+    end
+
+    resources do
+      resource T.ScalarHolder
+    end
+  end
+
+  defmodule AtomScalarDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.ScalarHolder do
+        rpc_action :atom_scalar, :atom_scalar
+      end
+    end
+
+    resources do
+      resource T.ScalarHolder
+    end
+  end
+
   # The scoped manifest prints the RPC resource warnings; they're captured.
   # A module already compiled under `name` is reused.
   defp compile_manifest!(name, body, domains \\ [T.HolderDomain]) do
@@ -440,6 +632,137 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
   end
 
+  describe "ScalarAliases.name/2" do
+    alias Ash.Info.Manifest.Generator.TypeResolver
+    alias AshTypescript.Codegen.ScalarAliases
+    alias AshTypescript.CustomTypes.Scalar
+
+    defp use_of(module, constraints \\ []), do: TypeResolver.resolve(module, constraints)
+    defp definition_of(module), do: TypeResolver.resolve_definition(module)
+
+    defp scalar(module, opts \\ []),
+      do: %{module => struct!(%Scalar{module: module, type: Ash.Type.String}, opts)}
+
+    @mfa_entry [
+      ts_type: {T.MfaNames, :ts_type, []},
+      ts_alias: {T.MfaNames, :ts_alias, []}
+    ]
+
+    test "no entry, no callback, no alias_all_types? → nil" do
+      assert ScalarAliases.name(use_of(T.Opaque), custom_types(scalar(T.Opaque))) == nil
+      assert ScalarAliases.name(definition_of(T.Email), custom_types(%{})) == nil
+
+      assert ScalarAliases.name(definition_of(AshTypescript.Test.HexColor), custom_types(%{})) ==
+               nil
+    end
+
+    test "a string entry ts_alias names every use" do
+      types = custom_types(scalar(T.Opaque, ts_alias: "OpaqueId"))
+
+      assert ScalarAliases.name(use_of(T.Opaque), types) == "OpaqueId"
+      assert ScalarAliases.name(use_of(T.Opaque, max_length: 3), types) == "OpaqueId"
+
+      assert ScalarAliases.name(
+               definition_of(T.Email),
+               custom_types(scalar(T.Email, ts_alias: "Mail"))
+             ) == "Mail"
+    end
+
+    test "an MFA ts_alias names per use, nil inline with no fallback" do
+      types = custom_types(scalar(T.Mfa, @mfa_entry))
+
+      assert ScalarAliases.name(use_of(T.Mfa, max_length: 5), types) == "Short"
+      assert ScalarAliases.name(use_of(T.Mfa, max_length: 50), types) == "Long"
+      assert ScalarAliases.name(use_of(T.Mfa), types) == nil
+
+      assert ScalarAliases.name(use_of(T.Mfa), custom_types(scalar(T.Mfa, @mfa_entry), true)) ==
+               nil
+
+      bad =
+        scalar(T.Mfa, ts_type: {T.MfaNames, :ts_type, []}, ts_alias: {T.MfaNames, :bad_alias, []})
+
+      assert_raise ArgumentError,
+                   "the `ts_alias` MFA #{inspect(T.MfaNames)}.bad_alias/1 of the custom type " <>
+                     "#{inspect(T.Mfa)} must return a string or nil, got: :bad",
+                   fn -> ScalarAliases.name(use_of(T.Mfa), custom_types(bad)) end
+    end
+
+    test "the callback names it, below the entry's ts_alias" do
+      assert ScalarAliases.name(definition_of(T.EmailNamed), custom_types(%{})) == "EmailAddress"
+
+      assert ScalarAliases.name(use_of(T.OpaqueCb), custom_types(scalar(T.OpaqueCb))) ==
+               "OpaqueCallback"
+
+      assert ScalarAliases.name(
+               use_of(T.OpaqueCb),
+               custom_types(scalar(T.OpaqueCb, ts_alias: "X"))
+             ) == "X"
+    end
+
+    test "typescript_type/0 combines with an alias" do
+      hex = definition_of(AshTypescript.Test.HexColor)
+
+      assert ScalarAliases.name(definition_of(T.EmailTyped), custom_types(%{})) == "TypedEmail"
+
+      assert ScalarAliases.name(
+               hex,
+               custom_types(scalar(AshTypescript.Test.HexColor, ts_alias: "Hex"))
+             ) == "Hex"
+
+      assert ScalarAliases.name(hex, custom_types(%{}, true)) == "AshTypescriptTestHexColor"
+    end
+
+    test "a built-in ts_alias applies without a manifest entry" do
+      assert ScalarAliases.name(use_of(AshDoubleEntry.ULID), custom_types(%{})) == "ULID"
+
+      assert ScalarAliases.name(use_of(AshPostgres.Ltree, escape?: true), custom_types(%{})) ==
+               "AshPostgresLtreeArray"
+
+      assert ScalarAliases.name(use_of(AshPostgres.Ltree), custom_types(%{})) ==
+               "AshPostgresLtreeFlexible"
+
+      # A manifest entry replaces the built-in whole.
+      ltree = %{
+        AshPostgres.Ltree => %Scalar{module: AshPostgres.Ltree, type: {:array, Ash.Type.String}}
+      }
+
+      assert ScalarAliases.name(use_of(AshPostgres.Ltree, escape?: true), custom_types(ltree)) ==
+               nil
+    end
+
+    test "alias_all_types? uses the joined name, except where it can't apply" do
+      all = custom_types(%{}, true)
+
+      assert ScalarAliases.name(definition_of(T.Email), all) == joined(T.Email)
+      assert ScalarAliases.name(definition_of(T.AtomNew), all) == joined(T.AtomNew)
+
+      assert ScalarAliases.name(use_of(T.Opaque), custom_types(scalar(T.Opaque), true)) ==
+               joined(T.Opaque)
+
+      assert ScalarAliases.name(definition_of(AshTypescript.Test.Todo.Percentage), all) ==
+               "AshTypescriptTestTodoPercentage"
+
+      assert ScalarAliases.name(use_of(AshTypescript.Test.Todo.PriorityScore), all) ==
+               "AshTypescriptTestTodoPriorityScore"
+
+      # Kinds that map to `any` stay inline.
+      assert ScalarAliases.name(definition_of(T.TermNew), all) == nil
+
+      # An MFA ts_type without a ts_alias: its TypeScript varies by use.
+      mfa_type = scalar(T.Mfa, ts_type: {T.MfaNames, :ts_type, []})
+      assert ScalarAliases.name(use_of(T.Mfa), custom_types(mfa_type, true)) == nil
+
+      # A NewType over a scalar custom type, an enum, a primitive and a
+      # type reference.
+      assert ScalarAliases.name(definition_of(T.OverOpaque), all) == nil
+      assert ScalarAliases.name(definition_of(T.Status), all) == nil
+      assert ScalarAliases.name(use_of(:string), all) == nil
+      assert ScalarAliases.name(use_of(:atom), all) == nil
+      assert ScalarAliases.name(use_of(:utc_datetime), all) == nil
+      assert ScalarAliases.name(use_of(T.Email), all) == nil
+    end
+  end
+
   describe "decorated NewType names" do
     test "a field-less entry or the callback names a field-bearing NewType" do
       manifest = holder_manifest()
@@ -541,6 +864,51 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
   end
 
+  describe "scalar compile checks" do
+    alias AshTypescript.Codegen.ScalarAliases
+
+    defp scalar_node(manifest, module),
+      do: Enum.find(AshTypescript.Manifest.TypeUses.nodes(manifest), &(&1.module == module))
+
+    test "typescript_type_alias/0 with typescript_type/0 on a scalar compiles" do
+      manifest =
+        BothScalarManifest
+        |> compile_manifest!(
+          quote do
+            custom_types do
+              scalar AshTypescript.Manifest.TypeAliasNamesTest.OpaqueTyped, :string
+            end
+          end,
+          [T.BothScalarDomain]
+        )
+        |> AshTypescript.manifest()
+
+      custom_types = Custom.custom_types(manifest)
+
+      assert %{kind: :unknown} = opaque = scalar_node(manifest, T.OpaqueTyped)
+      assert ScalarAliases.name(opaque, custom_types) == "OpaqueTyped"
+
+      assert %{kind: :string} = email = definition(manifest, T.EmailTyped)
+      assert ScalarAliases.name(email, custom_types) == "TypedEmail"
+    end
+
+    test "an invalid typescript_type_alias/0 on a scalar fails compilation" do
+      message = compile_error!(BadScalarManifest, nil, [T.BadScalarDomain])
+
+      assert message =~
+               ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadScalar)} ] <>
+                 "is not a TypeScript identifier."
+
+      assert message =~ "custom_types"
+
+      message = compile_error!(AtomScalarManifest, nil, [T.AtomScalarDomain])
+
+      assert message =~
+               "The typescript_type_alias/0 of #{inspect(T.AtomScalar)} must return a " <>
+                 "string, got: :atom."
+    end
+  end
+
   describe "compile dependencies" do
     defp dependencies(manifest) do
       %{declared: declared, builtin: builtin} = Custom.custom_types(manifest)
@@ -559,6 +927,19 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert AshTypescript.Test.TaskStats in new_types
       assert AshTypescript.Test.TodoTimestamp in new_types
       assert new_types -- dependencies(manifest) == []
+    end
+
+    test "every :unknown type module the manifest reaches is a dependency" do
+      dependencies = dependencies(AshTypescript.manifest())
+
+      for module <- [
+            AshTypescript.Test.CustomIdentifier,
+            AshTypescript.Test.ExternalCode,
+            AshPostgres.Ltree,
+            AshTypescript.Test.Todo.PriorityScore
+          ] do
+        assert module in dependencies, "#{inspect(module)} is not a dependency"
+      end
     end
 
     test "typescript_type_alias/0 is a dependency unless the entry's ts_alias names the type" do

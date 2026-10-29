@@ -20,7 +20,10 @@ defmodule AshTypescript.Manifest.TypeUses do
   elements. A `:type_ref` node is returned but not descended: its
   definition is in `manifest.types`, walked once.
 
-  Used by `AshTypescript.CustomTypes.check_renamed_callbacks/1`.
+  Used by `AshTypescript.CustomTypes.check_renamed_callbacks/1`,
+  `check_alias_names/2` (scalar callbacks) and `compile_dependencies/3`
+  (`:unknown` modules), and by
+  `AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames` (scalar names).
   """
 
   alias Ash.Info.Manifest

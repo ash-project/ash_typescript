@@ -9,9 +9,14 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
 
   defp entry(module), do: Enum.find(Builtin.entries(), &(&1.module == module))
 
-  test "entries/0 lists Money, ULID and Ltree, one entry each" do
+  test "entries/0 lists Money, ULID, Ltree and AshUUID, one entry each" do
     assert Builtin.entries() |> Enum.map(& &1.module) |> Enum.sort() ==
-             Enum.sort([AshMoney.Types.Money, AshDoubleEntry.ULID, AshPostgres.Ltree])
+             Enum.sort([
+               AshMoney.Types.Money,
+               AshDoubleEntry.ULID,
+               AshPostgres.Ltree,
+               AshUUID.UUID
+             ])
   end
 
   test "Money is a map of a non-null currency string and a non-null decimal amount" do
@@ -26,25 +31,46 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
            } = entry(AshMoney.Types.Money)
   end
 
-  test "ULID is a scalar over a string" do
+  test "ULID is a scalar over a string, exported as ULID" do
     assert %Scalar{
              module: AshDoubleEntry.ULID,
              type: Ash.Type.String,
              constraints: [],
              ts_type: nil,
              zod: nil,
-             valibot: nil
+             valibot: nil,
+             ts_alias: "ULID"
            } = entry(AshDoubleEntry.ULID)
   end
 
-  test "Ltree is a scalar over a string array with MFA mappings" do
+  test "Ltree is a scalar over a string array with MFA mappings and names" do
     assert %Scalar{
              module: AshPostgres.Ltree,
              type: {:array, Ash.Type.String},
              ts_type: {Builtin, :ltree_typescript, []},
              zod: {Builtin, :ltree_zod, []},
-             valibot: {Builtin, :ltree_valibot, []}
+             valibot: {Builtin, :ltree_valibot, []},
+             ts_alias: {Builtin, :ltree_ts_alias, []}
            } = entry(AshPostgres.Ltree)
+  end
+
+  test "AshUUID is a scalar over a UUID, without an alias" do
+    assert %Scalar{
+             module: AshUUID.UUID,
+             type: Ash.Type.UUID,
+             constraints: [],
+             ts_type: nil,
+             zod: nil,
+             valibot: nil,
+             ts_alias: nil
+           } = entry(AshUUID.UUID)
+  end
+
+  test "the Ltree names depend on escape?" do
+    assert Builtin.ltree_ts_alias(escape?: true) == "AshPostgresLtreeArray"
+    assert Builtin.ltree_ts_alias([]) == "AshPostgresLtreeFlexible"
+    assert Builtin.ltree_ts_alias(escape?: false) == "AshPostgresLtreeFlexible"
+    assert Builtin.ltree_ts_alias(nil) == "AshPostgresLtreeFlexible"
   end
 
   test "the Ltree mappings depend on escape?" do

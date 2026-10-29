@@ -135,6 +135,192 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     end
   end
 
+  defmodule StringStorage do
+    @moduledoc false
+    defmacro __using__(_) do
+      quote do
+        use Ash.Type
+
+        @impl true
+        def storage_type(_), do: :string
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+      end
+    end
+  end
+
+  # Scalars named by their `scalar` entries.
+  defmodule ScalarA do
+    @moduledoc false
+    use StringStorage
+  end
+
+  defmodule ScalarB do
+    @moduledoc false
+    use StringStorage
+  end
+
+  defmodule MfaScalar do
+    @moduledoc false
+    use StringStorage
+  end
+
+  defmodule MfaNames do
+    @moduledoc false
+    def ts_type(_constraints), do: "string"
+    def ts_alias(_constraints), do: "Decimal"
+  end
+
+  # A declared custom type named by its callback, with an `Input` name.
+  defmodule Tint do
+    @moduledoc false
+    use MapStorage
+
+    def typescript_fields, do: [hex: [type: :string, allow_nil?: false]]
+    def typescript_type_alias, do: "Tint"
+  end
+
+  # NewTypes over a primitive named by their callback, or (under
+  # `alias_all_types?`) by the joined module name.
+  defmodule NamedA do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type_alias, do: "SameName"
+  end
+
+  defmodule NamedB do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type_alias, do: "SameName"
+  end
+
+  defmodule TypedJoined do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+
+    def typescript_type, do: "string"
+  end
+
+  defmodule ScalarHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "CollisionScalarHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :scalar_a, T.ScalarA, public?: true
+      attribute :scalar_b, T.ScalarB, public?: true
+      attribute :mfa, T.MfaScalar, public?: true
+      attribute :money, AshMoney.Types.Money, public?: true
+      attribute :tint, T.Tint, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule ScalarHolderDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.ScalarHolder do
+        rpc_action :list_collision_scalar_holders, :read
+      end
+    end
+
+    resources do
+      resource T.ScalarHolder
+    end
+  end
+
+  defmodule CallbackHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "CollisionCallbackHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :named_a, T.NamedA, public?: true
+      attribute :named_b, T.NamedB, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule CallbackHolderDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.CallbackHolder do
+        rpc_action :list_collision_callback_holders, :read
+      end
+    end
+
+    resources do
+      resource T.CallbackHolder
+    end
+  end
+
+  defmodule JoinedHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "CollisionJoinedHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :typed_joined, T.TypedJoined, public?: true
+      attribute :scalar_a, T.ScalarA, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule JoinedHolderDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.JoinedHolder do
+        rpc_action :list_collision_joined_holders, :read
+      end
+    end
+
+    resources do
+      resource T.JoinedHolder
+    end
+  end
+
   # Each type's `ts_alias` unless a test overrides it: distinct, so only the
   # pair under test collides. `:derive` leaves `ts_alias` out (the joined
   # module name).
@@ -201,6 +387,60 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
         field :value, :string
       end
     end
+  end
+
+  @scalar_rename "with `ts_alias \"…\"` on its `scalar` entry (or `typescript_type_alias/0` on " <>
+                   "the type, when no entry sets `ts_alias`)"
+
+  # A manifest over `domain` with the `custom_types` `body`, compiled once.
+  defp scalar_manifest!(name, domain, body) do
+    module = Module.concat(T, name)
+
+    unless Code.ensure_loaded?(module) do
+      ExUnit.CaptureIO.with_io(:stderr, fn ->
+        Module.create(
+          module,
+          quote do
+            use AshTypescript.Manifest, otp_app: :ash_typescript, domains: [unquote(domain)]
+
+            unquote(body)
+          end,
+          Macro.Env.location(__ENV__)
+        )
+      end)
+    end
+
+    module
+  end
+
+  # The `ScalarHolder` entries: `ScalarA` and `ScalarB` named by `names`
+  # (unnamed when absent), `MfaScalar` named by an MFA returning `Decimal`.
+  defp scalar_holder_manifest!(name, names) do
+    scalar = fn module ->
+      case Map.fetch(names, module) do
+        {:ok, ts_alias} ->
+          quote(do: scalar(unquote(module), :string, ts_alias: unquote(ts_alias)))
+
+        :error ->
+          quote(do: scalar(unquote(module), :string))
+      end
+    end
+
+    scalar_manifest!(
+      name,
+      T.ScalarHolderDomain,
+      quote do
+        custom_types do
+          unquote(scalar.(T.ScalarA))
+          unquote(scalar.(T.ScalarB))
+
+          scalar AshTypescript.Manifest.CustomTypeNameCollisionsTest.MfaScalar, :string do
+            ts_type {AshTypescript.Manifest.CustomTypeNameCollisionsTest.MfaNames, :ts_type, []}
+            ts_alias {AshTypescript.Manifest.CustomTypeNameCollisionsTest.MfaNames, :ts_alias, []}
+          end
+        end
+      end
+    )
   end
 
   defp collision_error!(name, type_names) do
@@ -346,6 +586,96 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                      AshRpcError ValidationResult) do
         assert name in reserved, "#{name} is not reserved"
       end
+    end
+  end
+
+  describe "scalar names" do
+    defp verify(module), do: AshTypescript.Manifest.run_verifiers(module)
+
+    test "two scalar modules with one name" do
+      assert {:error, message} =
+               verify(
+                 scalar_holder_manifest!(ScalarSame, %{T.ScalarA => "Code", T.ScalarB => "Code"})
+               )
+
+      assert message =~ "Types with colliding TypeScript names found:"
+
+      assert message =~
+               "`Code` is the TypeScript alias of both #{inspect(T.ScalarA)} and " <>
+                 "#{inspect(T.ScalarB)}: rename one of them #{@scalar_rename}."
+
+      assert message =~ @fix
+    end
+
+    test "a scalar name equal to a map-like alias" do
+      assert {:error, message} =
+               verify(scalar_holder_manifest!(ScalarMoney, %{T.ScalarA => "Money"}))
+
+      assert message =~
+               "`Money` is the TypeScript alias of both AshMoney.Types.Money and " <>
+                 "#{inspect(T.ScalarA)}: rename one of them: AshMoney.Types.Money #{@rename}, " <>
+                 "or #{inspect(T.ScalarA)} #{@scalar_rename}."
+    end
+
+    test "a scalar name equal to a reserved name" do
+      assert {:error, message} =
+               verify(scalar_holder_manifest!(ScalarDecimal, %{T.ScalarA => "Decimal"}))
+
+      assert message =~
+               "`Decimal` is the TypeScript alias of #{inspect(T.ScalarA)} and a type " <>
+                 "ash_typescript generates: rename it #{@scalar_rename}."
+    end
+
+    test "a scalar name equal to a map alias's Input name" do
+      assert {:error, message} =
+               verify(scalar_holder_manifest!(ScalarTintInput, %{T.ScalarA => "TintInput"}))
+
+      assert message =~
+               "`TintInput` is the TypeScript alias of #{inspect(T.ScalarA)} and the input " <>
+                 "alias name of #{inspect(T.Tint)}: rename one of them: " <>
+                 "#{inspect(T.ScalarA)} #{@scalar_rename}, or #{inspect(T.Tint)} #{@rename}."
+    end
+
+    test "callback names and joined names under alias_all_types? are checked" do
+      assert {:error, message} =
+               verify(scalar_manifest!(ScalarCallbacks, T.CallbackHolderDomain, nil))
+
+      assert message =~
+               "`SameName` is the TypeScript alias of both #{inspect(T.NamedA)} and " <>
+                 "#{inspect(T.NamedB)}: rename one of them #{@scalar_rename}."
+
+      joined = AshTypescript.Codegen.Helpers.module_type_name(T.TypedJoined)
+
+      module =
+        scalar_manifest!(
+          ScalarJoined,
+          T.JoinedHolderDomain,
+          quote do
+            custom_types do
+              alias_all_types? true
+
+              scalar AshTypescript.Manifest.CustomTypeNameCollisionsTest.ScalarA, :string,
+                ts_alias: unquote(joined)
+            end
+          end
+        )
+
+      assert {:error, message} = verify(module)
+
+      assert message =~
+               "`#{joined}` is the TypeScript alias of both #{inspect(T.ScalarA)} and " <>
+                 "#{inspect(T.TypedJoined)}: rename one of them #{@scalar_rename}."
+    end
+
+    test "MFA names aren't checked at compile time" do
+      assert verify(scalar_holder_manifest!(ScalarMfaOnly, %{})) == :ok
+    end
+
+    test "distinct scalar names don't collide" do
+      assert verify(
+               scalar_holder_manifest!(ScalarDistinct, %{T.ScalarA => "A", T.ScalarB => "B"})
+             ) ==
+               :ok
     end
   end
 

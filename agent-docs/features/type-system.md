@@ -106,21 +106,26 @@ aliased definition (declared custom types and aliased field-bearing NewTypes,
 
 ### Third-Party Types
 
-Three dependency types are built-in `custom_types` entries
+Four dependency types are built-in `custom_types` entries
 (`AshTypescript.CustomTypes.Builtin`). Money, a declared custom type, gets the
-generated alias every declared type gets; ULID and Ltree get no alias:
+generated alias every declared type gets; ULID, Ltree and AshUUID get no alias
+in the generated output (ULID's and Ltree's entries carry `ts_alias` names,
+`ULID` and `Builtin.ltree_ts_alias/1`'s `AshPostgresLtreeArray` /
+`AshPostgresLtreeFlexible` by `escape?`, which `ScalarAliases.name/2` resolves
+but codegen doesn't reference yet):
 
 | Module | Entry | TypeScript |
 |--------|-------|------------|
 | `AshMoney.Types.Money` | `map` (`currency`, `amount`) | `export type Money = {currency: string, amount: Decimal};`, referenced at plain positions; a `TypedMap` at schema positions |
 | `AshPostgres.Ltree` | `scalar` with MFA `ts_type` | `string[]` when `escape?: true`, else `string \| string[]` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
+| `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
 A manifest entry for the same module replaces the built-in. The Zod/Valibot
 schemas come from the same entries (`SchemaCore`, see
 [validation-schemas.md](validation-schemas.md)): Money is an object of its
 fields (the named `MoneyZodSchema` / `MoneyValibotSchema`), Ltree uses the
-built-in's `zod`/`valibot` MFAs, ULID its base type.
+built-in's `zod`/`valibot` MFAs, ULID and AshUUID their base types.
 
 ## Architecture Benefits
 
@@ -258,7 +263,8 @@ per-type schema name or inline opt-out. `CustomTypes.check_name/2` (used by
 non-string) rejects non-identifiers (anchored with `\A`/`\z`) and
 TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`); both
 are compile errors (`DslError`), not verifier warnings. A type whose callback
-names it, and every NewType definition, is a compile dependency of the manifest
+names it, every NewType definition, and every loaded module of an `:unknown`
+node `TypeUses.nodes/1` returns is a compile dependency of the manifest
 (`CustomTypes.compile_dependencies/3`). Names are fixed at decoration:
 `with_manifest/2` doesn't change them.
 
@@ -266,7 +272,21 @@ A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
 (a field-less `map` entry, `typescript_type_alias/0`, or `alias_all_types?`)
 gets `type_alias_names` too, by the same precedence, beside its `type_name`
 when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
-when it exports `typescript_type/0`. Codegen reads map-like aliases only
+when it exports `typescript_type/0`.
+
+Scalar names (`AshTypescript.Codegen.ScalarAliases.name/2`, over the node
+`TypeMapper` maps a scalar from: an `:unknown` use of a non-NewType module, or a
+NewType definition with a kind of the kind table; modules of the primitive table
+never): the entry's `ts_alias` (string, or an MFA with the node's constraints
+whose `nil` means inline with no fallback) > `typescript_type_alias/0` > the
+built-in entry's `ts_alias` (only without a manifest `scalar` entry, which
+replaces the built-in whole) > the joined name under `alias_all_types?` (not for
+an entry with an MFA `ts_type` and no `ts_alias`, nor for kinds that map to
+`any`, `TypeMapper.aliasable_kind?/1`). `typescript_type/0` doesn't stop a scalar
+from being aliased. `check_alias_names/2` rejects an invalid
+`typescript_type_alias/0` result wherever the callback names a scalar
+(`ScalarAliases.source/2` is `:callback`). Codegen doesn't call the resolver
+yet, so scalars still render inline. Codegen reads map-like aliases only
 through `CustomTypeAliases.plain_name/1` (any definition with
 `type_alias_names`), so an aliased NewType renders exactly like a declared
 custom type: its alias and `Input` alias in the declared block, references at
@@ -316,8 +336,10 @@ which requires the `__type` markers.
 colliding TypeScript names found", one aggregated `DslError`
 at `[:custom_types]`; Spark turns a verifier error into a compile warning, so it
 fails `--warnings-as-errors`, and codegen re-runs it and fails) an alias shared
-by two types,
-an alias equal to another alias plus `Input` (every `<alias>Input` is reserved:
+by two types (map-like aliases and scalar string names: a string `ts_alias`,
+the callback, the joined name under `alias_all_types?`; MFA names are left to
+codegen),
+an alias equal to a map-like alias plus `Input` (every `<alias>Input` is reserved:
 whether it is emitted needs rendering), a resource-derived name
 (`X` + `ResourceSchema`, `AttributesOnlySchema`, `InputSchema`, `FilterInput`,
 `FilterField`, `SortField`, embedded resources included), or one of the 43
@@ -332,9 +354,11 @@ imports from the types file or declares (a schema `z` needs an empty
 `zod_schema_suffix`), an alias equal to an `import_into_generated` /
 `typed_controller_import_into_generated` `import_name`, and a schema name equal
 to a `*_import_into_generated` one. Every fix hint is
-`CustomTypes.rename_hint(:map)` (rename the alias: `ts_alias` or
-`typescript_type_alias/0`); each verifier line ends in its type's hint, and
-the closing line is "Rename one of them as each line says."
+`CustomTypes.rename_hint/1` for the type's kind (`:map` or `:scalar`: rename the
+alias with `ts_alias` on its `map` / `scalar` entry, or `typescript_type_alias/0`);
+each verifier line ends in its type's hint (a line naming a map-like and a scalar
+type gives each its own), and the closing line is "Rename one of them as each
+line says."
 
 ### Import Configuration
 

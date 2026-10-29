@@ -11,7 +11,7 @@ for a single-value type, a `map` for a map-like one. Each module appears
 once. A declaration replaces the type's own callbacks
 (`typescript_type/0`, `typescript_fields/0`) and its built-in entry,
 if any. Built-in entries cover `AshMoney.Types.Money`,
-`AshDoubleEntry.ULID` and `AshPostgres.Ltree`.
+`AshDoubleEntry.ULID`, `AshPostgres.Ltree` and `AshUUID.UUID`.
 
 `alias_all_types?` exports a TypeScript alias for every field-bearing
 NewType and aliasable scalar the manifest reaches, without an entry

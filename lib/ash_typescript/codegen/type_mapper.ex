@@ -238,6 +238,24 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
+  @doc false
+  # A manifest kind the kind table maps to a TypeScript type: the kinds a
+  # NewType over a primitive can have.
+  @spec primitive_kind?(atom()) :: boolean()
+  def primitive_kind?(kind), do: Map.has_key?(@kind_to_ts, kind)
+
+  @doc false
+  # A primitive kind `alias_all_types?` aliases: one the kind table doesn't
+  # map to `any` (`:term`, `:any`).
+  @spec aliasable_kind?(atom()) :: boolean()
+  def aliasable_kind?(kind), do: Map.get(@kind_to_ts, kind, "any") != "any"
+
+  @doc false
+  # A type module mapped by the primitive table (`Ash.Type.String`,
+  # `Ash.Type.UtcDatetime`, …): it never reaches `unknown_module_mapping/2`.
+  @spec primitive_module?(module() | nil) :: boolean()
+  def primitive_module?(module), do: Map.has_key?(@primitives, module)
+
   @doc """
   Maps a type module the manifest generator could not classify to a TypeScript
   type, when possible.

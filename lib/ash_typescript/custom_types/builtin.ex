@@ -9,9 +9,13 @@ defmodule AshTypescript.CustomTypes.Builtin do
 
     * `AshMoney.Types.Money`: a map of `currency` (string) and `amount`
       (decimal), both non-null, exported as `Money` (`ts_alias`);
-    * `AshDoubleEntry.ULID`: a scalar over `:string`;
+    * `AshDoubleEntry.ULID`: a scalar over `:string`, exported as `ULID`;
     * `AshPostgres.Ltree`: a scalar over `{:array, :string}` whose
-      `ts_type`, `zod` and `valibot` depend on the `escape?` constraint.
+      `ts_type`, `zod`, `valibot` and `ts_alias` depend on the `escape?`
+      constraint (`AshPostgresLtreeArray` with `escape?: true`, else
+      `AshPostgresLtreeFlexible`);
+    * `AshUUID.UUID`: a scalar over `:uuid`, rendered as `UUID` (no alias of
+      its own).
 
   A manifest entry for one of these modules replaces the built-in whole.
   The modules belong to optional dependencies, so the entries hold only
@@ -32,14 +36,16 @@ defmodule AshTypescript.CustomTypes.Builtin do
           %Field{name: :amount, type: Ash.Type.Decimal, allow_nil?: false}
         ]
       },
-      %Scalar{module: AshDoubleEntry.ULID, type: Ash.Type.String},
+      %Scalar{module: AshDoubleEntry.ULID, type: Ash.Type.String, ts_alias: "ULID"},
       %Scalar{
         module: AshPostgres.Ltree,
         type: {:array, Ash.Type.String},
         ts_type: {__MODULE__, :ltree_typescript, []},
         zod: {__MODULE__, :ltree_zod, []},
-        valibot: {__MODULE__, :ltree_valibot, []}
-      }
+        valibot: {__MODULE__, :ltree_valibot, []},
+        ts_alias: {__MODULE__, :ltree_ts_alias, []}
+      },
+      %Scalar{module: AshUUID.UUID, type: Ash.Type.UUID}
     ]
   end
 
@@ -63,6 +69,11 @@ defmodule AshTypescript.CustomTypes.Builtin do
   def ltree_valibot(constraints),
     do:
       by_escape(constraints, "v.array(v.string())", "v.union([v.string(), v.array(v.string())])")
+
+  @doc "Ltree's alias, by `escape?` like `ltree_typescript/1`."
+  @spec ltree_ts_alias(Keyword.t() | nil) :: String.t()
+  def ltree_ts_alias(constraints),
+    do: by_escape(constraints, "AshPostgresLtreeArray", "AshPostgresLtreeFlexible")
 
   defp by_escape(constraints, escaped, unescaped) do
     if Keyword.get(constraints || [], :escape?, false) in [false, nil],

@@ -252,9 +252,9 @@ See [Custom Types](../advanced/custom-types.md).
 
 #### Error: "Types with colliding TypeScript names found"
 
-**Cause:** A map-like custom type's generated alias (its `ts_alias`, its `typescript_type_alias/0`, or its joined module name) equals another declared type's alias, another alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
+**Cause:** A map-like custom type's generated alias (its `ts_alias`, its `typescript_type_alias/0`, or its joined module name), or a scalar's alias name (a string `ts_alias` on its `scalar` entry, its `typescript_type_alias/0`, or its joined module name under `alias_all_types?`), equals another type's alias, a map-like alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
 
-**Solution:** Rename one of the types as each listed line says: set `ts_alias "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_type_alias/0` on the type when no entry sets `ts_alias`. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
+**Solution:** Rename one of the types as each listed line says: set `ts_alias "…"` on its `map` or `scalar` entry in the manifest's `custom_types` section, or define `typescript_type_alias/0` on the type when no entry sets `ts_alias`. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
 
 #### Error: "The ts_alias … is not a TypeScript identifier" / "The typescript_type_alias/0 result … is a TypeScript reserved word"
 

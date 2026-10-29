@@ -295,7 +295,8 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
 
       assert persisted(module).declared[SomeLib.Email].ts_alias == nil
 
-      for %Scalar{} = scalar <- Builtin.entries(), do: assert(scalar.ts_alias == nil)
+      # The built-ins keep their own names (ULID, Ltree; `builtin_test.exs`).
+      assert persisted(module).builtin == Builtin.by_module()
     end
   end
 
@@ -424,8 +425,7 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
       end
     end
 
-    # Decision 21: a scalar's alias body is its TypeScript, `typescript_type/0`
-    # included.
+    # A scalar's alias body is its TypeScript, `typescript_type/0` included.
     test "a scalar ts_alias on a typescript_type/0 type is accepted" do
       module =
         compile_manifest!(

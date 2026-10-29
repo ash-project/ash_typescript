@@ -123,10 +123,12 @@ defmodule AshTypescript.CustomTypes do
   # fields came from it. The manifest module recompiles when one of them does.
   # Fields from manifest entries and built-ins need no dependency.
   # A declared type whose `typescript_type_alias/0` supplied the alias is one
-  # too, and so is every NewType definition in `manifest.types`, so adding
-  # `typescript_type_alias/0` to one later recompiles the manifest.
+  # too, and so is every NewType definition in `manifest.types` and every
+  # loaded module of a `kind: :unknown` node the manifest reaches
+  # (`AshTypescript.Manifest.TypeUses`), so adding `typescript_type_alias/0`
+  # to one later recompiles the manifest.
   @spec compile_dependencies(Manifest.t(), entries(), entries()) :: [module()]
-  def compile_dependencies(%Manifest{types: types}, declared, builtin) do
+  def compile_dependencies(%Manifest{types: types} = manifest, declared, builtin) do
     custom_type_dependencies =
       types
       |> Enum.filter(&AshRpc.Manifest.Custom.custom_type?/1)
@@ -144,7 +146,14 @@ defmodule AshTypescript.CustomTypes do
           new_type?(module),
           do: module
 
-    Enum.uniq(custom_type_dependencies ++ new_types)
+    unknown_modules =
+      for %Manifest.Type{kind: :unknown, module: module} <-
+            AshTypescript.Manifest.TypeUses.nodes(manifest),
+          is_atom(module) and not is_nil(module),
+          Code.ensure_loaded?(module),
+          do: module
+
+    Enum.uniq(custom_type_dependencies ++ new_types ++ unknown_modules)
   end
 
   @doc """
@@ -249,7 +258,12 @@ defmodule AshTypescript.CustomTypes do
     end
   end
 
-  defp callback_alias_name(module) do
+  @doc false
+  # `typescript_type_alias/0`'s result for `module`, as `{:ok, name}`, or
+  # `{:error, message}` naming the module when it isn't a string or isn't a
+  # valid TypeScript name.
+  @spec callback_alias_name(module()) :: {:ok, String.t()} | {:error, String.t()}
+  def callback_alias_name(module) do
     case module.typescript_type_alias() do
       name when is_binary(name) ->
         subject = "The typescript_type_alias/0 result #{inspect(name)} of #{inspect(module)}"
@@ -265,13 +279,22 @@ defmodule AshTypescript.CustomTypes do
 
   @doc false
   # The first alias error among the manifest's map-like definitions (declared
-  # custom types and field-bearing NewTypes), as `{:error, message}`; `:ok`
-  # when there is none. An error is an invalid `alias_name/3` result, or an
-  # aliased field-bearing NewType that exports `typescript_type/0`
-  # (through `typescript_type_alias/0` or `alias_all_types?`; a field-less
-  # `map` entry on such a type is rejected by `NormalizeCustomTypes`).
+  # custom types and field-bearing NewTypes), then among the scalars it
+  # reaches, as `{:error, message}`; `:ok` when there is none. A map-like
+  # error is an invalid `alias_name/3` result, or an aliased field-bearing
+  # NewType that exports `typescript_type/0` (through `typescript_type_alias/0`
+  # or `alias_all_types?`; a field-less `map` entry on such a type is rejected
+  # by `NormalizeCustomTypes`). A scalar error is an invalid
+  # `typescript_type_alias/0` result where the callback names the scalar
+  # (`AshTypescript.Codegen.ScalarAliases`); a scalar may export
+  # `typescript_type/0` beside it.
   @spec check_alias_names(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
-  def check_alias_names(%Manifest{types: types}, custom_types) do
+  def check_alias_names(%Manifest{} = manifest, custom_types) do
+    with :ok <- check_map_like_alias_names(manifest, custom_types),
+         do: check_scalar_alias_names(manifest, custom_types)
+  end
+
+  defp check_map_like_alias_names(%Manifest{types: types}, custom_types) do
     Enum.find_value(types, :ok, fn type ->
       cond do
         AshRpc.Manifest.Custom.custom_type?(type) ->
@@ -291,6 +314,15 @@ defmodule AshTypescript.CustomTypes do
           nil
       end
     end)
+  end
+
+  defp check_scalar_alias_names(manifest, custom_types) do
+    manifest
+    |> AshTypescript.Manifest.TypeUses.nodes()
+    |> Enum.filter(&(Codegen.ScalarAliases.source(&1, custom_types) == :callback))
+    |> Enum.map(& &1.module)
+    |> Enum.uniq()
+    |> Enum.find_value(:ok, &alias_error(callback_alias_name(&1)))
   end
 
   defp alias_error({:error, _message} = error), do: error
@@ -361,12 +393,13 @@ defmodule AshTypescript.CustomTypes do
   @doc false
   # How a message tells the user to rename a type's alias, and with it its
   # named schemas, by the kind of type: "rename it #{rename_hint(:map)}".
-  # `:map` covers declared custom types and field-bearing NewTypes.
-  @spec rename_hint(:map) :: String.t()
-  def rename_hint(:map),
+  # `:map` covers declared custom types and field-bearing NewTypes, `:scalar`
+  # scalar custom types and NewTypes over primitives.
+  @spec rename_hint(:map | :scalar) :: String.t()
+  def rename_hint(kind) when kind in [:map, :scalar],
     do:
-      "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on the type, " <>
-        "when no entry sets `ts_alias`)"
+      "with `ts_alias \"…\"` on its `#{kind}` entry (or `typescript_type_alias/0` on the " <>
+        "type, when no entry sets `ts_alias`)"
 
   @doc """
   The `map` entry a declared custom type's uses resolve to (`entry_of` maps a
@@ -440,13 +473,17 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # An entry's `key` mapping (`:ts_type`, `:zod` or `:valibot`) for a use
-  # with `constraints`: the string as given, the MFA's result
-  # (`apply(m, f, [constraints | a])`), or `nil` when the entry has none.
-  # Raises `ArgumentError`, naming the option, the MFA and the module, when an
-  # MFA returns anything but a string.
-  @spec mapping(Scalar.t() | MapType.t(), :ts_type | :zod | :valibot, Keyword.t() | nil) ::
-          String.t() | nil
+  # An entry's `key` mapping (`:ts_type`, `:zod`, `:valibot` or a scalar's
+  # `:ts_alias`) for a use with `constraints`: the string as given, the MFA's
+  # result (`apply(m, f, [constraints | a])`), or `nil` when the entry has
+  # none. Raises `ArgumentError`, naming the option, the MFA and the module,
+  # when an MFA returns anything but a string (or `nil`, for `:ts_alias`:
+  # inline at that use).
+  @spec mapping(
+          Scalar.t() | MapType.t(),
+          :ts_type | :zod | :valibot | :ts_alias,
+          Keyword.t() | nil
+        ) :: String.t() | nil
   def mapping(entry, key, constraints) do
     case Map.get(entry, key) do
       {m, f, a} -> apply_mapping(entry, key, {m, f, a}, constraints || [])
@@ -469,10 +506,16 @@ defmodule AshTypescript.CustomTypes do
       value when is_binary(value) ->
         value
 
+      nil when key == :ts_alias ->
+        nil
+
       other ->
+        expected = if key == :ts_alias, do: "a string or nil", else: "a string"
+
         raise ArgumentError,
               "the `#{key}` MFA #{Exception.format_mfa(m, f, length(a) + 1)} of the " <>
-                "custom type #{inspect(entry.module)} must return a string, got: #{inspect(other)}"
+                "custom type #{inspect(entry.module)} must return #{expected}, " <>
+                "got: #{inspect(other)}"
     end
   end
 
