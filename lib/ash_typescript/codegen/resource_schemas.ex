@@ -753,7 +753,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  # Check if an Ash.Info.Manifest type module has a custom typescript_type_name
+  # Check if an Ash.Info.Manifest type module has a custom typescript_type
   defp spec_type_name(%Ash.Info.Manifest.Type{kind: :array, item_type: inner}) do
     case spec_type_name(inner) do
       nil -> nil
@@ -767,8 +767,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       (name = AshTypescript.Manifest.Custom.type_name(type)) != nil ->
         name
 
-      Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0) ->
-        module.typescript_type_name()
+      Code.ensure_loaded?(module) and function_exported?(module, :typescript_type, 0) ->
+        module.typescript_type()
 
       true ->
         nil

@@ -135,8 +135,8 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     end
   end
 
-  # Each type's `type_name` unless a test overrides it: distinct, so only the
-  # pair under test collides. `:derive` leaves `type_name` out (the joined
+  # Each type's `ts_alias` unless a test overrides it: distinct, so only the
+  # pair under test collides. `:derive` leaves `ts_alias` out (the joined
   # module name).
   @distinct %{
     T.Billing.Money => "BillingMoneyAlias",
@@ -149,11 +149,11 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     T.SwatchInputSchema => "SwatchInputSchemaAlias"
   }
 
-  @fix "Rename one of them: set `type_name \"…\"` on its `map` entry in your manifest " <>
-         "module's `custom_types` section, or define `typescript_alias_name/0` on a type " <>
+  @fix "Rename one of them: set `ts_alias \"…\"` on its `map` entry in your manifest " <>
+         "module's `custom_types` section, or define `typescript_type_alias/0` on a type " <>
          "without one."
 
-  @rename "with `type_name \"…\"` on its `map` entry (or `typescript_alias_name/0` on a " <>
+  @rename "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on a " <>
             "type without one)"
 
   # The scoped manifest prints the RPC resource warnings and the verifier's
@@ -165,7 +165,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       @distinct
       |> Map.merge(type_names)
       |> Enum.sort_by(fn {module, _} -> inspect(module) end)
-      |> Enum.map(fn {type, type_name} -> map_entry(type, type_name) end)
+      |> Enum.map(fn {type, ts_alias} -> map_entry(type, ts_alias) end)
 
     unless Code.ensure_loaded?(module) do
       ExUnit.CaptureIO.with_io(:stderr, fn ->
@@ -196,10 +196,10 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     end
   end
 
-  defp map_entry(type, type_name) do
+  defp map_entry(type, ts_alias) do
     quote do
       map unquote(type) do
-        type_name unquote(type_name)
+        ts_alias unquote(ts_alias)
         field :value, :string
       end
     end
@@ -287,8 +287,8 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     end
 
     # Guards for the planted defect in the verifier (aliases taken from the
-    # definition name instead of the decorated `type_name`).
-    test "a type_name resolves the collision" do
+    # definition name instead of the decorated alias name).
+    test "a ts_alias resolves the collision" do
       module =
         manifest!(RenamedAlias, %{T.Billing.Money => "Money", T.Shop.Money => "ShopMoney"})
 

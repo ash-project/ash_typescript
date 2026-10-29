@@ -7,7 +7,7 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
   A custom type that represents a color palette stored as a map.
   It declares its fields with `typescript_fields/0`, so decoration makes it a
   typed map and its TypeScript is generated from the fields, and names its
-  alias with `typescript_alias_name/0`.
+  alias with `typescript_type_alias/0`.
   """
   use Ash.Type
 
@@ -48,6 +48,6 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
     ]
   end
 
-  @doc "The TypeScript alias name (ash_typescript's `typescript_alias_name/0` callback)."
-  def typescript_alias_name, do: "ColorPalette"
+  @doc "The TypeScript alias name (ash_typescript's `typescript_type_alias/0` callback)."
+  def typescript_type_alias, do: "ColorPalette"
 end

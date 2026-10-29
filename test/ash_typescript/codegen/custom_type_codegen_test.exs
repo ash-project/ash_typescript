@@ -21,7 +21,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   end
 
   @doc false
-  # A `typescript` MFA target: echoes the constraints it receives.
+  # A `ts_type` MFA target: echoes the constraints it receives.
   def echo_typescript(constraints, tag), do: "#{tag}:#{inspect(constraints)}"
 
   @doc false
@@ -50,11 +50,11 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       assert ts({:array, CustomIdentifier}) == "Array<string>"
     end
 
-    test "a typescript MFA is called with the use's constraints" do
+    test "a ts_type MFA is called with the use's constraints" do
       entry = %Scalar{
         module: CustomIdentifier,
         type: Ash.Type.String,
-        typescript: {__MODULE__, :echo_typescript, ["id"]}
+        ts_type: {__MODULE__, :echo_typescript, ["id"]}
       }
 
       with_entries(:declared, &Map.put(&1, CustomIdentifier, entry), fn ->
@@ -66,11 +66,11 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       assert ts(ExternalCode) == "`code-${string}`"
     end
 
-    test "a typescript MFA returning a non-string raises, naming the module and MFA" do
+    test "a ts_type MFA returning a non-string raises, naming the module and MFA" do
       entry = %Scalar{
         module: CustomIdentifier,
         type: Ash.Type.String,
-        typescript: {__MODULE__, :non_string_typescript, []}
+        ts_type: {__MODULE__, :non_string_typescript, []}
       }
 
       with_entries(:declared, &Map.put(&1, CustomIdentifier, entry), fn ->
@@ -84,16 +84,16 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   end
 
   describe "the order of TypeScript mappings for a scalar" do
-    test "a manifest scalar's typescript beats typescript_type_name/0" do
-      entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, typescript: "number"}
+    test "a manifest scalar's ts_type beats typescript_type/0" do
+      entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, ts_type: "number"}
 
       with_entries(:declared, &Map.put(&1, PriorityScore, entry), fn ->
         assert ts(PriorityScore) == "number"
       end)
     end
 
-    test "a manifest scalar without typescript maps as its base type" do
-      # CustomIdentifier has no typescript_type_name/0.
+    test "a manifest scalar without ts_type maps as its base type" do
+      # CustomIdentifier has no typescript_type/0.
       entry = %Scalar{module: CustomIdentifier, type: Ash.Type.Boolean}
 
       with_entries(:declared, &Map.put(&1, CustomIdentifier, entry), fn ->
@@ -101,7 +101,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       end)
     end
 
-    test "typescript_type_name/0 beats a manifest scalar without typescript" do
+    test "typescript_type/0 beats a manifest scalar without ts_type" do
       entry = %Scalar{module: PriorityScore, type: Ash.Type.Boolean, zod: "z.boolean()"}
 
       with_entries(:declared, &Map.put(&1, PriorityScore, entry), fn ->
@@ -109,8 +109,8 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       end)
     end
 
-    test "a manifest scalar without typescript replaces a built-in's typescript" do
-      builtin = %Scalar{module: CustomIdentifier, type: Ash.Type.String, typescript: "BuiltinId"}
+    test "a manifest scalar without ts_type replaces a built-in's ts_type" do
+      builtin = %Scalar{module: CustomIdentifier, type: Ash.Type.String, ts_type: "BuiltinId"}
       declared = %Scalar{module: CustomIdentifier, type: Ash.Type.Boolean}
 
       with_entries(:builtin, &Map.put(&1, CustomIdentifier, builtin), fn ->
@@ -120,8 +120,8 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       end)
     end
 
-    test "typescript_type_name/0 beats a built-in scalar's typescript" do
-      entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, typescript: "Builtin"}
+    test "typescript_type/0 beats a built-in scalar's ts_type" do
+      entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, ts_type: "Builtin"}
 
       with_entries(:builtin, &Map.put(&1, PriorityScore, entry), fn ->
         assert ts(PriorityScore) == "CustomTypes.PriorityScore"
@@ -129,7 +129,7 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     end
 
     test "a built-in scalar applies to a type without a callback or manifest entry" do
-      entry = %Scalar{module: CustomIdentifier, type: Ash.Type.String, typescript: "BuiltinId"}
+      entry = %Scalar{module: CustomIdentifier, type: Ash.Type.String, ts_type: "BuiltinId"}
 
       with_entries(:builtin, &Map.put(&1, CustomIdentifier, entry), fn ->
         with_entries(:declared, &Map.delete(&1, CustomIdentifier), fn ->

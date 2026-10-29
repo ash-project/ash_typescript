@@ -44,7 +44,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     @impl true
     def dump_to_native(v, _), do: {:ok, v}
 
-    def typescript_type_name, do: "IntegerStorage"
+    def typescript_type, do: "IntegerStorage"
   end
 
   defmodule DatetimeStorageType do
@@ -60,7 +60,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     @impl true
     def dump_to_native(v, _), do: {:ok, v}
 
-    def typescript_type_name, do: "DatetimeStorage"
+    def typescript_type, do: "DatetimeStorage"
   end
 
   defmodule ArrayStorageType do
@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     @impl true
     def dump_to_native(v, _), do: {:ok, v}
 
-    def typescript_type_name, do: "ArrayStorage"
+    def typescript_type, do: "ArrayStorage"
   end
 
   defmodule MapStorageType do
@@ -92,7 +92,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     @impl true
     def dump_to_native(v, _), do: {:ok, v}
 
-    def typescript_type_name, do: "MapStorage"
+    def typescript_type, do: "MapStorage"
   end
 
   defmodule OpaqueStorageType do
@@ -108,7 +108,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     @impl true
     def dump_to_native(v, _), do: {:ok, v}
 
-    def typescript_type_name, do: "OpaqueStorage"
+    def typescript_type, do: "OpaqueStorage"
   end
 
   defmodule NewGeoPoint do
@@ -314,7 +314,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       end)
     end
 
-    test "typescript_type_name/0 doesn't replace a built-in's schema" do
+    test "typescript_type/0 doesn't replace a built-in's schema" do
       entry = %Scalar{module: PriorityScore, type: Ash.Type.Integer, zod: "Builtin.score"}
 
       with_entries(:builtin, &Map.put(&1, PriorityScore, entry), fn ->
@@ -407,13 +407,13 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
                   constraints: [match: ~r/^code-/, max_length: 20]
 
                 map AshTypescript.Test.GeoPoint do
-                  type_name "GeoPoint"
+                  ts_alias "GeoPoint"
                   field :lat, :float, allow_nil?: false
                   field :lng, :float, allow_nil?: false
                 end
 
                 map AshTypescript.Test.LineItem do
-                  type_name "LineItem"
+                  ts_alias "LineItem"
                   field :label, :string, allow_nil?: false
                   field :price, AshMoney.Types.Money, allow_nil?: false
                   field :meta, AshTypescript.Test.TaskMetadata
@@ -491,7 +491,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
     end
 
     test "a scalar entry's schemas reach both generators", %{content: content} do
-      # AshTypescript.Test.CustomIdentifier has no `typescript_type_name`; its
+      # AshTypescript.Test.CustomIdentifier has no `typescript_type`; its
       # `scalar` entry in the test manifest names schemas authored in TypeScript.
       assert content =~ "customId: CustomZodSchemas.objectId"
       assert content =~ "customId: v.optional(v.nullable(CustomValibotSchemas.objectId))"

@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
       defmodule CustomPrimitiveType do
         use Ash.Type
 
-        def typescript_type_name, do: "string"
+        def typescript_type, do: "string"
 
         @impl true
         def storage_type(_), do: :string
@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
       defmodule CustomIdentifierType do
         use Ash.Type
 
-        def typescript_type_name, do: "string"
+        def typescript_type, do: "string"
 
         @impl true
         def storage_type(_), do: :string
@@ -342,7 +342,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
       defmodule CustomTagType do
         use Ash.Type
 
-        def typescript_type_name, do: "string"
+        def typescript_type, do: "string"
 
         @impl true
         def storage_type(_), do: :string

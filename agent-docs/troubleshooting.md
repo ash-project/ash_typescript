@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 | Symptoms | Cause | Solution |
 |----------|-------|----------|
 | ``No `:manifest` module configured for AshTypescript.`` | Ran codegen in dev env (this repo only sets `manifest:` inside the `:test` block of `config/config.exs`) | Use `mix test.codegen`, never `mix ash_typescript.codegen` |
-| "unsupported type ... AshTypescript cannot map it to a TypeScript type." | Type has no TS mapping | Implement `typescript_type_name/0`, add a `scalar` entry to the manifest's `custom_types` section, or use a supported type |
+| "unsupported type ... AshTypescript cannot map it to a TypeScript type." | Type has no TS mapping | Implement `typescript_type/0`, add a `scalar` entry to the manifest's `custom_types` section, or use a supported type |
 | Generated types contain `any` | Deliberate (`:term`, File/Function, module-less unknowns) — unmappable types now raise instead | See "Manifest & Verifier Issues" below |
 | Field selection not working | Invalid field format/pipeline issue | Use unified field format; see Runtime errors below |
 | TypeScript compilation errors | Schema generation problems | Check resource schema structure |
@@ -111,7 +111,7 @@ Suppress via `warn_on_missing_rpc_config: false` / `warn_on_non_rpc_references: 
 Unmappable types are a compile-time error again. `VerifyMappableTypes` walks
 every reachable type and aggregates all offenders into one `DslError` with
 locations; `TypeMapper` raises `unsupported type ... AshTypescript cannot map it
-to a TypeScript type.` as a backstop. Fix by implementing `typescript_type_name/0`
+to a TypeScript type.` as a backstop. Fix by implementing `typescript_type/0`
 on the type module, adding a `scalar` entry to the manifest's `custom_types`
 section, or using a supported type. A scoped or inline manifest declares its own
 entries: `InlineManifest.build!/1` defaults `body:` to the test manifest's
@@ -125,7 +125,7 @@ type, Mod, at <path>" (ash_rpc's `UntypedStructError`, or a `DslError` for
 routes and publications), elsewhere under `VerifyMappableTypes`'
 "Undeclared map-like custom types found". The hint lists the ways to declare
 fields and what to remove. A declared or map-like type that still exports
-`typescript_type_name/0` or has a `scalar` entry is listed under "Map-like custom
+`typescript_type/0` or has a `scalar` entry is listed under "Map-like custom
 types that declare a TypeScript type". Test fixtures over the whole test app
 reach `GeoPoint`, so they need the test manifest's entries (the
 `InlineManifest.build!/1` default).

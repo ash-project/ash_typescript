@@ -18,13 +18,13 @@ defmodule AshTypescript.Manifest.Decorator do
       `kind: :embedded_resource` type entry.
 
     * `manifest.types[i].custom.ash_typescript` — the `type_name` for type
-      modules that export `typescript_field_names/0` or `typescript_type_name/0`,
+      modules that export `typescript_field_names/0` or `typescript_type/0`,
       except declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`),
       which get their `type_alias_names` instead
       (`AshTypescript.CustomTypes.names/2`, read through
       `AshTypescript.Manifest.Custom.type_alias_names/1`). A field-bearing
       NewType that opts into an alias (a field-less `map` entry,
-      `typescript_alias_name/0` or `alias_all_types?`;
+      `typescript_type_alias/0` or `alias_all_types?`;
       `AshTypescript.CustomTypes.alias_name/3`) gets `type_alias_names` too,
       beside its `type_name` when it has one.
 
@@ -122,11 +122,11 @@ defmodule AshTypescript.Manifest.Decorator do
   end
 
   # Types whose effective module exports `typescript_field_names/0` or
-  # `typescript_type_name/0` get a `type_name` (codegen reads it). Field name
+  # `typescript_type/0` get a `type_name` (codegen reads it). Field name
   # overrides live under `custom.ash_rpc`. A declared custom type
   # (`AshRpc.Manifest.Custom.custom_type?/1`) gets no `type_name`: its
   # TypeScript comes from its fields, and `VerifyMappableTypes` rejects a
-  # `typescript_type_name/0`. It gets the names of its alias and schemas, as
+  # `typescript_type/0`. It gets the names of its alias and schemas, as
   # does a field-bearing NewType that opts into an alias, beside its
   # `type_name`.
   defp build_type_custom(%Manifest.Type{} = type, custom_types) do
@@ -136,8 +136,8 @@ defmodule AshTypescript.Manifest.Decorator do
       %{type_alias_names: CustomTypes.names(type.module, custom_types)}
     else
       type_name =
-        if Helpers.has_typescript_field_names?(module) or type_name_exported?(module),
-          do: %{type_name: resolve_type_module_name(module)},
+        if Helpers.has_typescript_field_names?(module) or type_exported?(module),
+          do: %{type_name: type_callback_name(module)},
           else: %{}
 
       custom = Map.merge(type_name, new_type_alias_names(type, custom_types))
@@ -157,14 +157,14 @@ defmodule AshTypescript.Manifest.Decorator do
     end
   end
 
-  defp type_name_exported?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0)
+  defp type_exported?(module) when is_atom(module) and not is_nil(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :typescript_type, 0)
   end
 
-  defp type_name_exported?(_), do: false
+  defp type_exported?(_), do: false
 
-  defp resolve_type_module_name(module) do
-    if type_name_exported?(module), do: module.typescript_type_name(), else: nil
+  defp type_callback_name(module) do
+    if type_exported?(module), do: module.typescript_type(), else: nil
   end
 
   # ─────────────────────────────────────────────────────────────────

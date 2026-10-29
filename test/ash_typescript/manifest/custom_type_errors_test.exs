@@ -6,7 +6,7 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
   # `VerifyMappableTypes` reports, in one aggregated error, map-like custom
   # types that no RPC action reaches and that declare no fields, and map-like
   # or declared custom types that declare a TypeScript type
-  # (`typescript_type_name/0` or a `scalar` entry). Map-like uses on the wire
+  # (`typescript_type/0` or a `scalar` entry). Map-like uses on the wire
   # are rejected earlier, by ash_rpc's decorator.
   use ExUnit.Case, async: false
 
@@ -41,7 +41,7 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
     @moduledoc false
     use MapStorage
 
-    def typescript_type_name, do: "NamedBlob"
+    def typescript_type, do: "NamedBlob"
   end
 
   defmodule ScalarBlob do
@@ -54,7 +54,7 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
     # Declared by `composite_types/1`, and still naming a TypeScript type.
     use MapStorage
 
-    def typescript_type_name, do: "NamedComposite"
+    def typescript_type, do: "NamedComposite"
 
     @impl true
     def composite?(_), do: true
@@ -188,13 +188,13 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
       assert declaring =~
                "`#{inspect(T.NamedComposite)}` is map-like (`storage_type :map` / composite) " <>
                  "or declares fields, so its TypeScript type is generated from its fields and " <>
-                 "can't be declared. Remove `typescript_type_name/0`, or turn the `scalar` " <>
+                 "can't be declared. Remove `typescript_type/0`, or turn the `scalar` " <>
                  "declaration into a `map` one."
 
       assert declaring =~
                "For more precise member types, use scalar custom types with their own TS " <>
                  "mapping as field types (for example a NewType over `:string` with " <>
-                 "`typescript_type_name/0`)."
+                 "`typescript_type/0`)."
     end
 
     test "doesn't list them as unsupported types", %{message: message} do
@@ -248,7 +248,7 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
 
     assert {:error, message} = AshTypescript.Manifest.run_verifiers(module)
 
-    # Only the two types exporting `typescript_type_name/0` remain.
+    # Only the two types exporting `typescript_type/0` remain.
     declaring = section(message, "Map-like custom types that declare a TypeScript type")
     assert declaring =~ inspect(T.NamedBlob)
     assert declaring =~ inspect(T.NamedComposite)

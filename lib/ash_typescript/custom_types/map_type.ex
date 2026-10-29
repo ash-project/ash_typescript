@@ -8,7 +8,7 @@ defmodule AshTypescript.CustomTypes.MapType do
   map (`AshTypescript.CustomTypes.Builtin`).
 
   A map-like custom type's TypeScript is generated from its `fields`
-  (`AshTypescript.CustomTypes.Field`), so the entry has no `typescript`.
+  (`AshTypescript.CustomTypes.Field`), so the entry has no `ts_type`.
   An entry without fields is for a field-bearing `Ash.Type.NewType` (an
   `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
   `:struct` with `fields`): it declares nothing and opts the type into an
@@ -16,8 +16,8 @@ defmodule AshTypescript.CustomTypes.MapType do
   `zod` and `valibot` are optional escape hatches: a string, or an MFA called
   as `apply(m, f, [constraints | a])` that returns one.
 
-  `type_name` is the exported TypeScript alias (default: the type's
-  `typescript_alias_name/0`, else the joined module name,
+  `ts_alias` is the exported TypeScript alias (default: the type's
+  `typescript_type_alias/0`, else the joined module name,
   `SomeLib.Coordinates` → `SomeLibCoordinates`;
   `AshTypescript.CustomTypes.alias_name/3`). The named zod / valibot schemas
   are the alias followed by the configured schema suffix; a replacement gets
@@ -31,7 +31,7 @@ defmodule AshTypescript.CustomTypes.MapType do
           fields: [Field.t()],
           zod: Scalar.mapping(),
           valibot: Scalar.mapping(),
-          type_name: String.t() | nil,
+          ts_alias: String.t() | nil,
           __spark_metadata__: term()
         }
 
@@ -39,7 +39,7 @@ defmodule AshTypescript.CustomTypes.MapType do
     :module,
     :zod,
     :valibot,
-    :type_name,
+    :ts_alias,
     fields: [],
     __spark_metadata__: nil
   ]

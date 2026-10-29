@@ -26,9 +26,9 @@ defmodule AshTypescript.CustomTypesTest do
       assert Spark.implements_behaviour?(PriorityScore, Ash.Type)
     end
 
-    test "custom type has typescript_type_name/0 callback" do
-      assert function_exported?(PriorityScore, :typescript_type_name, 0)
-      assert PriorityScore.typescript_type_name() == "CustomTypes.PriorityScore"
+    test "custom type has typescript_type/0 callback" do
+      assert function_exported?(PriorityScore, :typescript_type, 0)
+      assert PriorityScore.typescript_type() == "CustomTypes.PriorityScore"
     end
 
     test "custom type has required Ash.Type callbacks" do
@@ -40,7 +40,7 @@ defmodule AshTypescript.CustomTypesTest do
 
     test "complex custom type declares its fields instead of a TypeScript name" do
       assert function_exported?(ColorPalette, :typescript_fields, 0)
-      refute function_exported?(ColorPalette, :typescript_type_name, 0)
+      refute function_exported?(ColorPalette, :typescript_type, 0)
     end
   end
 
@@ -144,11 +144,11 @@ defmodule AshTypescript.CustomTypesTest do
     end
   end
 
-  describe "NewType with typescript_type_name" do
+  describe "NewType with typescript_type" do
     test "NewType wrapping :float is detected as custom type" do
       assert Ash.Type.NewType.new_type?(Percentage)
-      assert function_exported?(Percentage, :typescript_type_name, 0)
-      assert Percentage.typescript_type_name() == "CustomTypes.Percentage"
+      assert function_exported?(Percentage, :typescript_type, 0)
+      assert Percentage.typescript_type() == "CustomTypes.Percentage"
     end
 
     test "get_ts_type/2 maps NewType with custom name instead of unwrapping" do

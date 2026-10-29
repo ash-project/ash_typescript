@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Manifest.TypeAliasDslTest do
   # The alias opt-ins of the `custom_types` section: the `alias_all_types?`
-  # option, `scalar` `type_name`, and field-less `map` entries for
+  # option, `scalar` `ts_alias`, and field-less `map` entries for
   # field-bearing NewTypes. Their validation and persistence only; nothing
   # here reads them for codegen. Manifests are compiled with `Module.create/3`
   # under fixed names.
@@ -18,7 +18,7 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
   defmodule CodeTs do
     @moduledoc false
     def typescript(_constraints), do: "string"
-    def type_name(_constraints), do: "Code"
+    def ts_alias(_constraints), do: "Code"
   end
 
   defmodule Typed do
@@ -35,11 +35,27 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_type_name, do: "TypedNamed"
+    def typescript_type, do: "TypedNamed"
 
     typed_struct do
       field :a, :string
     end
+  end
+
+  defmodule CallbackScalar do
+    @moduledoc false
+    use Ash.Type
+
+    def typescript_type, do: "string"
+
+    @impl true
+    def storage_type(_), do: :string
+    @impl true
+    def cast_input(value, _), do: {:ok, value}
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
   end
 
   defmodule Empty do
@@ -177,38 +193,38 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
     end
   end
 
-  describe "scalar type_name" do
-    test "a string type_name is persisted" do
+  describe "scalar ts_alias" do
+    test "a string ts_alias is persisted" do
       module =
         compile_manifest!(
           ScalarTypeName,
           quote do
             custom_types do
-              scalar SomeLib.Email, :string, type_name: "Email"
+              scalar SomeLib.Email, :string, ts_alias: "Email"
             end
           end
         )
 
-      assert persisted(module).declared[SomeLib.Email].type_name == "Email"
+      assert persisted(module).declared[SomeLib.Email].ts_alias == "Email"
     end
 
-    test "an MFA type_name with an MFA typescript is persisted" do
+    test "an MFA ts_alias with an MFA ts_type is persisted" do
       module =
         compile_manifest!(
           ScalarMfaTypeName,
           quote do
             custom_types do
               scalar SomeLib.Code, :string do
-                typescript {T.CodeTs, :typescript, []}
-                type_name {T.CodeTs, :type_name, []}
+                ts_type {T.CodeTs, :typescript, []}
+                ts_alias {T.CodeTs, :ts_alias, []}
               end
             end
           end
         )
 
       scalar = persisted(module).declared[SomeLib.Code]
-      assert scalar.typescript == {T.CodeTs, :typescript, []}
-      assert scalar.type_name == {T.CodeTs, :type_name, []}
+      assert scalar.ts_type == {T.CodeTs, :typescript, []}
+      assert scalar.ts_alias == {T.CodeTs, :ts_alias, []}
     end
 
     test "an invalid identifier is a DslError" do
@@ -217,15 +233,15 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           ScalarBadTypeName,
           quote do
             custom_types do
-              scalar SomeLib.Email, :string, type_name: "E-mail"
+              scalar SomeLib.Email, :string, ts_alias: "E-mail"
             end
           end
         )
 
       assert message =~
-               ~s(The type_name "E-mail" of SomeLib.Email is not a TypeScript identifier.)
+               ~s(The ts_alias "E-mail" of SomeLib.Email is not a TypeScript identifier.)
 
-      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> type_name"
+      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
     end
 
     test "a reserved word is a DslError" do
@@ -234,19 +250,19 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           ScalarReservedTypeName,
           quote do
             custom_types do
-              scalar SomeLib.Email, :string, type_name: "string"
+              scalar SomeLib.Email, :string, ts_alias: "string"
             end
           end
         )
 
-      assert message =~ ~s(The type_name "string" of SomeLib.Email is a TypeScript reserved word.)
-      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> type_name"
+      assert message =~ ~s(The ts_alias "string" of SomeLib.Email is a TypeScript reserved word.)
+      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
     end
 
-    test "an MFA type_name needs an MFA typescript" do
-      for {name, typescript} <- [{ScalarMfaStringTs, "string"}, {ScalarMfaNoTs, nil}] do
-        typescript_opt = if typescript, do: [typescript: typescript], else: []
-        opts = Macro.escape([{:type_name, {T.CodeTs, :type_name, []}} | typescript_opt])
+    test "an MFA ts_alias needs an MFA ts_type" do
+      for {name, ts_type} <- [{ScalarMfaStringTs, "string"}, {ScalarMfaNoTs, nil}] do
+        ts_type_opt = if ts_type, do: [ts_type: ts_type], else: []
+        opts = Macro.escape([{:ts_alias, {T.CodeTs, :ts_alias, []}} | ts_type_opt])
 
         message =
           compile_error!(
@@ -259,14 +275,14 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           )
 
         assert message =~
-                 "SomeLib.Code: an MFA `type_name` needs an MFA `typescript`: both must be " <>
+                 "SomeLib.Code: an MFA `ts_alias` needs an MFA `ts_type`: both must be " <>
                    "computed from the use's constraints"
 
-        assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Code -> type_name"
+        assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Code -> ts_alias"
       end
     end
 
-    test "type_name defaults to nil" do
+    test "ts_alias defaults to nil" do
       module =
         compile_manifest!(
           ScalarNoTypeName,
@@ -277,9 +293,9 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           end
         )
 
-      assert persisted(module).declared[SomeLib.Email].type_name == nil
+      assert persisted(module).declared[SomeLib.Email].ts_alias == nil
 
-      for %Scalar{} = scalar <- Builtin.entries(), do: assert(scalar.type_name == nil)
+      for %Scalar{} = scalar <- Builtin.entries(), do: assert(scalar.ts_alias == nil)
     end
   end
 
@@ -291,7 +307,7 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           quote do
             custom_types do
               map T.Typed
-              map T.MapNew, type_name: "MapNew"
+              map T.MapNew, ts_alias: "MapNew"
               map T.KeywordNew
               map T.TupleNew
             end
@@ -300,27 +316,27 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
 
       declared = persisted(module).declared
 
-      assert %MapType{fields: [], type_name: nil} = declared[T.Typed]
-      assert %MapType{fields: [], type_name: "MapNew"} = declared[T.MapNew]
-      assert %MapType{fields: [], type_name: nil} = declared[T.KeywordNew]
-      assert %MapType{fields: [], type_name: nil} = declared[T.TupleNew]
+      assert %MapType{fields: [], ts_alias: nil} = declared[T.Typed]
+      assert %MapType{fields: [], ts_alias: "MapNew"} = declared[T.MapNew]
+      assert %MapType{fields: [], ts_alias: nil} = declared[T.KeywordNew]
+      assert %MapType{fields: [], ts_alias: nil} = declared[T.TupleNew]
     end
 
-    test "a field-less entry's type_name is checked" do
+    test "a field-less entry's ts_alias is checked" do
       message =
         compile_error!(
           FieldlessBadTypeName,
           quote do
             custom_types do
-              map T.Typed, type_name: "not-a-name"
+              map T.Typed, ts_alias: "not-a-name"
             end
           end
         )
 
       assert message =~
-               ~s(The type_name "not-a-name" of #{inspect(T.Typed)} is not a TypeScript identifier.)
+               ~s(The ts_alias "not-a-name" of #{inspect(T.Typed)} is not a TypeScript identifier.)
 
-      assert message =~ "custom_types -> map -> #{T.Typed} -> type_name"
+      assert message =~ "custom_types -> map -> #{T.Typed} -> ts_alias"
     end
 
     test "zod or valibot on a field-less entry is a DslError" do
@@ -388,8 +404,8 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
       end
     end
 
-    test "an opt-in on a typescript_type_name/0 type is a DslError" do
-      for {name, opts} <- [{NamedTypeOptIn, []}, {NamedTypeOptInNamed, [type_name: "X"]}] do
+    test "a field-less map opt-in on a typescript_type/0 type is a DslError" do
+      for {name, opts} <- [{NamedTypeOptIn, []}, {NamedTypeOptInNamed, [ts_alias: "X"]}] do
         message =
           compile_error!(
             name,
@@ -401,31 +417,34 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           )
 
         assert message =~
-                 "#{inspect(T.TypedNamed)} exports `typescript_type_name/0`: remove it; " <>
+                 "#{inspect(T.TypedNamed)} exports `typescript_type/0`: remove it; " <>
                    "the alias is generated from the fields."
 
         assert message =~ "custom_types -> map -> #{T.TypedNamed}"
       end
+    end
 
-      message =
-        compile_error!(
+    # Decision 21: a scalar's alias body is its TypeScript, `typescript_type/0`
+    # included.
+    test "a scalar ts_alias on a typescript_type/0 type is accepted" do
+      module =
+        compile_manifest!(
           NamedScalarTypeName,
           quote do
             custom_types do
-              scalar AshTypescript.Test.HexColor, :string, type_name: "Hex"
+              scalar AshTypescript.Test.HexColor, :string, ts_alias: "Hex"
+              scalar T.CallbackScalar, :string, ts_alias: "Cb"
             end
           end
         )
 
-      assert message =~
-               "AshTypescript.Test.HexColor exports `typescript_type_name/0`: remove it; " <>
-                 "the alias is generated from its TypeScript."
+      declared = persisted(module).declared
 
-      assert message =~
-               "custom_types -> scalar -> Elixir.AshTypescript.Test.HexColor -> type_name"
+      assert declared[AshTypescript.Test.HexColor].ts_alias == "Hex"
+      assert declared[T.CallbackScalar].ts_alias == "Cb"
     end
 
-    test "a scalar entry without type_name on a typescript_type_name/0 type is accepted" do
+    test "a scalar entry without ts_alias on a typescript_type/0 type is accepted" do
       module =
         compile_manifest!(
           NamedScalarNoTypeName,
@@ -436,7 +455,7 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           end
         )
 
-      assert %Scalar{type_name: nil} = persisted(module).declared[AshTypescript.Test.HexColor]
+      assert %Scalar{ts_alias: nil} = persisted(module).declared[AshTypescript.Test.HexColor]
     end
 
     test "an entry for a module the manifest never reaches is accepted and has no effect" do
@@ -445,12 +464,12 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
           UnreachedEntry,
           quote do
             custom_types do
-              map T.Typed, type_name: "Unreached"
+              map T.Typed, ts_alias: "Unreached"
             end
           end
         )
 
-      assert %MapType{type_name: "Unreached"} = persisted(module).declared[T.Typed]
+      assert %MapType{ts_alias: "Unreached"} = persisted(module).declared[T.Typed]
       refute Enum.any?(AshTypescript.manifest(module).types, &(&1.module == T.Typed))
     end
 

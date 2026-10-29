@@ -75,13 +75,13 @@ defmodule AshTypescript.Test.InlineManifest do
         end
 
         scalar AshTypescript.Test.ExternalCode, :string do
-          typescript {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+          ts_type {AshTypescript.Test.ExternalCodeTs, :typescript, []}
           zod {AshTypescript.Test.ExternalCodeTs, :zod, []}
           valibot {AshTypescript.Test.ExternalCodeTs, :valibot, []}
         end
 
         map AshTypescript.Test.GeoPoint do
-          type_name "GeoPoint"
+          ts_alias "GeoPoint"
           field :lat, :float, allow_nil?: false
           field :lng, :float, allow_nil?: false
           zod "NestedZodSchemas.geoPoint"
@@ -90,7 +90,7 @@ defmodule AshTypescript.Test.InlineManifest do
 
         # A declared type with a nested declared type and an embedded resource.
         map AshTypescript.Test.LineItem do
-          type_name "LineItem"
+          ts_alias "LineItem"
           field :label, :string, allow_nil?: false
           field :price, AshMoney.Types.Money, allow_nil?: false
           field :meta, AshTypescript.Test.TaskMetadata

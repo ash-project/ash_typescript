@@ -55,19 +55,19 @@ defmodule AshTypescript.Manifest.Dsl do
     describe: """
     Declares a custom type you don't own whose values are a single value of
     a base Ash type. Its TypeScript, zod and valibot are generated from the
-    base type and constraints unless `typescript`, `zod` or `valibot` is
-    given. With `type_name`, its TypeScript is exported as an alias of that
+    base type and constraints unless `ts_type`, `zod` or `valibot` is
+    given. With `ts_alias`, its TypeScript is exported as an alias of that
     name.
     """,
     examples: [
       """
       scalar SomeLib.HexColor, :string do
         constraints match: ~r/^#[0-9a-fA-F]{6}$/
-        typescript "`#${string}`"
+        ts_type "`#${string}`"
       end
       """,
       "scalar SomeLib.Percentage, :integer, constraints: [min: 0, max: 100]",
-      ~s(scalar SomeLib.Email, :string, type_name: "Email")
+      ~s(scalar SomeLib.Email, :string, ts_alias: "Email")
     ],
     args: [:module, :type],
     transform: {AshTypescript.CustomTypes.Scalar, :transform, []},
@@ -83,16 +83,16 @@ defmodule AshTypescript.Manifest.Dsl do
         default: [],
         doc: "Constraints for the base type. Regexes are stored as `Spark.Regex` MFAs."
       ],
-      typescript: [type: @mapping_type, doc: "The TypeScript type. #{@mapping_doc}"],
+      ts_type: [type: @mapping_type, doc: "The TypeScript type. #{@mapping_doc}"],
       zod: [type: @mapping_type, doc: "The zod schema. #{@mapping_doc}"],
       valibot: [type: @mapping_type, doc: "The valibot schema. #{@mapping_doc}"],
-      type_name: [
+      ts_alias: [
         type: @mapping_type,
         doc:
           "The name of the exported TypeScript alias (`export type Email = string;`), " <>
             "referenced at every use. A string, or an MFA `{m, f, a}` called as " <>
             "`apply(m, f, [constraints | a])` with the use's constraints, returning a name, " <>
-            "or `nil` to keep that use inline. An MFA `type_name` needs an MFA `typescript`."
+            "or `nil` to keep that use inline. An MFA `ts_alias` needs an MFA `ts_type`."
       ]
     ]
   }
@@ -105,14 +105,14 @@ defmodule AshTypescript.Manifest.Dsl do
 
       * with fields, declares the fields of a map-like custom type you don't
         own (one with `storage_type :map`, or composite). Its TypeScript is
-        generated from its fields, so a map has no `typescript` option: a
+        generated from its fields, so a map has no `ts_type` option: a
         map-like type that only names a TypeScript type declares its fields
         instead (see "Migrating from `typescript_type_name/0`" in the Custom
         Types guide);
       * without fields, opts a field-bearing `Ash.Type.NewType` (an
         `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
-        `:struct` with `fields`) into an exported alias, named by `type_name`,
-        else the type's `typescript_alias_name/0`, else the joined module
+        `:struct` with `fields`) into an exported alias, named by `ts_alias`,
+        else the type's `typescript_type_alias/0`, else the joined module
         name. Its fields come from the type.
 
     A map for any other module needs at least one field.
@@ -120,14 +120,14 @@ defmodule AshTypescript.Manifest.Dsl do
     examples: [
       """
       map SomeLib.ColorPalette do
-        type_name "Palette"
+        ts_alias "Palette"
         field :primary, SomeLib.HexColor, allow_nil?: false
         field :accent_color, SomeLib.HexColor, client_name: "accentColour"
         zod "MyZod.colorPalette"
       end
       """,
       "map MyApp.Types.Address",
-      ~s(map MyApp.Types.Label, type_name: "Label")
+      ~s(map MyApp.Types.Label, ts_alias: "Label")
     ],
     args: [:module],
     entities: [fields: [@field]],
@@ -141,11 +141,11 @@ defmodule AshTypescript.Manifest.Dsl do
         type: @mapping_type,
         doc: "A valibot schema in place of the generated one. #{@mapping_doc}"
       ],
-      type_name: [
+      ts_alias: [
         type: :string,
         doc:
           "The name of the generated TypeScript alias (default: the type's " <>
-            "`typescript_alias_name/0`, else the module name joined, " <>
+            "`typescript_type_alias/0`, else the module name joined, " <>
             "`SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot " <>
             "schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`."
       ]
@@ -158,7 +158,7 @@ defmodule AshTypescript.Manifest.Dsl do
     Declares custom types (`use Ash.Type` modules) you don't own: a `scalar`
     for a single-value type, a `map` for a map-like one. Each module appears
     once. A declaration replaces the type's own callbacks
-    (`typescript_type_name/0`, `typescript_fields/0`) and its built-in entry,
+    (`typescript_type/0`, `typescript_fields/0`) and its built-in entry,
     if any. Built-in entries cover `AshMoney.Types.Money`,
     `AshDoubleEntry.ULID` and `AshPostgres.Ltree`.
 
@@ -188,8 +188,8 @@ defmodule AshTypescript.Manifest.Dsl do
         default: false,
         doc:
           "Alias every field-bearing NewType and aliasable scalar the manifest reaches, " <>
-            "named by its joined module name unless it has an explicit name (a `type_name`, " <>
-            "`typescript_alias_name/0`, a built-in name). Declared custom types are always aliased."
+            "named by its joined module name unless it has an explicit name (a `ts_alias`, " <>
+            "`typescript_type_alias/0`, a built-in name). Declared custom types are always aliased."
       ]
     ],
     entities: [@scalar, @map]

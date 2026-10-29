@@ -10,12 +10,12 @@ defmodule AshTypescript.CustomTypes.Scalar do
   `type` is the base Ash type (normalized with `Ash.Type.get_type/1`) and
   `constraints` are its constraints, with every `%Regex{}` replaced by
   `{Spark.Regex, :cache, [source, opts]}` so the entry can be persisted.
-  `typescript`, `zod` and `valibot` are a string, or an MFA called as
-  `apply(m, f, [constraints | a])` that returns one.
+  `ts_type` (the TypeScript type), `zod` and `valibot` are a string, or an
+  MFA called as `apply(m, f, [constraints | a])` that returns one.
 
-  `type_name` is the exported TypeScript alias: a string, or an MFA like
-  `typescript` returning a name, or `nil` to stay inline at that use. An MFA
-  `type_name` needs an MFA `typescript`.
+  `ts_alias` is the exported TypeScript alias: a string, or an MFA like
+  `ts_type` returning a name, or `nil` to stay inline at that use. An MFA
+  `ts_alias` needs an MFA `ts_type`.
   """
 
   @type mapping :: String.t() | {module(), atom(), list()} | nil
@@ -24,20 +24,20 @@ defmodule AshTypescript.CustomTypes.Scalar do
           module: module(),
           type: Ash.Type.t(),
           constraints: Keyword.t(),
-          typescript: mapping(),
+          ts_type: mapping(),
           zod: mapping(),
           valibot: mapping(),
-          type_name: mapping(),
+          ts_alias: mapping(),
           __spark_metadata__: term()
         }
 
   defstruct [
     :module,
     :type,
-    :typescript,
+    :ts_type,
     :zod,
     :valibot,
-    :type_name,
+    :ts_alias,
     constraints: [],
     __spark_metadata__: nil
   ]

@@ -183,13 +183,13 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       assert Custom.type_name(todo) == "Todo"
     end
 
-    test "type module type_name is present only when typescript_type_name/0 is exported", %{
+    test "type module type_name is present only when typescript_type/0 is exported", %{
       manifest: spec
     } do
       type_lookup = Ash.Info.Manifest.type_lookup(spec)
 
       # ColorPalette declares fields (a custom-type definition) and no
-      # typescript_type_name/0; Percentage is a NewType that exports one.
+      # typescript_type/0; Percentage is a NewType that exports one.
       color_palette = type_lookup[AshTypescript.Test.Todo.ColorPalette]
       assert AshRpc.Manifest.Custom.custom_type?(color_palette)
       assert Custom.type_name(color_palette) == nil

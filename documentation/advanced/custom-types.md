@@ -12,7 +12,7 @@ type reaches TypeScript depends on its values:
 
 - A **scalar** custom type holds a single value (a string, a number, a list of
   strings). It maps to one TypeScript type, which you name with
-  `typescript_type_name/0` or a `scalar` declaration.
+  `typescript_type/0` or a `scalar` declaration.
 - A **map-like** custom type holds maps or structs: its `storage_type/1` is
   `:map`, or it is composite (`composite?/1` returns `true`). It declares its
   **fields**, and behaves like a typed map: clients select its sub-fields,
@@ -37,7 +37,7 @@ defmodule MyApp.PriorityScore do
   def apply_constraints(value, _), do: {:ok, value}
 
   # AshTypescript integration - specify the TypeScript type
-  def typescript_type_name, do: "CustomTypes.PriorityScore"
+  def typescript_type, do: "CustomTypes.PriorityScore"
 end
 ```
 
@@ -91,15 +91,15 @@ its values are sent and received as they are.
 A type built with `Ash.Type.NewType` (for example
 `use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-f]{6}$/]`)
 needs no mapping at all: it is typed from its subtype and constraints. It can
-still name its own TypeScript type with `typescript_type_name/0`.
+still name its own TypeScript type with `typescript_type/0`.
 
 ### Scalar Types You Don't Own
 
 When the type comes from a dependency, where you can't add
-`typescript_type_name/0`, declare it in the manifest module's `custom_types`
+`typescript_type/0`, declare it in the manifest module's `custom_types`
 section. A `scalar` names the base Ash type its values have. The TypeScript type
 and the validation schemas are generated from that base type and its
-constraints, unless you give `typescript`, `zod` or `valibot` yourself:
+constraints, unless you give `ts_type`, `zod` or `valibot` yourself:
 
 ```elixir
 defmodule MyApp.AshTypescriptManifest do
@@ -111,28 +111,28 @@ defmodule MyApp.AshTypescriptManifest do
 
     # TypeScript from your own customTypes.ts (import_into_generated)
     scalar SomeComplex.Custom.Type, :string do
-      typescript "CustomTypes.MyCustomType"
+      ts_type "CustomTypes.MyCustomType"
     end
   end
 end
 ```
 
-`typescript`, `zod` and `valibot` take a string, or an MFA `{m, f, a}` called as
+`ts_type`, `zod` and `valibot` take a string, or an MFA `{m, f, a}` called as
 `apply(m, f, [constraints | a])` with the constraints where the type is used,
 for mappings that depend on constraints. The section's entities are listed in
 the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
 
 For a scalar, the TypeScript type comes from the first of:
 
-1. the `typescript` of a `scalar` declaration in the manifest's `custom_types`
+1. the `ts_type` of a `scalar` declaration in the manifest's `custom_types`
    section;
-2. the type's `typescript_type_name/0`;
-3. the `typescript` of a built-in `scalar` entry (see
+2. the type's `typescript_type/0`;
+3. the `ts_type` of a built-in `scalar` entry (see
    [Built-In Types](#built-in-types)), unless the manifest declares the type;
 4. the base type.
 
 So a `scalar` declaration with only `zod` and `valibot` keeps the type's
-`typescript_type_name/0` as its TypeScript type.
+`typescript_type/0` as its TypeScript type.
 
 Any other type module without a TypeScript mapping fails compilation with
 "Unsupported types found — AshTypescript cannot map them to TypeScript",
@@ -209,9 +209,9 @@ Every declared type is exported under one name, its alias (see
 schemas are that name followed by the schema suffix (see
 [Named Schemas](#named-schemas)). The alias is the first of:
 
-1. the manifest `map` entry's `type_name`;
-2. the type's `typescript_alias_name/0` (also for a type whose `map` entry has
-   no `type_name`);
+1. the manifest `map` entry's `ts_alias`;
+2. the type's `typescript_type_alias/0` (also for a type whose `map` entry has
+   no `ts_alias`);
 3. a built-in entry's name (`Money`, see [Built-In Types](#built-in-types));
 4. the module name with its segments joined, as for resources
    (`SomeLib.ColorPalette` becomes `SomeLibColorPalette`).
@@ -219,7 +219,7 @@ schemas are that name followed by the schema suffix (see
 ```elixir
 custom_types do
   map SomeLib.ColorPalette do
-    type_name "Palette"   # the alias; schemas PaletteZodSchema, PaletteValibotSchema
+    ts_alias "Palette"   # the alias; schemas PaletteZodSchema, PaletteValibotSchema
     field :primary, :string, allow_nil?: false
   end
 end
@@ -233,15 +233,15 @@ defmodule MyApp.Theme do
   use Ash.Type
   # ...
   def typescript_fields, do: [color: [type: :string, allow_nil?: false]]
-  def typescript_alias_name, do: "Theme"
+  def typescript_type_alias, do: "Theme"
 end
 ```
 
 Both must be a TypeScript identifier that isn't a reserved word (`string`,
 `object`, `default`, `class`, `await`, `eval`, …), or the manifest fails to
 compile; for the callback the error names the module, and a result that isn't
-a string fails the same way. The callback isn't read when the manifest has a
-`map` entry for the type. Every declared type gets an alias: there is no
+a string fails the same way. The callback isn't read when the type's `map`
+entry has a `ts_alias`. Every declared type gets an alias: there is no
 option to keep a type inline.
 
 ### Where Fields Come From
@@ -268,7 +268,7 @@ An `Ash.Type.NewType` over a custom type inherits the subtype's fields (its
 NewType declares its own. The NewType's `typescript_field_names/0` win over
 the subtype's. When it inherits the subtype's `map` entry, it inherits that
 entry's `zod` / `valibot` too. Names aren't inherited: the NewType gets its
-own alias and schemas, from its own `map` entry or `typescript_alias_name/0`,
+own alias and schemas, from its own `map` entry or `typescript_type_alias/0`,
 else its joined module name (`MyAppNewMoney`), never the subtype's.
 
 A field typed by a scalar custom type with a `scalar` entry (yours or a
@@ -358,7 +358,7 @@ if (tasks.success) {
 The RPC file re-exports everything from the types file (`export type *`), so
 the aliases can be imported from either. Import them instead of declaring your
 own. Code that declares its own `Money` next to an import of the generated
-names needs one of them renamed (`type_name "…"`, see
+names needs one of them renamed (`ts_alias "…"`, see
 [Name Collisions](#name-collisions)).
 
 Filter values of every typed map (a custom type or not) are plain objects with
@@ -384,9 +384,9 @@ Its zod and valibot schemas are objects of its fields, named once per type
 
 A map-like custom type, or one with declared fields, can't name its TypeScript
 type: the generated type has to match the fields clients select and the keys
-the server sends. If such a type exports `typescript_type_name/0`, or a `scalar`
+the server sends. If such a type exports `typescript_type/0`, or a `scalar`
 entry covers it, compiling the manifest fails with a migration message. A `map`
-entry has no `typescript` option.
+entry has no `ts_type` option.
 
 #### Migrating from `typescript_type_name/0`
 
@@ -403,7 +403,7 @@ end
 
 After:
 
-1. remove `typescript_type_name/0`;
+1. remove `typescript_type_name/0` (`typescript_type/0` since this release);
 2. declare the fields with `typescript_fields/0` (or a `map` entry for a type
    you don't own);
 3. select sub-fields in the client (`{ colorPalette: ["primary", "secondary"] }`
@@ -421,7 +421,7 @@ own TypeScript mapping as field types:
 ```elixir
 defmodule MyApp.HexColor do
   use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-fA-F]{6}$/]
-  def typescript_type_name, do: "`#${string}`"
+  def typescript_type, do: "`#${string}`"
 end
 
 defmodule MyApp.ColorPalette do
@@ -443,7 +443,7 @@ For a type you don't own, the same precision comes from the manifest:
 custom_types do
   scalar SomeLib.HexColor, :string do
     constraints match: ~r/^#[0-9a-fA-F]{6}$/
-    typescript "`#${string}`"
+    ts_type "`#${string}`"
   end
 
   map SomeLib.ColorPalette do
@@ -512,12 +512,12 @@ attribute that only generic actions reach) the type is listed under
 "Undeclared map-like custom types found". Each one ends with the
 ways to declare the fields: a `map` entry, `typescript_fields/0`, or
 `composite?/1` + `composite_types/1`, and says what to remove when the type
-still exports `typescript_type_name/0`.
+still exports `typescript_type/0`.
 
 ### Compile-Time Rules
 
 The manifest module reads `typescript_fields/0`, `composite_types/1` and
-`typescript_alias_name/0` when it compiles, and recompiles when a type module
+`typescript_type_alias/0` when it compiles, and recompiles when a type module
 it read them from changes. The
 manifest depends on those type modules at compile time, so they must never
 read the manifest at compile time.
@@ -529,7 +529,7 @@ The manifest's verifier reports "Declared custom types with colliding
 TypeScript names found", listing every collision, when an alias equals:
 
 - another declared type's alias (`Billing.Money` and `Shop.Money` both given
-  `type_name "Money"`), or another alias followed by `Input` (`ShadeInput`
+  `ts_alias "Money"`), or another alias followed by `Input` (`ShadeInput`
   next to `Shade`);
 - a name generated for a resource or embedded resource `X`: `XResourceSchema`,
   `XAttributesOnlySchema`, `XInputSchema`, `XFilterInput`, `XFilterField` or
@@ -561,7 +561,7 @@ Codegen checks what the manifest can't see, and fails before writing any file:
   also the schema of the resource `User`.
 
 Each message names the custom type and its fix: rename its alias with
-`type_name "…"` on its `map` entry (or `typescript_alias_name/0` on a type
+`ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on a type
 without one). A schema is named after the alias, so renaming the alias renames
 its schemas.
 
@@ -583,7 +583,7 @@ fields:
 ```elixir
 custom_types do
   map AshMoney.Types.Money do
-    type_name "Price"
+    ts_alias "Price"
     field :currency, :string, allow_nil?: false
     field :amount, :decimal, allow_nil?: false
   end
@@ -592,7 +592,7 @@ end
 
 Built-ins rank below the type's own callbacks: if a library adds
 `typescript_fields/0` to Money, those fields replace the built-in's, and
-`typescript_type_name/0` on ULID or Ltree replaces the built-in TypeScript type
+`typescript_type/0` on ULID or Ltree replaces the built-in TypeScript type
 (the built-in zod/valibot schemas stay, since the callback has no schema
 counterpart). A `custom_types` entry for the module replaces the
 built-in entirely (it isn't merged with it).
@@ -619,7 +619,7 @@ This is the recommended approach whenever you can express your type this way.
 
 ### Hand-Rolled Scalars Derive From Storage
 
-A scalar built with `use Ash.Type` and `typescript_type_name/0` casts through
+A scalar built with `use Ash.Type` and `typescript_type/0` casts through
 arbitrary code, so its shape can't be inspected. AshTypescript derives a schema
 from `storage_type/1`:
 
@@ -699,7 +699,7 @@ end
 ```
 
 The two are independent: an entry with `zod` but no `valibot` keeps its
-generated valibot schema. `typescript_type_name/0` has no schema counterpart,
+generated valibot schema. `typescript_type/0` has no schema counterpart,
 so it doesn't replace a built-in's schemas.
 
 ### Referencing a Schema You Wrote
@@ -749,7 +749,7 @@ into the schema files, where they could create import cycles.
 | Approach | Use When |
 |----------|----------|
 | `Ash.Type.NewType` with constraints | You control the type and it fits the NewType model — covers the type *and* the schema |
-| `typescript_type_name/0` on a scalar | You control a hand-rolled scalar type; the schema is storage-derived |
+| `typescript_type/0` on a scalar | You control a hand-rolled scalar type; the schema is storage-derived |
 | `typescript_fields/0` | You control a map-like type |
 | `scalar` / `map` in `custom_types` | The type is from a dependency you can't modify |
 | `zod` / `valibot` on an entry | You need precision or raw library syntax (brands, `.refine()`) |

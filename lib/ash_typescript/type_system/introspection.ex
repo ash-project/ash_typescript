@@ -6,15 +6,15 @@ defmodule AshTypescript.TypeSystem.Introspection do
   @moduledoc """
   Core type introspection and classification for Ash types.
 
-  Detects custom types (`typescript_type_name/0`), resolves named type
+  Detects custom types (`typescript_type/0`), resolves named type
   definitions from the decorated manifest, and reads `typescript_field_names/0`
   mappings.
   """
 
   @doc """
-  Checks if a type is a custom Ash type with a typescript_type_name callback.
+  Checks if a type is a custom Ash type with a typescript_type callback.
 
-  Custom types are Ash types that define a `typescript_type_name/0` callback
+  Custom types are Ash types that define a `typescript_type/0` callback
   to specify their TypeScript representation.
 
   ## Examples
@@ -27,7 +27,7 @@ defmodule AshTypescript.TypeSystem.Introspection do
   """
   def is_custom_type?(type) when is_atom(type) and not is_nil(type) do
     Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
+      function_exported?(type, :typescript_type, 0) and
       Spark.implements_behaviour?(type, Ash.Type)
   end
 

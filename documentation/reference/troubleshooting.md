@@ -216,7 +216,7 @@ New projects get this automatically from `mix igniter.install ash_typescript`. S
 
 **Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping. The error lists every offending type with its location.
 
-**Solution:** Either implement `typescript_type_name/0` on the type module, or, for a type you don't own, declare it in the manifest module's `custom_types` section:
+**Solution:** Either implement `typescript_type/0` on the type module, or, for a type you don't own, declare it in the manifest module's `custom_types` section:
 
 ```elixir
 custom_types do
@@ -230,13 +230,13 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A custom type whose values are maps or structs (`storage_type :map`, or composite) has no declared fields, so its keys have no client names. An RPC action, typed query, typed controller route or channel publication that reaches it fails with "returns (or accepts) an undeclared custom type, `MyApp.Thing`, at `<path>`". Other uses are listed under "Undeclared map-like custom types found".
 
-**Solution:** Declare its fields: `typescript_fields/0` on a type you own, a `map` entry in the manifest's `custom_types` for one you don't, or `composite?/1` + `composite_types/1`. If the type still exports `typescript_type_name/0` (or has a `scalar` entry), remove it. See [Map-Like Custom Types](../advanced/custom-types.md#map-like-custom-types).
+**Solution:** Declare its fields: `typescript_fields/0` on a type you own, a `map` entry in the manifest's `custom_types` for one you don't, or `composite?/1` + `composite_types/1`. If the type still exports `typescript_type/0` (or has a `scalar` entry), remove it. See [Map-Like Custom Types](../advanced/custom-types.md#map-like-custom-types).
 
 #### Error: "Map-like custom types that declare a TypeScript type"
 
-**Cause:** A map-like custom type, or one with declared fields, exports `typescript_type_name/0` or is covered by a `scalar` entry. Its TypeScript type is generated from its fields, so it can't be declared.
+**Cause:** A map-like custom type, or one with declared fields, exports `typescript_type/0` or is covered by a `scalar` entry. Its TypeScript type is generated from its fields, so it can't be declared.
 
-**Solution:** Remove `typescript_type_name/0` (or turn the `scalar` entry into a `map` one) and declare the fields. For more precise member types, use scalar custom types with their own TypeScript mapping as field types. See [Migrating from `typescript_type_name/0`](../advanced/custom-types.md#migrating-from-typescript_type_name-0).
+**Solution:** Remove `typescript_type/0` (or turn the `scalar` entry into a `map` one) and declare the fields. For more precise member types, use scalar custom types with their own TypeScript mapping as field types. See [Migrating from `typescript_type_name/0`](../advanced/custom-types.md#migrating-from-typescript_type_name-0).
 
 #### Warning: "config :ash_typescript, :type_mapping_overrides is no longer read and is ignored"
 
@@ -252,21 +252,21 @@ See [Custom Types](../advanced/custom-types.md).
 
 #### Error: "Declared custom types with colliding TypeScript names found"
 
-**Cause:** A map-like custom type's generated alias (its `type_name`, its `typescript_alias_name/0`, or its joined module name) equals another declared type's alias, another alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
+**Cause:** A map-like custom type's generated alias (its `ts_alias`, its `typescript_type_alias/0`, or its joined module name) equals another declared type's alias, another alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
 
-**Solution:** Rename one of the types: set `type_name "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_alias_name/0` on a type without one. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
+**Solution:** Rename one of the types: set `ts_alias "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_type_alias/0` on a type without one. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
 
-#### Error: "The type_name … is not a TypeScript identifier" / "The typescript_alias_name/0 result … is a TypeScript reserved word"
+#### Error: "The ts_alias … is not a TypeScript identifier" / "The typescript_type_alias/0 result … is a TypeScript reserved word"
 
-**Cause:** A `map` entry's `type_name`, or a custom type's `typescript_alias_name/0`, isn't a name TypeScript can export: not an identifier (`Geo-Point`), or a reserved word (`string`, `default`, `class`, `await`, …). A `typescript_alias_name/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
+**Cause:** A `map` entry's `ts_alias`, or a custom type's `typescript_type_alias/0`, isn't a name TypeScript can export: not an identifier (`Geo-Point`), or a reserved word (`string`, `default`, `class`, `await`, …). A `typescript_type_alias/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
 
-**Solution:** Return or set a TypeScript identifier that isn't a reserved word. `type_name` takes a string only (`false` is no longer accepted: every declared type gets an alias).
+**Solution:** Return or set a TypeScript identifier that isn't a reserved word. `ts_alias` takes a string only (`false` is no longer accepted: every declared type gets an alias).
 
 #### Codegen error: "Duplicate exported type names", "... imports types from ... that it also declares", "... imports names that it also imports from ... or declares", or an alias / schema that "is an `import_name`"
 
 **Cause:** A custom type's alias equals another export of the types file (a typed channel payload type), a name the RPC, routes or typed channels file declares itself (an action's `XInput`), a name a generated file imports itself (`Channel` from phoenix in the RPC file, `z` / `v` in the schema files, an `import * as` module), or an `import_name` of `import_into_generated` / `typed_controller_import_into_generated`; or its named schema (the alias plus the schema suffix) equals such an imported name or an `import_name` of `zod_import_into_generated` / `valibot_import_into_generated`. Codegen stops before writing any file. The import check covers every generated name, so a typed channel module named `Channel` fails it too when channel RPC actions are generated.
 
-**Solution:** The message names the custom type: rename its alias (and with it its schemas) with `type_name "…"` on its `map` entry, or `typescript_alias_name/0` on a type without one, or change the `import_name`.
+**Solution:** The message names the custom type: rename its alias (and with it its schemas) with `ts_alias "…"` on its `map` entry, or `typescript_type_alias/0` on a type without one, or change the `import_name`.
 
 #### Errors about resources/modules that only exist in another environment
 
@@ -286,13 +286,13 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A custom type's named schema (its alias plus the schema suffix, `MoneyZodSchema`) equals another schema in the file: a resource's (an alias `User` next to the resource `User`), an action's or a route's.
 
-**Solution:** Rename the custom type's alias, which names its schemas: `type_name "…"` on its `map` entry, or `typescript_alias_name/0` on a type without one.
+**Solution:** Rename the custom type's alias, which names its schemas: `ts_alias "…"` on its `map` entry, or `typescript_type_alias/0` on a type without one.
 
 #### A custom type generates `z.any()` / `v.any()`
 
 **Cause:** A hand-rolled `use Ash.Type` module whose `storage_type/1` has no unambiguous JSON wire form. AshTypescript stays permissive rather than guessing, since a wrong schema rejects valid data.
 
-**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or declare it as a `scalar` in the manifest module's `custom_types` section, with a base type or the schema itself. A `scalar` without `typescript` doesn't replace the type's `typescript_type_name/0`, so its TypeScript type stays as it was:
+**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or declare it as a `scalar` in the manifest module's `custom_types` section, with a base type or the schema itself. A `scalar` without `ts_type` doesn't replace the type's `typescript_type/0`, so its TypeScript type stays as it was:
 
 ```elixir
 custom_types do

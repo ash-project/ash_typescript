@@ -65,7 +65,7 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
           custom_types do
             scalar SomeLib.HexColor, :string do
               constraints match: ~r/^#[0-9a-f]{6}$/
-              typescript "`#${string}`"
+              ts_type "`#${string}`"
             end
 
             scalar SomeLib.Percent, :integer, constraints: [min: 0, max: 100]
@@ -89,35 +89,35 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
       assert Code.ensure_loaded?(palette_manifest())
     end
 
-    test "typescript on a map is rejected as an option" do
+    test "ts_type on a map is rejected as an option" do
       message =
         compile_error!(
-          MapWithTypescriptOption,
+          MapWithTsTypeOption,
           quote do
             custom_types do
-              map SomeLib.Bad, typescript: "Bad"
+              map SomeLib.Bad, ts_type: "Bad"
             end
           end
         )
 
-      assert message =~ "unknown options [:typescript]"
+      assert message =~ "unknown options [:ts_type]"
     end
 
-    test "typescript inside a map's block is rejected" do
+    test "ts_type inside a map's block is rejected" do
       stderr =
         undefined_function_error!(
-          MapWithTypescript,
+          MapWithTsType,
           quote do
             custom_types do
               map SomeLib.Bad do
                 field :a, :string
-                typescript "Bad"
+                ts_type "Bad"
               end
             end
           end
         )
 
-      assert stderr =~ "undefined function typescript/1"
+      assert stderr =~ "undefined function ts_type/1"
     end
 
     test "a field inside a scalar is rejected" do
@@ -309,7 +309,7 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
                module: SomeLib.HexColor,
                type: Ash.Type.String,
                constraints: [match: {Spark.Regex, :cache, ["^#[0-9a-f]{6}$", regex_opts]}],
-               typescript: "`#${string}`"
+               ts_type: "`#${string}`"
              } = declared[SomeLib.HexColor]
 
       assert regex_opts in [[], ""]

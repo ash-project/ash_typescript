@@ -58,7 +58,7 @@ defmodule AshTypescript.Manifest.UntypedStructTest do
     # Map storage, no declared fields, and a TypeScript type name.
     use Ash.Type
 
-    def typescript_type_name, do: "NamedBlob"
+    def typescript_type, do: "NamedBlob"
 
     @impl true
     def storage_type(_), do: :map
@@ -518,7 +518,7 @@ defmodule AshTypescript.Manifest.UntypedStructTest do
                ~s[Entrypoint "blob_list" (#{inspect(T.BlobQuery)}, action :search) returns ] <>
                  undeclared(T.NamedBlob, "#{inspect(T.BlobQuery)} records → blob") <>
                  @hint <>
-                 " Remove `typescript_type_name/0`: a map-like type's TypeScript is " <>
+                 " Remove `typescript_type/0`: a map-like type's TypeScript is " <>
                  "generated from its fields."
     end
 
@@ -545,7 +545,7 @@ defmodule AshTypescript.Manifest.UntypedStructTest do
                "#{inspect(T.BlobSession)} route :blob returns " <>
                  undeclared(T.NamedBlob, "returns") <>
                  @hint <>
-                 " Remove `typescript_type_name/0`: a map-like type's TypeScript is " <>
+                 " Remove `typescript_type/0`: a map-like type's TypeScript is " <>
                  "generated from its fields."
     end
 

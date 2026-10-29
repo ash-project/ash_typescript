@@ -102,7 +102,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     @moduledoc false
     use MapStorage
 
-    def typescript_type_name, do: "Custom.TypeNamed"
+    def typescript_type, do: "Custom.TypeNamed"
   end
 
   defmodule NewOverCallbacks do
@@ -134,7 +134,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     @moduledoc false
     use Ash.Type.NewType, subtype_of: AshMoney.Types.Money
 
-    def typescript_alias_name, do: "NamedMoney"
+    def typescript_type_alias, do: "NamedMoney"
   end
 
   defmodule NewOverComposite do
@@ -526,10 +526,10 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
       assert CustomTypes.hint(T.Scalarish, %{}, builtin()) == @base
     end
 
-    test "says to remove typescript_type_name/0 when the type exports it" do
+    test "says to remove typescript_type/0 when the type exports it" do
       assert CustomTypes.hint(T.TypeNamed, %{}, builtin()) ==
                @base <>
-                 " Remove `typescript_type_name/0`: a map-like type's TypeScript is " <>
+                 " Remove `typescript_type/0`: a map-like type's TypeScript is " <>
                  "generated from its fields."
     end
 
@@ -550,7 +550,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
 
       assert CustomTypes.hint(T.TypeNamed, declared, builtin()) ==
                @base <>
-                 " Remove `typescript_type_name/0` and the `scalar` declaration: a map-like " <>
+                 " Remove `typescript_type/0` and the `scalar` declaration: a map-like " <>
                  "type's TypeScript is generated from its fields."
     end
   end

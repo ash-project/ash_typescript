@@ -9,7 +9,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
   The manifest generator classifies custom `use Ash.Type` modules it cannot
   categorize as `kind: :unknown` (module preserved). Codegen can only map such
-  a module when it implements `typescript_type_name/0`, has a `scalar` entry
+  a module when it implements `typescript_type/0`, has a `scalar` entry
   in the manifest module's `custom_types` section, or has a built-in one (see
   `AshTypescript.Codegen.TypeMapper.unknown_module_mapping/2`). Anything else
   fails codegen; this verifier surfaces all offenders at compile time in one
@@ -28,7 +28,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
       attribute of a resource whose only RPC action is generic);
     * declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`
       definitions) and map-like `:unknown` uses whose module exports
-      `typescript_type_name/0` or is covered by a `scalar` entry (the
+      `typescript_type/0` or is covered by a `scalar` entry (the
       manifest's or a built-in), with the migration message.
 
   Walks the top level of each definition site: resource fields (and
@@ -176,10 +176,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp walk(_type, _context), do: []
 
   # A TypeScript type declared for a type whose TypeScript comes from its
-  # fields: `typescript_type_name/0`, or a `scalar` entry (the manifest's, else
+  # fields: `typescript_type/0`, or a `scalar` entry (the manifest's, else
   # a built-in).
   defp declares_typescript?(mod) do
-    (Code.ensure_loaded?(mod) and function_exported?(mod, :typescript_type_name, 0)) or
+    (Code.ensure_loaded?(mod) and function_exported?(mod, :typescript_type, 0)) or
       match?(%Scalar{}, Custom.custom_type_entry(nil, mod))
   end
 
@@ -215,7 +215,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
     #{listing(offenders, fn _mod -> nil end)}
 
     To fix this, either:
-      - implement the `typescript_type_name/0` callback on the type module, or
+      - implement the `typescript_type/0` callback on the type module, or
       - declare it in the manifest module's `custom_types` section (`scalar TheModule, :string`)\
     """
   end
@@ -246,11 +246,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp declares_typescript_message(mod) do
     "`#{inspect(mod)}` is map-like (`storage_type :map` / composite) or declares fields, " <>
       "so its TypeScript type is generated from its fields and can't be declared. " <>
-      "Remove `typescript_type_name/0`, or turn the `scalar` declaration into a `map` one. " <>
+      "Remove `typescript_type/0`, or turn the `scalar` declaration into a `map` one. " <>
       "Declare its fields (a `map` entry in the manifest's `custom_types`, " <>
       "`typescript_fields/0`, or `composite?/1` + `composite_types/1`). " <>
       "For more precise member types, use scalar custom types with their own TS mapping " <>
-      "as field types (for example a NewType over `:string` with `typescript_type_name/0`)."
+      "as field types (for example a NewType over `:string` with `typescript_type/0`)."
   end
 
   # One bullet per module with its sorted locations, then the module's note

@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ExternalCode do
   @moduledoc """
   A string custom type with no TypeScript callbacks, standing in for a type
   from a dependency. The test manifest declares it with a `scalar` entry whose
-  `typescript`, `zod` and `valibot` are MFAs (`AshTypescript.Test.ExternalCodeTs`).
+  `ts_type`, `zod` and `valibot` are MFAs (`AshTypescript.Test.ExternalCodeTs`).
   """
   use Ash.Type
 
@@ -31,7 +31,7 @@ end
 
 defmodule AshTypescript.Test.ExternalCodeTs do
   @moduledoc """
-  The `typescript`, `zod` and `valibot` MFAs of the test manifest's
+  The `ts_type`, `zod` and `valibot` MFAs of the test manifest's
   `AshTypescript.Test.ExternalCode` scalar entry. Each receives the use's
   constraints.
   """

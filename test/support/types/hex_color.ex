@@ -11,5 +11,5 @@ defmodule AshTypescript.Test.HexColor do
   """
   use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-fA-F]{6}$/]
 
-  def typescript_type_name, do: "`#${string}`"
+  def typescript_type, do: "`#${string}`"
 end

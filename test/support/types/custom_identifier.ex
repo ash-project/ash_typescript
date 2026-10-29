@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Test.CustomIdentifier do
   @moduledoc """
-  A custom Ash type that doesn't implement typescript_type_name callback.
+  A custom Ash type that doesn't implement typescript_type callback.
 
   This simulates a type from a third-party dependency where users cannot
   add the callback themselves. The type should be mapped via config.

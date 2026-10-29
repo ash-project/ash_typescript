@@ -40,14 +40,14 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     use MapStorage
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
-    def typescript_alias_name, do: "DeclaredAlias"
+    def typescript_type_alias, do: "DeclaredAlias"
   end
 
   defmodule Aliased do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_alias_name, do: "AliasedStruct"
+    def typescript_type_alias, do: "AliasedStruct"
 
     typed_struct do
       field :a, :string
@@ -67,7 +67,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_alias_name, do: "bad-name"
+    def typescript_type_alias, do: "bad-name"
 
     typed_struct do
       field :a, :string
@@ -78,7 +78,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_alias_name, do: :atom
+    def typescript_type_alias, do: :atom
 
     typed_struct do
       field :a, :string
@@ -173,8 +173,8 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_alias_name, do: "BothCallbacks"
-    def typescript_type_name, do: "BothCallbacksTs"
+    def typescript_type_alias, do: "BothCallbacks"
+    def typescript_type, do: "BothCallbacksTs"
 
     typed_struct do
       field :a, :string
@@ -185,7 +185,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     @moduledoc false
     use Ash.TypedStruct
 
-    def typescript_type_name, do: "TypedNamedTs"
+    def typescript_type, do: "TypedNamedTs"
 
     typed_struct do
       field :a, :string
@@ -351,7 +351,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       quote do
         custom_types do
           map AshTypescript.Manifest.TypeAliasNamesTest.Plain
-          map AshTypescript.Manifest.TypeAliasNamesTest.MapNew, type_name: "MapNew"
+          map AshTypescript.Manifest.TypeAliasNamesTest.MapNew, ts_alias: "MapNew"
           map AshTypescript.Manifest.TypeAliasNamesTest.WithNames
         end
       end
@@ -364,13 +364,13 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
   defp custom_types(declared, alias_all? \\ false),
     do: %{declared: declared, builtin: Builtin.by_module(), alias_all_types?: alias_all?}
 
-  defp field_less(module, type_name \\ nil),
-    do: %{module => %MapType{module: module, fields: [], type_name: type_name}}
+  defp field_less(module, ts_alias \\ nil),
+    do: %{module => %MapType{module: module, fields: [], ts_alias: ts_alias}}
 
   defp joined(module), do: AshTypescript.Codegen.Helpers.module_type_name(module)
 
   describe "CustomTypes.alias_name/3" do
-    test "declared type: an entry without type_name now takes the callback" do
+    test "declared type: an entry without ts_alias now takes the callback" do
       entry = @declared_entry
 
       assert CustomTypes.alias_name(T.Declared, custom_types(%{T.Declared => entry}), true) ==
@@ -378,7 +378,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
       assert CustomTypes.alias_name(
                T.Declared,
-               custom_types(%{T.Declared => %{entry | type_name: "E"}}),
+               custom_types(%{T.Declared => %{entry | ts_alias: "E"}}),
                true
              ) == {:ok, "E"}
 
@@ -429,12 +429,12 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       for aliased_by_default? <- [true, false] do
         assert CustomTypes.alias_name(T.BadName, custom_types(%{}), aliased_by_default?) ==
                  {:error,
-                  ~s[The typescript_alias_name/0 result "bad-name" of #{inspect(T.BadName)} ] <>
+                  ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadName)} ] <>
                     "is not a TypeScript identifier."}
 
         assert CustomTypes.alias_name(T.AtomName, custom_types(%{}), aliased_by_default?) ==
                  {:error,
-                  "The typescript_alias_name/0 of #{inspect(T.AtomName)} must return a " <>
+                  "The typescript_type_alias/0 of #{inspect(T.AtomName)} must return a " <>
                     "string, got: :atom."}
       end
     end
@@ -501,17 +501,17 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
   end
 
   describe "map-like compile checks" do
-    @type_name_message "exports `typescript_type_name/0`: remove it; the alias is generated " <>
+    @type_name_message "exports `typescript_type/0`: remove it; the alias is generated " <>
                          "from the fields."
 
-    test "typescript_alias_name/0 with typescript_type_name/0 on a field-bearing NewType" do
+    test "typescript_type_alias/0 with typescript_type/0 on a field-bearing NewType" do
       message = compile_error!(BothCallbacksManifest, nil, [T.BothHolderDomain])
 
       assert message =~ "#{inspect(T.BothCallbacks)} #{@type_name_message}"
       assert message =~ "custom_types"
     end
 
-    test "under alias_all_types?, a field-bearing NewType exporting typescript_type_name/0" do
+    test "under alias_all_types?, a field-bearing NewType exporting typescript_type/0" do
       message =
         compile_error!(
           AliasAllTypedNamedManifest,
@@ -526,7 +526,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert message =~ "#{inspect(T.TypedNamed)} #{@type_name_message}"
     end
 
-    test "without any opt-in, typescript_type_name/0 on a field-bearing NewType is unchanged" do
+    test "without any opt-in, typescript_type/0 on a field-bearing NewType is unchanged" do
       manifest =
         TypedNamedManifest
         |> compile_manifest!(nil, [T.TypedNamedHolderDomain])
@@ -536,11 +536,11 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
                %{type_name: "TypedNamedTs"}
     end
 
-    test "an invalid typescript_alias_name/0 on a NewType fails compilation" do
+    test "an invalid typescript_type_alias/0 on a NewType fails compilation" do
       message = compile_error!(BadNameManifest, nil, [T.BadHolderDomain])
 
       assert message =~
-               ~s[The typescript_alias_name/0 result "bad-name" of #{inspect(T.BadName)} ] <>
+               ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadName)} ] <>
                  "is not a TypeScript identifier."
     end
   end
@@ -565,9 +565,9 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert new_types -- dependencies(manifest) == []
     end
 
-    test "typescript_alias_name/0 is a dependency unless the entry's type_name names the type" do
-      entry = fn type_name ->
-        name = if type_name, do: [quote(do: type_name(unquote(type_name)))], else: []
+    test "typescript_type_alias/0 is a dependency unless the entry's ts_alias names the type" do
+      entry = fn ts_alias ->
+        name = if ts_alias, do: [quote(do: ts_alias(unquote(ts_alias)))], else: []
 
         quote do
           custom_types do

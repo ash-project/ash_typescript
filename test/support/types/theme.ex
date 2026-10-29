@@ -6,10 +6,10 @@ defmodule AshTypescript.Test.Theme do
   @moduledoc """
   A map-storage custom type declaring its fields with `typescript_fields/0`.
   Its members are scalar types with their own TypeScript mapping: a NewType
-  with `typescript_type_name/0` (`HexColor`), a `use Ash.Type` with
-  `typescript_type_name/0` (`PriorityScore`) and an external type declared in
+  with `typescript_type/0` (`HexColor`), a `use Ash.Type` with
+  `typescript_type/0` (`PriorityScore`) and an external type declared in
   the test manifest (`ExternalCode`). It names its alias with
-  `typescript_alias_name/0`.
+  `typescript_type_alias/0`.
   """
   use Ash.Type
 
@@ -42,8 +42,8 @@ defmodule AshTypescript.Test.Theme do
     ]
   end
 
-  @doc "The TypeScript alias name (ash_typescript's `typescript_alias_name/0` callback)."
-  def typescript_alias_name, do: "Theme"
+  @doc "The TypeScript alias name (ash_typescript's `typescript_type_alias/0` callback)."
+  def typescript_type_alias, do: "Theme"
 end
 
 defmodule AshTypescript.Test.ThemeMap do

@@ -32,7 +32,7 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
     @moduledoc false
     use Ash.Type
 
-    def typescript_type_name, do: "string"
+    def typescript_type, do: "string"
 
     @impl true
     def storage_type(_), do: :string
@@ -97,7 +97,7 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
       assert message =~ "Unsupported types found"
       assert message =~ "VerifyMappableTypesTest.BareCustomType"
       assert message =~ "field :identifier"
-      assert message =~ "typescript_type_name/0"
+      assert message =~ "typescript_type/0"
       assert message =~ "custom_types"
       refute message =~ "type_mapping_overrides"
     end
@@ -300,7 +300,7 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
   end
 
   describe "mappable custom types" do
-    test "custom type with typescript_type_name/0 passes" do
+    test "custom type with typescript_type/0 passes" do
       defmodule ResourceWithNamedType do
         use Ash.Resource,
           domain: nil,

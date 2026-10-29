@@ -31,7 +31,7 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
              module: AshDoubleEntry.ULID,
              type: Ash.Type.String,
              constraints: [],
-             typescript: nil,
+             ts_type: nil,
              zod: nil,
              valibot: nil
            } = entry(AshDoubleEntry.ULID)
@@ -41,7 +41,7 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
     assert %Scalar{
              module: AshPostgres.Ltree,
              type: {:array, Ash.Type.String},
-             typescript: {Builtin, :ltree_typescript, []},
+             ts_type: {Builtin, :ltree_typescript, []},
              zod: {Builtin, :ltree_zod, []},
              valibot: {Builtin, :ltree_valibot, []}
            } = entry(AshPostgres.Ltree)

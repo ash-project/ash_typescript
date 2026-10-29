@@ -31,7 +31,7 @@ defmodule AshTypescript.Manifest.Custom do
   @typedoc """
   The decoration map persisted under `custom.ash_typescript` on a
   `%Manifest.Type{}`: the `type_name` of NewTypes/TypedStructs that export
-  `typescript_field_names/0` or `typescript_type_name/0`, and the
+  `typescript_field_names/0` or `typescript_type/0`, and the
   `type_alias_names` of an aliased map-like type.
   """
   @type type_custom :: %{

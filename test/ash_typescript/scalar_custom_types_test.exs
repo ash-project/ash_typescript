@@ -41,8 +41,8 @@ defmodule AshTypescript.ScalarCustomTypesTest do
                "Array<string>"
     end
 
-    test "an entry takes precedence over the typescript_type_name/0 callback" do
-      entry = %Scalar{module: PriorityScore, type: Ash.Type.String, typescript: "Score"}
+    test "an entry takes precedence over the typescript_type/0 callback" do
+      entry = %Scalar{module: PriorityScore, type: Ash.Type.String, ts_type: "Score"}
 
       with_declared(&Map.put(&1, PriorityScore, entry), fn ->
         assert Codegen.get_ts_type(%{type: PriorityScore, constraints: []}) == "Score"
@@ -77,7 +77,7 @@ defmodule AshTypescript.ScalarCustomTypesTest do
 
   describe "multiple scalar entries" do
     test "each entry maps its own module" do
-      another = %Scalar{module: PriorityScore, type: Ash.Type.Integer, typescript: "Score"}
+      another = %Scalar{module: PriorityScore, type: Ash.Type.Integer, ts_type: "Score"}
 
       with_declared(&Map.put(&1, PriorityScore, another), fn ->
         assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) == "string"

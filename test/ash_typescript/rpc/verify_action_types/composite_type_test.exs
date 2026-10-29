@@ -577,7 +577,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       defmodule CustomTypeWithTypedStructFields do
         use Ash.Type
 
-        def typescript_type_name, do: "TypedStructFieldsCustom"
+        def typescript_type, do: "TypedStructFieldsCustom"
 
         def typed_struct_fields, do: [x_1: [type: :float]]
 
@@ -643,7 +643,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       assert message =~
                "Declare its fields with a `map` entry in your manifest module's " <>
                  "`custom_types` section, a `typescript_fields/0` callback on the type, or " <>
-                 "`composite?/1` + `composite_types/1`. Remove `typescript_type_name/0`: " <>
+                 "`composite?/1` + `composite_types/1`. Remove `typescript_type/0`: " <>
                  "a map-like type's TypeScript is generated from its fields."
     end
   end

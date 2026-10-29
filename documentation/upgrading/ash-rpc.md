@@ -366,6 +366,26 @@ is removed.
 
 ## Custom types are declared on the manifest
 
+### `typescript_type_name/0` is now `typescript_type/0`
+
+The callback that gives a scalar custom type its TypeScript type is renamed:
+
+```elixir
+# Before
+def typescript_type_name, do: "`#${string}`"
+
+# After
+def typescript_type, do: "`#${string}`"
+```
+
+Compiling the manifest fails while a type module it reaches still exports
+`typescript_type_name/0`, with "MyApp.HexColor exports `typescript_type_name/0`,
+which is now `typescript_type/0`: rename it." A map-like type that still has
+it and declares no fields reports the undeclared custom type error first (see
+[Map-like custom types declare fields](#map-like-custom-types-declare-fields)).
+The callback that names a declared custom type's alias, new in this release,
+is `typescript_type_alias/0`.
+
 ### Config keys move to `custom_types`
 
 `type_mapping_overrides`, `zod_mapping_overrides` and
@@ -394,7 +414,7 @@ defmodule MyApp.AshTypescriptManifest do
     end
 
     scalar SomeLib.Color, :string do
-      typescript "CustomTypes.Color"
+      ts_type "CustomTypes.Color"
     end
   end
 end
@@ -402,9 +422,9 @@ end
 
 A string override whose TypeScript type follows from a base type
 (`{Mod, "string"}`) becomes `scalar Mod, :string`. Anything else keeps
-`typescript "…"`. A type with `typescript_type_name/0` that only had zod or
-valibot overrides gets a `scalar` with just `zod` and `valibot`: without
-`typescript`, the entry doesn't replace `typescript_type_name/0`. `zod_import_into_generated` and
+`ts_type "…"`. A type with `typescript_type/0` (`typescript_type_name/0` in
+v0.19) that only had zod or valibot overrides gets a `scalar` with just `zod`
+and `valibot`: without `ts_type`, the entry doesn't replace `typescript_type/0`. `zod_import_into_generated` and
 `valibot_import_into_generated` stay in config. A scoped manifest
 (`domains: [...]`) declares its own `custom_types`.
 
@@ -424,7 +444,7 @@ Now:
 - its keys are the fields' client names. Undeclared keys never reach the
   client, and in requests they are `unknown_input`;
 - its TypeScript type, input type and zod/valibot schemas are generated from
-  the fields. It can't declare a TypeScript type: `typescript_type_name/0` on
+  the fields. It can't declare a TypeScript type: `typescript_type/0` on
   it, or a `scalar` entry for it, fails compilation with a migration message.
 
 For a v0.19 map-storage type with `typescript_type_name/0`:
@@ -491,7 +511,7 @@ types with their own TypeScript mapping as field types:
 ```elixir
 defmodule MyApp.HexColor do
   use Ash.Type.NewType, subtype_of: :string, constraints: [match: ~r/^#[0-9a-fA-F]{6}$/]
-  def typescript_type_name, do: "`#${string}`"
+  def typescript_type, do: "`#${string}`"
 end
 
 defmodule MyApp.ColorPalette do
@@ -505,7 +525,7 @@ defmodule MyApp.ColorPalette do
     ]
   end
 
-  def typescript_alias_name, do: "ColorPalette"
+  def typescript_type_alias, do: "ColorPalette"
 end
 ```
 
@@ -515,11 +535,11 @@ For a type you don't own, the same comes from the manifest:
 custom_types do
   scalar SomeLib.HexColor, :string do
     constraints match: ~r/^#[0-9a-fA-F]{6}$/
-    typescript "`#${string}`"
+    ts_type "`#${string}`"
   end
 
   map SomeLib.ColorPalette do
-    type_name "ColorPalette"
+    ts_alias "ColorPalette"
     field :primary, SomeLib.HexColor, allow_nil?: false
     field :secondary, SomeLib.HexColor, allow_nil?: false
     field :accent, SomeLib.HexColor
@@ -556,8 +576,8 @@ These are built-in declarations now:
 
 Every map-like custom type with declared fields is exported from the types
 file as an alias, plus `<Name>Input` when its input shape differs (nullable
-fields optional). The alias is the `map` entry's `type_name`, else the type's
-`typescript_alias_name/0`, else the module name joined (`MyApp.ColorPalette`
+fields optional). The alias is the `map` entry's `ts_alias`, else the type's
+`typescript_type_alias/0`, else the module name joined (`MyApp.ColorPalette`
 becomes `MyAppColorPalette`); the built-in Money keeps `Money`. Inputs,
 typed controller route results, typed channel payloads, filter values,
 identity and `getBy` values and action metadata reference it; result types
@@ -570,7 +590,7 @@ referenced at each use. See
 - Hand-written aliases for these types can be replaced by imports of the
   generated ones. A `Money` (or other alias) of your own that your code
   imports next to the generated names needs one of them renamed: set
-  `type_name "…"` on a `map` entry, or `typescript_alias_name/0` on a type
+  `ts_alias "…"` on a `map` entry, or `typescript_type_alias/0` on a type
   without one.
 - An alias that collides with a generated name is a warning when the manifest
   compiles (an error under `--warnings-as-errors`) and fails codegen, naming

@@ -98,7 +98,7 @@ route-only types get their aliases too).
 ### Complex Types
 - Embedded resources → Full resource schema with field selection
 - Unions → Union type with selective member fetching
-- Scalar custom types → Type name from `typescript_type_name/0` callback
+- Scalar custom types → Type name from `typescript_type/0` callback
 - Declared (map-like) custom types → their alias (`Money`) at plain positions,
   the inline `TypedMap` form at schema positions (see
   [Declared Custom Type Aliases](#declared-custom-type-aliases))
@@ -112,7 +112,7 @@ generated alias every declared type gets; ULID and Ltree get no alias:
 | Module | Entry | TypeScript |
 |--------|-------|------------|
 | `AshMoney.Types.Money` | `map` (`currency`, `amount`) | `export type Money = {currency: string, amount: Decimal};`, referenced at plain positions; a `TypedMap` at schema positions |
-| `AshPostgres.Ltree` | `scalar` with MFA `typescript` | `string[]` when `escape?: true`, else `string \| string[]` |
+| `AshPostgres.Ltree` | `scalar` with MFA `ts_type` | `string[]` when `escape?: true`, else `string \| string[]` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
 
 A manifest entry for the same module replaces the built-in. The Zod/Valibot
@@ -191,7 +191,7 @@ Custom-type detection is consolidated in **one** public function,
 ```elixir
 def is_custom_type?(type) when is_atom(type) and not is_nil(type) do
   Code.ensure_loaded?(type) and
-    function_exported?(type, :typescript_type_name, 0) and
+    function_exported?(type, :typescript_type, 0) and
     Spark.implements_behaviour?(type, Ash.Type)
 end
 
@@ -202,10 +202,10 @@ Callers: `codegen/type_aliases.ex`, `codegen/type_mapper.ex`, `codegen/schema_co
 
 ### Type Name Resolution
 
-Custom types provide their TypeScript type name via `typescript_type_name/0` callback:
+Custom types provide their TypeScript type name via `typescript_type/0` callback:
 
 ```elixir
-def typescript_type_name, do: "CustomTypes.MyType"
+def typescript_type, do: "CustomTypes.MyType"
 ```
 
 ### Declared Fields (map-like custom types)
@@ -224,7 +224,7 @@ malformed `typescript_fields/0` result is passed on for ash_rpc to reject
 Clients select their fields (`{colorPalette: ["primary", ...]}`); a bare selection is
 `requires_field_selection`. A field typed by a module with a `scalar` entry gets the
 entry's constraints merged under its own (under `items:` for an array), whichever
-source supplies the fields. A `typescript_type_name/0` or `scalar` entry on such a
+source supplies the fields. A `typescript_type/0` or `scalar` entry on such a
 type (Money included) is a compile error ("Map-like custom types that declare a
 TypeScript type") with a migration message.
 
@@ -243,8 +243,8 @@ at manifest compile: `AshTypescript.CustomTypes.names/2`, written by
 `AshTypescript.Manifest.Custom.type_alias_names/1`
 (`%{typescript: name, zod: :derive | nil, valibot: :derive | nil}`). The
 TypeScript name (`CustomTypes.alias_name/3`) is the manifest `map` entry's
-`type_name`, else the type's `typescript_alias_name/0` (also under an entry
-without `type_name`), else a built-in entry's `type_name` (Money:
+`ts_alias`, else the type's `typescript_type_alias/0` (also under an entry
+without `ts_alias`), else a built-in entry's `ts_alias` (Money:
 `"Money"`), else `Codegen.Helpers.module_type_name/1` (the join resources use
 too, `SomeLib.Coordinates` → `SomeLibCoordinates`). It is never inherited from
 a NewType's subtype. A schema name is `nil` when the effective entry
@@ -252,7 +252,7 @@ a NewType's subtype. A schema name is `nil` when the effective entry
 `zod`/`valibot` replacement, else `:derive`: the alias plus the configured
 suffix at codegen (`SchemaCore.custom_type_schema_name/2`); there is no
 per-type schema name or inline opt-out. `CustomTypes.check_name/2` (used by
-`NormalizeCustomTypes` for `type_name`, and by `DecorateManifest` through
+`NormalizeCustomTypes` for `ts_alias`, and by `DecorateManifest` through
 `CustomTypes.check_alias_names/2` for the callback, which also rejects a
 non-string) rejects non-identifiers (anchored with `\A`/`\z`) and
 TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`); both
@@ -262,12 +262,22 @@ names it, and every NewType definition, is a compile dependency of the manifest
 `with_manifest/2` doesn't change them.
 
 A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
-(a field-less `map` entry, `typescript_alias_name/0`, or `alias_all_types?`)
+(a field-less `map` entry, `typescript_type_alias/0`, or `alias_all_types?`)
 gets `type_alias_names` too, by the same precedence, beside its `type_name`
 when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
-when it exports `typescript_type_name/0`. Codegen reads map-like aliases only
+when it exports `typescript_type/0`. Codegen reads map-like aliases only
 through `CustomTypeAliases.plain_name/1`, which still names declared
 definitions only, so NewType names don't change output yet.
+
+A type module the manifest reaches (a `manifest.types` definition, or an
+`:unknown` node of `AshTypescript.Manifest.TypeUses.nodes/1`, which walks
+`VerifyMappableTypes`' positions plus route inputs/returns and publication
+returns) that still exports `typescript_type_name/0` or
+`typescript_alias_name/0`, the names before the ash-rpc release, is a
+`DslError` naming `typescript_type/0` / `typescript_type_alias/0`
+(`CustomTypes.check_renamed_callbacks/1`, from `DecorateManifest` before
+`check_alias_names/2`). A map-like `:unknown` type with the old callback and no
+fields fails ash_rpc's undeclared-type check first.
 
 `AshTypescript.Codegen.CustomTypeAliases` renders the block appended to the
 type aliases (`// Declared custom types`, sorted by name): the plain alias
@@ -316,8 +326,8 @@ imports from the types file or declares (a schema `z` needs an empty
 `zod_schema_suffix`), an alias equal to an `import_into_generated` /
 `typed_controller_import_into_generated` `import_name`, and a schema name equal
 to a `*_import_into_generated` one. Every fix hint is
-`CustomTypes.rename_hint/0` (rename the alias: `type_name` or
-`typescript_alias_name/0`).
+`CustomTypes.rename_hint/0` (rename the alias: `ts_alias` or
+`typescript_type_alias/0`).
 
 ### Import Configuration
 
@@ -342,20 +352,20 @@ it warns at manifest compile):
 ```elixir
 custom_types do
   scalar AshUUID.UUID, :string                       # maps as its base type
-  scalar MyDep.Code, :string, typescript: "`code-${string}`"
-  scalar MyDep.Path, :string, typescript: {MyDep.Ts, :path, []}  # apply(m, f, [constraints | a])
+  scalar MyDep.Code, :string, ts_type: "`code-${string}`"
+  scalar MyDep.Path, :string, ts_type: {MyDep.Ts, :path, []}  # apply(m, f, [constraints | a])
 end
 ```
 
 `TypeMapper.unknown_module_mapping/2` takes the first that applies: the manifest
-`scalar` entry's `typescript`, `typescript_type_name/0`, the built-in `scalar`
-entry's `typescript` (only when the manifest has no `scalar` entry for the
+`scalar` entry's `ts_type`, `typescript_type/0`, the built-in `scalar`
+entry's `ts_type` (only when the manifest has no `scalar` entry for the
 module), then the base type of the manifest entry, else the built-in's. So a
-manifest `scalar` with only `zod`/`valibot` keeps `typescript_type_name/0`. The
+manifest `scalar` with only `zod`/`valibot` keeps `typescript_type/0`. The
 base type maps with the entry's constraints, or with the node's own when it is a
 field of a declared custom type (`custom_fields?: true`).
 
-**Decision rule**: Can you edit the type module? Use `typescript_type_name/0` callback. Can't edit it? Use a `scalar` entry.
+**Decision rule**: Can you edit the type module? Use `typescript_type/0` callback. Can't edit it? Use a `scalar` entry.
 
 ### Unmappable Types (0.18)
 
@@ -389,7 +399,7 @@ TypeScript type or it is a **compile-time error**. Three layers:
    resource whose only RPC action is generic), listed with the declaration
    hint; and `Map-like custom types that declare a TypeScript type` (a
    declared custom type definition, `AshRpc.Manifest.Custom.custom_type?/1`, or
-   a map-like `:unknown` use, whose module exports `typescript_type_name/0` or
+   a map-like `:unknown` use, whose module exports `typescript_type/0` or
    has a `scalar` entry, the manifest's or a built-in), each with the
    migration message.
 
@@ -419,13 +429,13 @@ Custom types integrate at multiple levels:
 - **Calculation detection failures**: Resource vs primitive calculation misclassification
 
 ### Custom Type Issues
-- **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type_name/0` or a `custom_types` `scalar` entry for each listed module
+- **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type/0` or a `custom_types` `scalar` entry for each listed module
 - **`Undeclared map-like custom types found`** / **`returns an undeclared custom type`**: a `storage_type :map` or composite custom type with no declared fields. Declare them (a `map` entry, `typescript_fields/0`, or `composite?/1` + `composite_types/1`)
-- **`Map-like custom types that declare a TypeScript type`**: remove `typescript_type_name/0` (or turn the `scalar` entry into a `map` one); the TypeScript is generated from the fields
+- **`Map-like custom types that declare a TypeScript type`**: remove `typescript_type/0` (or turn the `scalar` entry into a `map` one); the TypeScript is generated from the fields
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
-- **`Declared custom types with colliding TypeScript names found`**: `VerifyCustomTypeNames`. Set `type_name "…"` on one type's `map` entry, or `typescript_alias_name/0` on a type without one
+- **`Declared custom types with colliding TypeScript names found`**: `VerifyCustomTypeNames`. Set `ts_alias "…"` on one type's `map` entry, or `typescript_type_alias/0` on a type without one
 - **`Duplicate exported type names in …`** / **`… imports types from … that it also declares`** / **`… imports names that it also imports from … or declares`** / an alias or schema that is an `import_name`: the orchestrator backstop; the message names the custom type and how to rename its alias
-- **Type not detected**: Ensure `typescript_type_name/0` callback implemented
+- **Type not detected**: Ensure `typescript_type/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)
 - **TypeScript compilation fails**: Verify external type definitions exist and are accessible
 - **Invalid field names in map constraints**: See [Field and Argument Name Mapping](./field-argument-name-mapping.md) for using `typescript_field_names/0` callback

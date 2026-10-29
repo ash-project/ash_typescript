@@ -181,13 +181,13 @@ defmodule AshTypescript.Codegen.SchemaCore do
   #   1. a `scalar` entry in the manifest's `custom_types` section;
   #   2. the formatter's `simple_primitives`;
   #   3. a built-in `scalar` entry (`AshTypescript.CustomTypes.Builtin`);
-  #   4. for a type with `typescript_type_name/0`, a schema derived from its
+  #   4. for a type with `typescript_type/0`, a schema derived from its
   #      `storage_type/1` rather than a flat string — a custom type storing
   #      `:integer` validates as a number, not as text.
   #
   # An `Ash.Type.NewType` resolves to its subtype's kind (or a `:type_ref`)
   # and carries its declared constraints through the normal dispatch, so it
-  # never lands here. `typescript_type_name/0` has no schema counterpart, so it
+  # never lands here. `typescript_type/0` has no schema counterpart, so it
   # doesn't replace a built-in's schema.
   defp map_unknown_module(formatter, %SpecType{module: module} = type_info, custom_fields?) do
     cond do

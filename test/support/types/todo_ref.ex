@@ -8,7 +8,7 @@ defmodule AshTypescript.Test.TodoRef do
   field that is a non-embedded resource (`Todo`), returned by a generic
   action. Todo has no input schema and no zod/valibot schema, so TodoRef gets
   only its plain alias: no input alias and no named schemas. Its entry has no
-  `type_name`, so the alias is the joined module name,
+  `ts_alias`, so the alias is the joined module name,
   `AshTypescriptTestTodoRef`.
   """
   use Ash.Type

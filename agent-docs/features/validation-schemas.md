@@ -111,7 +111,7 @@ node's constraints and must return a string (`AshTypescript.CustomTypes.mapping/
 shared with the TypeScript side). A scalar's base type uses the entry's
 constraints, or the node's for a member of a declared custom type (a field typed
 by a module with a `scalar` entry carries the entry's constraints merged under its
-own, whichever source declared the fields). `typescript_type_name/0` has no schema
+own, whichever source declared the fields). `typescript_type/0` has no schema
 counterpart, so it never replaces a built-in's schema.
 
 A declared custom type (Money, a DSL `map`, `typescript_fields/0`) is a
@@ -161,8 +161,8 @@ custom_types do
 end
 ```
 
-An entry without `typescript` leaves the TypeScript side to the type's
-`typescript_type_name/0` when it has one (else the base type), so a type you own
+An entry without `ts_type` leaves the TypeScript side to the type's
+`typescript_type/0` when it has one (else the base type), so a type you own
 can get schemas from an entry and keep its callback.
 
 The config keys `zod_mapping_overrides` / `valibot_mapping_overrides` are no

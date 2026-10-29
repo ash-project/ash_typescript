@@ -293,12 +293,12 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
       end)
     end
 
-    test "the schemas are named after the type_name" do
+    test "the schemas are named after the ts_alias" do
       {zod, valibot} =
         render_coordinates(
           quote do
             map AshTypescript.Rpc.NamedCustomTypeSchemasTest.Coordinates do
-              type_name "GeoCoords"
+              ts_alias "GeoCoords"
               field :lat, :float, allow_nil?: false
             end
           end
@@ -315,7 +315,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
                "export const locateCoordsValibotSchema = v.object({\n  coords: GeoCoordsValibotSchema,\n"
     end
 
-    test "without a type_name the schemas are named after the joined module name" do
+    test "without a ts_alias the schemas are named after the joined module name" do
       {zod, valibot} =
         render_coordinates(
           quote do
@@ -550,7 +550,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
       assert message =~
                "`UserZodSchema` is the generated schema of the custom type " <>
                  "AshMoney.Types.Money, named after its alias: rename the alias with " <>
-                 "`type_name \"…\"` on its `map` entry (or `typescript_alias_name/0` on a type " <>
+                 "`ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on a type " <>
                  "without one)."
 
       refute message =~ "_schema_name"
@@ -692,7 +692,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
 
         assert message =~ "Recursive declared custom types aren't supported"
 
-        refute message =~ "type_name"
+        refute message =~ "ts_alias"
         refute message =~ "_schema_name"
 
         assert message =~ "expand the type to a fixed depth"

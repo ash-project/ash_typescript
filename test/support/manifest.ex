@@ -33,14 +33,14 @@ defmodule AshTypescript.Test.Manifest do
     end
 
     scalar AshTypescript.Test.ExternalCode, :string do
-      typescript {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+      ts_type {AshTypescript.Test.ExternalCodeTs, :typescript, []}
       zod {AshTypescript.Test.ExternalCodeTs, :zod, []}
       valibot {AshTypescript.Test.ExternalCodeTs, :valibot, []}
     end
 
     # The schemas replace the object of the fields with one that checks ranges.
     map AshTypescript.Test.GeoPoint do
-      type_name "GeoPoint"
+      ts_alias "GeoPoint"
       field :lat, :float, allow_nil?: false
       field :lng, :float, allow_nil?: false
       zod "NestedZodSchemas.geoPoint"
@@ -49,7 +49,7 @@ defmodule AshTypescript.Test.Manifest do
 
     # A declared type with a nested declared type and an embedded resource.
     map AshTypescript.Test.LineItem do
-      type_name "LineItem"
+      ts_alias "LineItem"
       field :label, :string, allow_nil?: false
       field :price, AshMoney.Types.Money, allow_nil?: false
       field :meta, AshTypescript.Test.TaskMetadata

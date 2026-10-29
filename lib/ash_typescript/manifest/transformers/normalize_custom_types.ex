@@ -18,18 +18,18 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     * a `map` with fields for a field-bearing NewType: its fields come from
       the type, and a field-less entry opts it into an alias;
     * a field-less `map` with `zod` or `valibot`, which it would never use;
-    * an alias opt-in (a field-less `map` entry, or a `scalar` with a
-      `type_name`) for a module exporting `typescript_type_name/0`;
+    * a field-less `map` entry for a module exporting `typescript_type/0`
+      (a field-bearing NewType's TypeScript comes from its fields);
     * a `scalar` whose base type isn't an Ash type, or a `field` whose type is
       neither an Ash type nor a module with an entry (declared or built-in);
     * constraints the type rejects (`Ash.Type.init/2`). A field typed by a
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
       field winning per key). A field typed by a `map` entry isn't checked;
-    * a `type_name` string (`map` or `scalar`) that isn't a TypeScript
+    * a `ts_alias` string (`map` or `scalar`) that isn't a TypeScript
       identifier, or is a reserved word (`string`, `object`, `default`, …;
       `AshTypescript.CustomTypes.check_name/2`);
-    * a `scalar` with an MFA `type_name` and a `typescript` that isn't an MFA
+    * a `scalar` with an MFA `ts_alias` and a `ts_type` that isn't an MFA
       (or none).
 
   The persisted constraints are the user's (regexes already converted by the
@@ -97,8 +97,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
     if Ash.Type.ash_type?(scalar.type) do
       with :ok <- init(scalar, path, scalar.type, scalar.constraints, inspect(scalar.module)),
-           :ok <- check_scalar_type_name(scalar),
-           :ok <- check_no_type_name_callback(scalar) do
+           :ok <- check_scalar_ts_alias(scalar) do
         {:ok, scalar}
       end
     else
@@ -112,8 +111,8 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   defp normalize(%MapType{fields: []} = map, _by_module) do
     if CustomTypes.field_bearing_new_type_module?(map.module) do
       with :ok <- check_no_schemas(map),
-           :ok <- check_type_name(map),
-           :ok <- check_no_type_name_callback(map) do
+           :ok <- check_ts_alias(map),
+           :ok <- check_no_type_callback(map) do
         {:ok, map}
       end
     else
@@ -128,26 +127,26 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     with :ok <- check_fields_not_from_type(map),
          :ok <- check_duplicate_fields(map),
          {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)),
-         :ok <- check_type_name(map) do
+         :ok <- check_ts_alias(map) do
       {:ok, %{map | fields: fields}}
     end
   end
 
-  defp check_scalar_type_name(%Scalar{type_name: nil}), do: :ok
+  defp check_scalar_ts_alias(%Scalar{ts_alias: nil}), do: :ok
 
-  defp check_scalar_type_name(%Scalar{type_name: name} = scalar) when is_binary(name) do
-    subject = "The type_name #{inspect(name)} of #{inspect(scalar.module)}"
+  defp check_scalar_ts_alias(%Scalar{ts_alias: name} = scalar) when is_binary(name) do
+    subject = "The ts_alias #{inspect(name)} of #{inspect(scalar.module)}"
 
     with {:error, message} <- CustomTypes.check_name(name, subject),
-         do: {:error, {scalar, [:scalar, scalar.module, :type_name], message}}
+         do: {:error, {scalar, [:scalar, scalar.module, :ts_alias], message}}
   end
 
-  defp check_scalar_type_name(%Scalar{typescript: {_m, _f, _a}}), do: :ok
+  defp check_scalar_ts_alias(%Scalar{ts_type: {_m, _f, _a}}), do: :ok
 
-  defp check_scalar_type_name(%Scalar{} = scalar) do
+  defp check_scalar_ts_alias(%Scalar{} = scalar) do
     {:error,
-     {scalar, [:scalar, scalar.module, :type_name],
-      "#{inspect(scalar.module)}: an MFA `type_name` needs an MFA `typescript`: both must be " <>
+     {scalar, [:scalar, scalar.module, :ts_alias],
+      "#{inspect(scalar.module)}: an MFA `ts_alias` needs an MFA `ts_type`: both must be " <>
         "computed from the use's constraints."}}
   end
 
@@ -177,36 +176,27 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     end
   end
 
-  # An explicit alias opt-in (a field-less `map` entry, a `scalar` with a
-  # `type_name`) on a type that names its own TypeScript type. The callback
-  # opt-in (`typescript_alias_name/0`) and `alias_all_types?` are checked by
-  # `DecorateManifest` (`CustomTypes.check_alias_names/2`).
-  defp check_no_type_name_callback(%Scalar{type_name: nil}), do: :ok
-
-  defp check_no_type_name_callback(entry) do
-    if exports_type_name?(entry.module) do
-      {path, kind} =
-        case entry do
-          %Scalar{} -> {[:scalar, entry.module, :type_name], :scalar}
-          %MapType{} -> {[:map, entry.module], :map}
-        end
-
-      {:error, {entry, path, CustomTypes.type_name_callback_message(entry.module, kind)}}
-    else
-      :ok
-    end
+  # A field-less `map` entry (an explicit alias opt-in) on a field-bearing
+  # NewType that names its own TypeScript type. The callback opt-in
+  # (`typescript_type_alias/0`) and `alias_all_types?` are checked by
+  # `DecorateManifest` (`CustomTypes.check_alias_names/2`). A scalar combines
+  # `typescript_type/0` with any opt-in: it is the alias body.
+  defp check_no_type_callback(%MapType{} = map) do
+    if exports_type?(map.module),
+      do: {:error, {map, [:map, map.module], CustomTypes.type_callback_message(map.module)}},
+      else: :ok
   end
 
-  defp exports_type_name?(module),
-    do: Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0)
+  defp exports_type?(module),
+    do: Code.ensure_loaded?(module) and function_exported?(module, :typescript_type, 0)
 
-  defp check_type_name(%MapType{type_name: nil}), do: :ok
+  defp check_ts_alias(%MapType{ts_alias: nil}), do: :ok
 
-  defp check_type_name(%MapType{type_name: name} = map) do
-    subject = "The type_name #{inspect(name)} of #{inspect(map.module)}"
+  defp check_ts_alias(%MapType{ts_alias: name} = map) do
+    subject = "The ts_alias #{inspect(name)} of #{inspect(map.module)}"
 
     with {:error, message} <- CustomTypes.check_name(name, subject),
-         do: {:error, {map, [:map, map.module, :type_name], message}}
+         do: {:error, {map, [:map, map.module, :ts_alias], message}}
   end
 
   defp check_duplicate_fields(%MapType{} = map) do

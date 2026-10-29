@@ -8,10 +8,10 @@ defmodule AshTypescript.CustomTypes.Builtin do
   module's `custom_types` section:
 
     * `AshMoney.Types.Money`: a map of `currency` (string) and `amount`
-      (decimal), both non-null, exported as `Money` (`type_name`);
+      (decimal), both non-null, exported as `Money` (`ts_alias`);
     * `AshDoubleEntry.ULID`: a scalar over `:string`;
     * `AshPostgres.Ltree`: a scalar over `{:array, :string}` whose
-      `typescript`, `zod` and `valibot` depend on the `escape?` constraint.
+      `ts_type`, `zod` and `valibot` depend on the `escape?` constraint.
 
   A manifest entry for one of these modules replaces the built-in whole.
   The modules belong to optional dependencies, so the entries hold only
@@ -26,7 +26,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
     [
       %MapType{
         module: AshMoney.Types.Money,
-        type_name: "Money",
+        ts_alias: "Money",
         fields: [
           %Field{name: :currency, type: Ash.Type.String, allow_nil?: false},
           %Field{name: :amount, type: Ash.Type.Decimal, allow_nil?: false}
@@ -36,7 +36,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
       %Scalar{
         module: AshPostgres.Ltree,
         type: {:array, Ash.Type.String},
-        typescript: {__MODULE__, :ltree_typescript, []},
+        ts_type: {__MODULE__, :ltree_typescript, []},
         zod: {__MODULE__, :ltree_zod, []},
         valibot: {__MODULE__, :ltree_valibot, []}
       }

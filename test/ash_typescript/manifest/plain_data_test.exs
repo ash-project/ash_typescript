@@ -109,7 +109,7 @@ defmodule AshTypescript.Manifest.PlainDataTest do
     # Not map-like and not declared: an opaque custom type.
     use MapStorage, storage: :string
 
-    def typescript_type_name, do: "string"
+    def typescript_type, do: "string"
   end
 
   @declared_types (quote do

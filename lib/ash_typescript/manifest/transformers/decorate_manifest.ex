@@ -33,11 +33,15 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   also says to remove a `scalar` entry that covers the type.
   `AshTypescript.Manifest.Decorator` gets the declarations too, for the
   names of the aliases and schemas of declared custom types and of the
-  field-bearing NewTypes that opt into an alias. A `typescript_alias_name/0`
+  field-bearing NewTypes that opt into an alias. A `typescript_type_alias/0`
   that returns no valid alias, and an aliased field-bearing NewType that
-  exports `typescript_type_name/0` (named by `typescript_alias_name/0` or
+  exports `typescript_type/0` (named by `typescript_type_alias/0` or
   under `alias_all_types?`), are a `Spark.Error.DslError`
-  (`AshTypescript.CustomTypes.check_alias_names/2`).
+  (`AshTypescript.CustomTypes.check_alias_names/2`). So is, checked first, a
+  reached type module exporting `typescript_type_name/0` or
+  `typescript_alias_name/0`, the callbacks' former names: the error names
+  `typescript_type/0` / `typescript_type_alias/0`
+  (`AshTypescript.CustomTypes.check_renamed_callbacks/1`).
   """
 
   use Spark.Dsl.Transformer
@@ -73,7 +77,8 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
           )
           |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
 
-        with :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
+        with :ok <- check_renamed_callbacks(dsl_state, rpc_decorated),
+             :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
           decorated =
             rpc_decorated
             |> Decorator.decorate(hint: hint_fun, custom_types: custom_types)
@@ -95,22 +100,30 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
     |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
   end
 
+  defp check_renamed_callbacks(dsl_state, manifest) do
+    with {:error, message} <- AshTypescript.CustomTypes.check_renamed_callbacks(manifest),
+         do: dsl_error(dsl_state, message)
+  end
+
   defp check_alias_names(dsl_state, manifest, custom_types) do
-    with {:error, message} <- AshTypescript.CustomTypes.check_alias_names(manifest, custom_types) do
-      {:error,
-       Spark.Error.DslError.exception(
-         module: Transformer.get_persisted(dsl_state, :module),
-         path: [:custom_types],
-         message: message
-       )}
-    end
+    with {:error, message} <- AshTypescript.CustomTypes.check_alias_names(manifest, custom_types),
+         do: dsl_error(dsl_state, message)
+  end
+
+  defp dsl_error(dsl_state, message) do
+    {:error,
+     Spark.Error.DslError.exception(
+       module: Transformer.get_persisted(dsl_state, :module),
+       path: [:custom_types],
+       message: message
+     )}
   end
 
   # Each type module whose `typescript_fields/0` or `composite_types/1`
   # supplied a declared custom type's fields, or whose
-  # `typescript_alias_name/0` its alias, and every NewType definition in the
+  # `typescript_type_alias/0` its alias, and every NewType definition in the
   # manifest gets a compile-time edge, so the manifest recompiles when it
-  # changes (adding `typescript_alias_name/0` to a NewType later included).
+  # changes (adding `typescript_type_alias/0` to a NewType later included).
   # Such modules must never read the manifest at compile time: it depends on
   # them.
   defp track_type_modules(dsl_state, manifest, %{declared: declared, builtin: builtin}) do

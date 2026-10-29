@@ -9,7 +9,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   with names ash_typescript generates in the shared types file:
 
     * two declared types with the same alias (`Billing.Money` and
-      `Shop.Money` both given `type_name "Money"`);
+      `Shop.Money` both given `ts_alias "Money"`);
     * an alias equal to another alias plus `Input` (`ShadeInput` next to
       `Shade`). Whether `ShadeInput` is emitted depends on rendering, which
       this verifier doesn't do, so every `<alias>Input` is reserved;
@@ -149,8 +149,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
 
       #{Enum.map_join(collisions, "\n", &"  • #{&1}")}
 
-      Rename one of them: set `type_name "…"` on its `map` entry in your manifest module's \
-      `custom_types` section, or define `typescript_alias_name/0` on a type without one.
+      Rename one of them: set `ts_alias "…"` on its `map` entry in your manifest module's \
+      `custom_types` section, or define `typescript_type_alias/0` on a type without one.
       """
     )
   end

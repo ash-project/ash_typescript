@@ -247,16 +247,16 @@ defmodule AshTypescript.Codegen.TypeMapper do
   the compile-time `AshTypescript.Manifest.Verifiers.VerifyMappableTypes`
   verifier. The first of these that applies:
 
-    1. the `typescript` of a `scalar` entry in the manifest's `custom_types`
+    1. the `ts_type` of a `scalar` entry in the manifest's `custom_types`
        section;
-    2. `typescript_type_name/0` on the type (or a `type_name` decorated in the
+    2. `typescript_type/0` on the type (or a `type_name` decorated in the
        manifest);
-    3. the `typescript` of a built-in `scalar` entry
+    3. the `ts_type` of a built-in `scalar` entry
        (`AshTypescript.CustomTypes.Builtin`), when the manifest has no
        `scalar` entry for the module (a manifest entry replaces the built-in);
     4. the base type of the manifest's `scalar` entry, else of the built-in's.
 
-  An entry's `typescript` string is used as given, and its MFA is called as
+  An entry's `ts_type` string is used as given, and its MFA is called as
   `apply(m, f, [constraints | a])` with the node's constraints. The base type
   maps with the entry's constraints, or with the node's when
   `custom_fields?: true` (a member of a declared custom type's definition).
@@ -277,11 +277,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  # Steps 2-4: a manifest scalar without `typescript` replaces the built-in.
+  # Steps 2-4: a manifest scalar without `ts_type` replaces the built-in.
   defp callback_or_base(module, type_info, declared, builtin, opts) do
     cond do
       Introspection.is_custom_type?(module) ->
-        {:ok, Custom.type_name(type_info) || module.typescript_type_name()}
+        {:ok, Custom.type_name(type_info) || module.typescript_type()}
 
       declared ->
         {:ok, base_mapping(declared, type_info, opts)}
@@ -298,7 +298,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp scalar_entry(_), do: nil
 
   defp typescript_mapping(%Scalar{} = entry, type_info),
-    do: AshTypescript.CustomTypes.mapping(entry, :typescript, type_info.constraints)
+    do: AshTypescript.CustomTypes.mapping(entry, :ts_type, type_info.constraints)
 
   defp base_mapping(%Scalar{} = entry, type_info, opts) do
     entry
@@ -331,7 +331,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     unsupported type #{inspect(type)} — AshTypescript cannot map it to a TypeScript type.
 
     To fix this, either:
-      - implement the `typescript_type_name/0` callback on the type module, or
+      - implement the `typescript_type/0` callback on the type module, or
       - declare it in your manifest module's `custom_types` section: `scalar #{inspect(type)}, :string`
     """
   end

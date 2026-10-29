@@ -4,10 +4,10 @@
 
 defmodule AshTypescript.Test.Todo.Percentage do
   @moduledoc """
-  A NewType wrapping :float with a custom typescript_type_name.
-  Demonstrates that NewTypes with typescript_type_name are respected.
+  A NewType wrapping :float with a custom typescript_type.
+  Demonstrates that NewTypes with typescript_type are respected.
   """
   use Ash.Type.NewType, subtype_of: :float
 
-  def typescript_type_name, do: "CustomTypes.Percentage"
+  def typescript_type, do: "CustomTypes.Percentage"
 end

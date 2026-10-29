@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Manifest.CustomTypeNamesTest do
-  # The names of declared custom types: the `map` entry's `type_name`, the
-  # type's `typescript_alias_name/0`, the joined module name default, their
+  # The names of declared custom types: the `map` entry's `ts_alias`, the
+  # type's `typescript_type_alias/0`, the joined module name default, their
   # validation, `AshTypescript.CustomTypes.names/2`, and the decorated
   # `custom.ash_typescript.type_alias_names` read through
   # `AshTypescript.Manifest.Custom.type_alias_names/1`.
@@ -26,7 +26,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     @moduledoc false
     use Ash.Type.NewType, subtype_of: AshTypescript.Test.GeoPoint
 
-    def typescript_alias_name, do: "OwnGeoPoint"
+    def typescript_type_alias, do: "OwnGeoPoint"
   end
 
   defmodule NewMoney do
@@ -68,7 +68,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     use MapStorage
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
-    def typescript_alias_name, do: "GeoAliased"
+    def typescript_type_alias, do: "GeoAliased"
   end
 
   # Inherits Aliased's fields, not its alias.
@@ -85,7 +85,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
 
-    def typescript_alias_name,
+    def typescript_type_alias,
       do: :persistent_term.get({__MODULE__, :alias}, "ConfigurableAlias")
   end
 
@@ -132,7 +132,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     end
   end
 
-  # The types that name themselves with `typescript_alias_name/0`.
+  # The types that name themselves with `typescript_type_alias/0`.
   defmodule CallbackHolder do
     @moduledoc false
     use Ash.Resource,
@@ -211,24 +211,24 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     do: Custom.type_alias_names(definition(manifest, module))
 
   describe "map entry options" do
-    test "type_name is persisted" do
+    test "ts_alias is persisted" do
       module =
         compile_manifest!(
           AllNames,
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "GeoCoordinates"
+                ts_alias "GeoCoordinates"
                 field :lat, :float, allow_nil?: false
               end
             end
           end
         )
 
-      assert persisted(module).declared[SomeLib.Coordinates].type_name == "GeoCoordinates"
+      assert persisted(module).declared[SomeLib.Coordinates].ts_alias == "GeoCoordinates"
     end
 
-    test "type_name defaults to nil" do
+    test "ts_alias defaults to nil" do
       module =
         compile_manifest!(
           NoNames,
@@ -241,11 +241,11 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           end
         )
 
-      assert persisted(module).declared[SomeLib.Coordinates].type_name == nil
+      assert persisted(module).declared[SomeLib.Coordinates].ts_alias == nil
     end
 
     test "the built-in Money entry is named Money" do
-      assert Builtin.by_module()[AshMoney.Types.Money].type_name == "Money"
+      assert Builtin.by_module()[AshMoney.Types.Money].ts_alias == "Money"
     end
 
     test "a name that isn't a TypeScript identifier is a DslError" do
@@ -255,7 +255,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "Geo-Coordinates"
+                ts_alias "Geo-Coordinates"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -263,9 +263,9 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s(The type_name "Geo-Coordinates" of SomeLib.Coordinates is not a TypeScript identifier)
+               ~s(The ts_alias "Geo-Coordinates" of SomeLib.Coordinates is not a TypeScript identifier)
 
-      assert message =~ "custom_types -> map -> Elixir.SomeLib.Coordinates -> type_name"
+      assert message =~ "custom_types -> map -> Elixir.SomeLib.Coordinates -> ts_alias"
 
       message =
         compile_error!(
@@ -273,7 +273,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "1abc"
+                ts_alias "1abc"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -281,7 +281,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s(The type_name "1abc" of SomeLib.Coordinates is not a TypeScript identifier)
+               ~s(The ts_alias "1abc" of SomeLib.Coordinates is not a TypeScript identifier)
     end
 
     test "a name with a trailing newline is not an identifier" do
@@ -291,7 +291,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "Shade\n"
+                ts_alias "Shade\n"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -299,7 +299,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s(The type_name "Shade\\n" of SomeLib.Coordinates is not a TypeScript identifier)
+               ~s(The ts_alias "Shade\\n" of SomeLib.Coordinates is not a TypeScript identifier)
     end
 
     test "await, eval and arguments are rejected" do
@@ -310,7 +310,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
             quote do
               custom_types do
                 map SomeLib.Coordinates do
-                  type_name unquote(name)
+                  ts_alias unquote(name)
                   field :lat, :float, allow_nil?: false
                 end
               end
@@ -318,7 +318,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           )
 
         assert message =~
-                 ~s(The type_name "#{name}" of SomeLib.Coordinates is a TypeScript reserved word)
+                 ~s(The ts_alias "#{name}" of SomeLib.Coordinates is a TypeScript reserved word)
       end
     end
 
@@ -329,7 +329,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "string"
+                ts_alias "string"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -337,7 +337,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s(The type_name "string" of SomeLib.Coordinates is a TypeScript reserved word)
+               ~s(The ts_alias "string" of SomeLib.Coordinates is a TypeScript reserved word)
     end
 
     test "a JavaScript reserved word is rejected" do
@@ -347,7 +347,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name "default"
+                ts_alias "default"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -355,24 +355,24 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s(The type_name "default" of SomeLib.Coordinates is a TypeScript reserved word)
+               ~s(The ts_alias "default" of SomeLib.Coordinates is a TypeScript reserved word)
     end
 
-    test "type_name false is rejected by Spark" do
+    test "ts_alias false is rejected by Spark" do
       message =
         compile_error!(
           FalseName,
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name false
+                ts_alias false
                 field :lat, :float, allow_nil?: false
               end
             end
           end
         )
 
-      assert message =~ "invalid value for :type_name option: expected string, got: false"
+      assert message =~ "invalid value for :ts_alias option: expected string, got: false"
     end
 
     test "a non-string value is rejected by Spark" do
@@ -382,14 +382,14 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map SomeLib.Coordinates do
-                type_name true
+                ts_alias true
                 field :lat, :float, allow_nil?: false
               end
             end
           end
         )
 
-      assert message =~ "invalid value for :type_name option: expected string, got: true"
+      assert message =~ "invalid value for :ts_alias option: expected string, got: true"
     end
 
     test "zod_schema_name and valibot_schema_name are no options" do
@@ -419,7 +419,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     end
   end
 
-  describe "typescript_alias_name/0 validation" do
+  describe "typescript_type_alias/0 validation" do
     setup do
       on_exit(fn -> :persistent_term.erase({T.Configurable, :alias}) end)
     end
@@ -433,7 +433,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       message = callback_error!(DashedCallback, "Geo-Aliased")
 
       assert message =~
-               ~s[The typescript_alias_name/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
+               ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
                  "is not a TypeScript identifier."
 
       assert message =~ "custom_types"
@@ -443,7 +443,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       message = callback_error!(ReservedCallback, "class")
 
       assert message =~
-               ~s[The typescript_alias_name/0 result "class" of #{inspect(T.Configurable)} ] <>
+               ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
                  "is a TypeScript reserved word."
     end
 
@@ -451,7 +451,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       message = callback_error!(AtomCallback, :geo)
 
       assert message =~
-               "The typescript_alias_name/0 of #{inspect(T.Configurable)} must return a " <>
+               "The typescript_type_alias/0 of #{inspect(T.Configurable)} must return a " <>
                  "string, got: :geo."
     end
 
@@ -459,7 +459,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       :persistent_term.put({T.Configurable, :alias}, "class")
 
       assert_raise ArgumentError,
-                   ~s[The typescript_alias_name/0 result "class" of #{inspect(T.Configurable)} ] <>
+                   ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
                      "is a TypeScript reserved word.",
                    fn ->
                      CustomTypes.names(T.Configurable, %{
@@ -469,7 +469,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                    end
     end
 
-    test "an invalid result is ignored when the map entry has a type_name" do
+    test "an invalid result is ignored when the map entry has a ts_alias" do
       :persistent_term.put({T.Configurable, :alias}, "Geo-Aliased")
 
       module =
@@ -478,7 +478,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map AshTypescript.Manifest.CustomTypeNamesTest.Configurable do
-                type_name "EntryConfigurable"
+                ts_alias "EntryConfigurable"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -490,7 +490,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                %{typescript: "EntryConfigurable", zod: :derive, valibot: :derive}
     end
 
-    test "an invalid result is a DslError when the map entry has no type_name" do
+    test "an invalid result is a DslError when the map entry has no ts_alias" do
       :persistent_term.put({T.Configurable, :alias}, "Geo-Aliased")
 
       message =
@@ -507,7 +507,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
         )
 
       assert message =~
-               ~s[The typescript_alias_name/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
+               ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
                  "is not a TypeScript identifier."
     end
   end
@@ -543,51 +543,51 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       assert names(AshMoney.Types.Money) == Map.put(@derived, :typescript, "Money")
     end
 
-    test "the entry's type_name wins" do
+    test "the entry's ts_alias wins" do
       entry = %MapType{
         module: SomeLib.Coordinates,
         fields: [%Field{name: :lat, type: :float}],
-        type_name: "GeoCoordinates"
+        ts_alias: "GeoCoordinates"
       }
 
       assert names(SomeLib.Coordinates, %{SomeLib.Coordinates => entry}) ==
                Map.put(@derived, :typescript, "GeoCoordinates")
     end
 
-    test "an entry without a type_name gives the joined module name" do
+    test "an entry without a ts_alias gives the joined module name" do
       entry = %MapType{module: SomeLib.Coordinates, fields: [%Field{name: :lat, type: :float}]}
 
       assert names(SomeLib.Coordinates, %{SomeLib.Coordinates => entry}) ==
                Map.put(@derived, :typescript, "SomeLibCoordinates")
     end
 
-    test "a type without an entry is named by its typescript_alias_name/0" do
+    test "a type without an entry is named by its typescript_type_alias/0" do
       assert names(T.Aliased) == Map.put(@derived, :typescript, "GeoAliased")
     end
 
-    test "an entry's type_name wins over typescript_alias_name/0; without one the callback names it" do
+    test "an entry's ts_alias wins over typescript_type_alias/0; without one the callback names it" do
       entry = %MapType{module: T.Aliased, fields: [%Field{name: :lat, type: :float}]}
 
       assert names(T.Aliased, %{T.Aliased => entry}) ==
                Map.put(@derived, :typescript, "GeoAliased")
 
-      assert names(T.Aliased, %{T.Aliased => %{entry | type_name: "EntryAliased"}}) ==
+      assert names(T.Aliased, %{T.Aliased => %{entry | ts_alias: "EntryAliased"}}) ==
                Map.put(@derived, :typescript, "EntryAliased")
     end
 
-    test "typescript_alias_name/0 wins over a built-in entry, as the type's own callbacks do" do
-      builtin = %{T.Aliased => %MapType{module: T.Aliased, type_name: "BuiltinAliased"}}
+    test "typescript_type_alias/0 wins over a built-in entry, as the type's own callbacks do" do
+      builtin = %{T.Aliased => %MapType{module: T.Aliased, ts_alias: "BuiltinAliased"}}
 
       assert CustomTypes.names(T.Aliased, %{declared: %{}, builtin: builtin}).typescript ==
                "GeoAliased"
 
-      builtin = %{T.Coordinates => %MapType{module: T.Coordinates, type_name: "BuiltinCoords"}}
+      builtin = %{T.Coordinates => %MapType{module: T.Coordinates, ts_alias: "BuiltinCoords"}}
 
       assert CustomTypes.names(T.Coordinates, %{declared: %{}, builtin: builtin}).typescript ==
                "BuiltinCoords"
     end
 
-    test "a NewType doesn't inherit its subtype's typescript_alias_name/0" do
+    test "a NewType doesn't inherit its subtype's typescript_type_alias/0" do
       assert names(T.NewAliased) ==
                Map.put(
                  @derived,
@@ -596,30 +596,30 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                )
     end
 
-    test "a NewType without an entry of its own uses its own typescript_alias_name/0" do
-      declared = %{AshTypescript.Test.GeoPoint => geo_point_entry(type_name: "Geo")}
+    test "a NewType without an entry of its own uses its own typescript_type_alias/0" do
+      declared = %{AshTypescript.Test.GeoPoint => geo_point_entry(ts_alias: "Geo")}
 
       assert names(T.NamedNewGeoPoint, declared) ==
                %{typescript: "OwnGeoPoint", zod: nil, valibot: nil}
     end
 
     test "a replacement gets no named schema for its library" do
-      declared = %{AshTypescript.Test.GeoPoint => geo_point_entry(type_name: "GeoPoint")}
+      declared = %{AshTypescript.Test.GeoPoint => geo_point_entry(ts_alias: "GeoPoint")}
 
       assert names(AshTypescript.Test.GeoPoint, declared) ==
                %{typescript: "GeoPoint", zod: nil, valibot: nil}
 
       declared = %{
-        AshTypescript.Test.GeoPoint => geo_point_entry(type_name: "GeoPoint", valibot: nil)
+        AshTypescript.Test.GeoPoint => geo_point_entry(ts_alias: "GeoPoint", valibot: nil)
       }
 
       assert names(AshTypescript.Test.GeoPoint, declared) ==
                %{typescript: "GeoPoint", zod: nil, valibot: :derive}
     end
 
-    test "a NewType inherits its subtype's replacement, not its type_name" do
+    test "a NewType inherits its subtype's replacement, not its ts_alias" do
       declared = %{
-        AshTypescript.Test.GeoPoint => geo_point_entry(type_name: "Geo", valibot: nil)
+        AshTypescript.Test.GeoPoint => geo_point_entry(ts_alias: "Geo", valibot: nil)
       }
 
       assert names(T.NewGeoPoint, declared) ==
@@ -649,7 +649,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           quote do
             custom_types do
               map AshTypescript.Manifest.CustomTypeNamesTest.Coordinates do
-                type_name "GeoCoordinates"
+                ts_alias "GeoCoordinates"
                 field :lat, :float, allow_nil?: false
               end
             end
@@ -714,7 +714,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                }
     end
 
-    test "typescript_alias_name/0 names a type without an entry, not its NewType" do
+    test "typescript_type_alias/0 names a type without an entry, not its NewType" do
       manifest =
         CallbackNames
         |> compile_manifest!(nil, [T.CallbackHolderDomain])
