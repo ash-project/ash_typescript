@@ -148,7 +148,7 @@ typed_query name, action
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typescript_rpc-resource-typed_query-name){: #typescript_rpc-resource-typed_query-name } | `atom` |  | The name of the RPC-action |
+| [`name`](#typescript_rpc-resource-typed_query-name){: #typescript_rpc-resource-typed_query-name } | `atom` |  | The name of the typed query. Without `ts_fields_const_name`, its formatted name is the generated fields const's, so it can't be a JavaScript reserved word (`:delete`, `:new`, …) |
 | [`action`](#typescript_rpc-resource-typed_query-action){: #typescript_rpc-resource-typed_query-action } | `atom` |  | The read action on the resource to query |
 ### Options
 
@@ -156,7 +156,7 @@ typed_query name, action
 |------|------|---------|------|
 | [`description`](#typescript_rpc-resource-typed_query-description){: #typescript_rpc-resource-typed_query-description } | `String.t` |  | Description for the JSDoc comment of this typed query. |
 | [`ts_result_type_name`](#typescript_rpc-resource-typed_query-ts_result_type_name){: #typescript_rpc-resource-typed_query-ts_result_type_name } | `String.t` |  | The name of the TypeScript type for the query result |
-| [`ts_fields_const_name`](#typescript_rpc-resource-typed_query-ts_fields_const_name){: #typescript_rpc-resource-typed_query-ts_fields_const_name } | `String.t` |  | The name of the constant for the fields, that can be reused by the client to re-run the query |
+| [`ts_fields_const_name`](#typescript_rpc-resource-typed_query-ts_fields_const_name){: #typescript_rpc-resource-typed_query-ts_fields_const_name } | `String.t` |  | The name of the constant for the fields, that can be reused by the client to re-run the query. Not a JavaScript reserved word |
 | [`fields`](#typescript_rpc-resource-typed_query-fields){: #typescript_rpc-resource-typed_query-fields } | `list(any)` |  | The fields to query |
 
 

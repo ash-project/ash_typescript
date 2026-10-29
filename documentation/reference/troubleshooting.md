@@ -129,11 +129,11 @@ defmodule MyApp.Types.CustomMap do
 end
 ```
 
-#### Error: "generates the function `delete`, a JavaScript reserved word"
+#### Error: "generates the function `delete`, a JavaScript reserved word" / "generates the const `delete`"
 
-**Cause:** A typed controller route or an `rpc_action` is named after a JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, `:class`, …, strict-mode words such as `:let` and `:static` included). Its generated function would be `export async function delete(`, which TypeScript rejects in an ES module. Routes are checked whatever their method or mode; the message names the controller or domain.
+**Cause:** A typed controller route, an `rpc_action` or a `typed_query` is named after a JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, `:class`, …, strict-mode words such as `:let` and `:static` included), or a typed query's `ts_fields_const_name` is one. Its generated function would be `export async function delete(` (a typed query's fields const `export const delete`), which TypeScript rejects in an ES module. Routes are checked whatever their method or mode; the message names the controller or domain.
 
-**Solution:** Rename the route or action, for example `:delete_item` (the client calls `deleteItem`). Names that only contain a reserved word (`:import_users`) and TypeScript type keywords (`:string`) are accepted.
+**Solution:** Rename the route, action or typed query, for example `:delete_item` (the client calls `deleteItem`); for a typed query, setting another `ts_fields_const_name` also works. Names that only contain a reserved word (`:import_users`) and TypeScript type keywords (`:string`) are accepted.
 
 ### Metadata Field Errors
 

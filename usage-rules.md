@@ -405,7 +405,7 @@ for (const action of manifest.actions) {
 | "Action not found" | Add `rpc_action` declaration |
 | "403 Forbidden" | Use `buildCSRFHeaders()` |
 | "Invalid field names" | Add mapping (see Field Name Mapping) |
-| "a JavaScript reserved word" | Rename the route or `rpc_action` (`:delete` → `:delete_item`) |
+| "a JavaScript reserved word" | Rename the route, `rpc_action` or `typed_query` (`:delete` → `:delete_item`), or set another `ts_fields_const_name` |
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
 | "show_metadata contains unknown metadata fields" | Only list fields the action's `metadata` declarations define |
 | "allowed_loads contains invalid load paths" | Entries must be public relationships/calculations/aggregates/embedded attributes; nested keys checked against the destination resource |

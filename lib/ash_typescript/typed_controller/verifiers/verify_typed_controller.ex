@@ -148,7 +148,7 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
     if NameValidation.reserved_word?(function_name) do
       [
         "  - route #{inspect(name)} of #{inspect(module)} " <>
-          NameValidation.reserved_function_message(name, function_name)
+          NameValidation.reserved_name_message(name, "function", function_name)
       ]
     else
       []

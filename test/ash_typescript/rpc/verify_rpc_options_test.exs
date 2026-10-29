@@ -274,6 +274,65 @@ defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
 
       assert :ok = silent_verify_for_domains([NearReservedNameDomain])
     end
+
+    test "rejects a typed_query whose fields const name is a reserved word" do
+      defmodule ReservedTypedQueryDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource Source do
+            typed_query :delete, :read do
+              ts_result_type_name "DeleteResult"
+              fields [:id]
+            end
+
+            typed_query :list_sources, :read do
+              ts_result_type_name "ListSourcesResult"
+              ts_fields_const_name "default"
+              fields [:id]
+            end
+          end
+        end
+
+        resources do
+          resource Source
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([ReservedTypedQueryDomain])
+
+      assert message =~
+               "typed_query :delete in #{inspect(ReservedTypedQueryDomain)} generates the " <>
+                 "const `delete`, a JavaScript reserved word → rename it, for example " <>
+                 ":delete_item, or set `ts_fields_const_name`"
+
+      assert message =~
+               "typed_query :list_sources in #{inspect(ReservedTypedQueryDomain)} generates " <>
+                 "the const `default` (its `ts_fields_const_name`), a JavaScript reserved word " <>
+                 "→ change `ts_fields_const_name`"
+    end
+
+    test "accepts a reserved typed_query name with a valid ts_fields_const_name" do
+      defmodule RenamedTypedQueryDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource Source do
+            typed_query :delete, :read do
+              ts_result_type_name "DeleteResult"
+              ts_fields_const_name "deleteFields"
+              fields [:id]
+            end
+          end
+        end
+
+        resources do
+          resource Source
+        end
+      end
+
+      assert :ok = silent_verify_for_domains([RenamedTypedQueryDomain])
+    end
   end
 
   # Compiling the throwaway manifest module makes Elixir's parallel checker echo

@@ -29,7 +29,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     only: [
       invalid_name?: 1,
       make_name_better: 1,
-      reserved_function_message: 2,
+      reserved_name_message: 3,
       reserved_word?: 1
     ]
 
@@ -52,7 +52,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
          :ok <- verify_typed_queries(rpc_configs),
          :ok <- verify_relationship_read_actions(rpc_configs),
          :ok <- verify_names(rpc_configs) do
-      verify_reserved_rpc_action_names(rpc_configs, AshRpc.Manifest.output_formatter(manifest))
+      verify_reserved_names(rpc_configs, AshRpc.Manifest.output_formatter(manifest))
     end
   end
 
@@ -523,18 +523,16 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   end
 
   # An RPC action's execution function is its formatted name
-  # (`FunctionNames.execution/1`); its other functions carry prefixes or
-  # suffixes.
-  defp verify_reserved_rpc_action_names(rpc_configs, formatter) do
+  # (`FunctionNames.execution/1`; its other functions carry prefixes or
+  # suffixes), and a typed query's fields const is its `ts_fields_const_name`
+  # or else its formatted name.
+  defp verify_reserved_names(rpc_configs, formatter) do
     errors =
       for {domain, resource_config} <- rpc_configs,
-          rpc_action <- resource_config.rpc_actions,
-          function_name =
-            AshTypescript.FieldFormatter.format_field_name(rpc_action.name, formatter),
-          reserved_word?(function_name) do
-        "  - rpc_action #{inspect(rpc_action.name)} in #{inspect(domain)} " <>
-          reserved_function_message(rpc_action.name, function_name)
-      end
+          error <-
+            reserved_rpc_action_errors(resource_config.rpc_actions, domain, formatter) ++
+              reserved_typed_query_errors(resource_config.typed_queries, domain, formatter),
+          do: error
 
     if errors == [] do
       :ok
@@ -542,12 +540,42 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
       {:error,
        Spark.Error.DslError.exception(
          message: """
-         RPC action names that generate a reserved word found.
-         Generated files are ES modules, which can't declare these function names.
+         RPC action and typed query names that generate a reserved word found.
+         Generated files are ES modules, which can't declare these names.
 
          #{Enum.join(errors, "\n")}
          """
        )}
+    end
+  end
+
+  defp reserved_rpc_action_errors(rpc_actions, domain, formatter) do
+    for rpc_action <- rpc_actions,
+        function_name =
+          AshTypescript.FieldFormatter.format_field_name(rpc_action.name, formatter),
+        reserved_word?(function_name) do
+      "  - rpc_action #{inspect(rpc_action.name)} in #{inspect(domain)} " <>
+        reserved_name_message(rpc_action.name, "function", function_name)
+    end
+  end
+
+  defp reserved_typed_query_errors(typed_queries, domain, formatter) do
+    for typed_query <- typed_queries,
+        const_name =
+          typed_query.ts_fields_const_name ||
+            AshTypescript.FieldFormatter.format_field_name(typed_query.name, formatter),
+        reserved_word?(const_name) do
+      subject = "  - typed_query #{inspect(typed_query.name)} in #{inspect(domain)} "
+
+      if typed_query.ts_fields_const_name do
+        subject <>
+          "generates the const `#{const_name}` (its `ts_fields_const_name`), a JavaScript " <>
+          "reserved word → change `ts_fields_const_name`"
+      else
+        subject <>
+          reserved_name_message(typed_query.name, "const", const_name) <>
+          ", or set `ts_fields_const_name`"
+      end
     end
   end
 

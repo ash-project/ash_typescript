@@ -295,8 +295,8 @@ end
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `ts_result_type_name` | Yes | Name for the generated TypeScript result type |
-| `ts_fields_const_name` | Yes | Name for the generated fields constant |
+| `ts_result_type_name` | No | Name for the generated TypeScript result type (default: the query name in PascalCase plus `Result`) |
+| `ts_fields_const_name` | No | Name for the generated fields constant (default: the formatted query name). The constant's name can't be a JavaScript reserved word (`delete`, `new`, …), so a query named `:delete` needs another name or a `ts_fields_const_name` |
 | `fields` | Yes | Pre-configured field selection array |
 
 ## Best Practices

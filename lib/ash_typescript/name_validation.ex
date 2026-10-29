@@ -75,11 +75,11 @@ defmodule AshTypescript.NameValidation do
   def js_reserved_words, do: @js_reserved_words
 
   @doc false
-  # The verifiers' error text for `name`, whose generated function is
-  # `function_name`, a reserved word.
-  @spec reserved_function_message(atom(), String.t()) :: String.t()
-  def reserved_function_message(name, function_name),
+  # The verifiers' error text for `name`, whose generated `kind` ("function"
+  # or "const") is `generated`, a reserved word.
+  @spec reserved_name_message(atom(), String.t(), String.t()) :: String.t()
+  def reserved_name_message(name, kind, generated),
     do:
-      "generates the function `#{function_name}`, a JavaScript reserved word → rename it, " <>
+      "generates the #{kind} `#{generated}`, a JavaScript reserved word → rename it, " <>
         "for example :#{name}_item"
 end

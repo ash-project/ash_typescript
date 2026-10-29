@@ -390,7 +390,7 @@ at the top level.
 compiling the manifest warns while it is still set. `AshTypescript.warn_on_missing_channel_returns?/0`
 is removed.
 
-## Reserved route and RPC action names are rejected
+## Reserved route, RPC action and typed query names are rejected
 
 A typed controller route or an `rpc_action` whose generated function name is a
 JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, …) is a
@@ -401,6 +401,10 @@ when it had a fetch function (a mutation, or a GET with `returns`), and was
 accepted as a bare path helper (`deletePath`) otherwise. Rename it
 (`delete :delete_item`); the client then calls `deleteItem` / `deleteItemPath`.
 Names that only contain a reserved word (`:import_users`) are unaffected.
+
+A `typed_query` whose fields const would be a reserved word (its
+`ts_fields_const_name`, or else its formatted name, as in `export const delete`)
+is rejected the same way: rename it or set another `ts_fields_const_name`.
 
 ## Custom types are declared on the manifest
 

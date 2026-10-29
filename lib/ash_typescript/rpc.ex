@@ -72,7 +72,8 @@ defmodule AshTypescript.Rpc do
       ],
       name: [
         type: :atom,
-        doc: "The name of the RPC-action"
+        doc:
+          "The name of the typed query. Without `ts_fields_const_name`, its formatted name is the generated fields const's, so it can't be a JavaScript reserved word (`:delete`, `:new`, …)"
       ],
       description: [
         type: :string,
@@ -86,7 +87,7 @@ defmodule AshTypescript.Rpc do
       ts_fields_const_name: [
         type: :string,
         doc:
-          "The name of the constant for the fields, that can be reused by the client to re-run the query"
+          "The name of the constant for the fields, that can be reused by the client to re-run the query. Not a JavaScript reserved word"
       ],
       fields: [
         type: {:list, :any},
