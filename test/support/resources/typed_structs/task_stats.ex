@@ -5,9 +5,12 @@
 defmodule AshTypescript.Test.TaskStats do
   @moduledoc """
   Test TypedStruct for task statistics with field name mappings.
-  Demonstrates field mappings in typed structs for testing.
+  Demonstrates field mappings in typed structs for testing, and an alias
+  named by `typescript_type_alias/0`.
   """
   use Ash.TypedStruct
+
+  def typescript_type_alias, do: "TaskStats"
 
   def typescript_field_names do
     [

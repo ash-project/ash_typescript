@@ -4,11 +4,12 @@
 
 defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   @moduledoc """
-  Compile-time check that the TypeScript aliases of declared custom types
-  (`AshTypescript.Codegen.CustomTypeAliases`) don't collide with each other or
-  with names ash_typescript generates in the shared types file:
+  Compile-time check that the TypeScript aliases of declared custom types and
+  aliased field-bearing NewTypes (`AshTypescript.Codegen.CustomTypeAliases`)
+  don't collide with each other or with names ash_typescript generates in the
+  shared types file:
 
-    * two declared types with the same alias (`Billing.Money` and
+    * two types with the same alias (`Billing.Money` and
       `Shop.Money` both given `ts_alias "Money"`);
     * an alias equal to another alias plus `Input` (`ShadeInput` next to
       `Shade`). Whether `ShadeInput` is emitted depends on rendering, which
@@ -21,16 +22,18 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
       (`UUID`, `Decimal`, …) and the utility types (`InferResult`, …),
       `reserved_names/0`.
 
-  All collisions are reported in one error. Names that depend on the rest of
-  codegen (channel payload types, per-action types in the RPC file, the
-  `import_name`s of the `*import_into_generated` config) are checked by the
-  codegen backstop in `AshTypescript.Codegen.Orchestrator`.
+  All collisions are reported in one error, each line saying how to rename the
+  alias of the type it names. Names that depend on the rest of codegen
+  (channel payload types, per-action types in the RPC file, the `import_name`s
+  of the `*import_into_generated` config) are checked by the codegen backstop
+  in `AshTypescript.Codegen.Orchestrator`.
   """
 
   use Spark.Dsl.Verifier
 
   alias Ash.Info.Manifest
   alias AshTypescript.Codegen.{CustomTypeAliases, Helpers, TypeAliases, UtilityTypes}
+  alias AshTypescript.CustomTypes
   alias AshTypescript.Manifest.Custom
   alias Spark.Dsl.Verifier
 
@@ -42,7 +45,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   end
 
   @doc false
-  # The fixed names of the shared types file a declared alias can't take.
+  # The fixed names of the shared types file an alias can't take.
   @spec reserved_names() :: [String.t()]
   def reserved_names do
     utility_types =
@@ -88,7 +91,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
     |> Enum.filter(fn {_name, modules} -> length(modules) > 1 end)
     |> Enum.sort()
     |> Enum.map(fn {name, modules} ->
-      "`#{name}` is the TypeScript alias of #{both(modules)}."
+      "`#{name}` is the TypeScript alias of #{both(modules)}: rename one of them " <>
+        "#{CustomTypes.rename_hint(:map)}."
     end)
   end
 
@@ -97,7 +101,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
         {other_name, other} <- aliases,
         other != module and other_name <> "Input" == name do
       "`#{name}` is the TypeScript alias of #{inspect(module)} and the input alias " <>
-        "name of #{inspect(other)}."
+        "name of #{inspect(other)}: rename one of them #{CustomTypes.rename_hint(:map)}."
     end
   end
 
@@ -113,7 +117,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
 
     for {name, module} <- aliases, Map.has_key?(derived, name) do
       "`#{name}` is the TypeScript alias of #{inspect(module)} and a type generated for " <>
-        "the resource #{inspect(Map.fetch!(derived, name))}."
+        "the resource #{inspect(Map.fetch!(derived, name))}: rename it " <>
+        "#{CustomTypes.rename_hint(:map)}."
     end
   end
 
@@ -129,7 +134,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   defp generated_names(aliases, reserved) do
     for {name, module} <- aliases, name in reserved do
       "`#{name}` is the TypeScript alias of #{inspect(module)} and a type " <>
-        "ash_typescript generates."
+        "ash_typescript generates: rename it #{CustomTypes.rename_hint(:map)}."
     end
   end
 
@@ -145,12 +150,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
       module: module,
       path: [:custom_types],
       message: """
-      Declared custom types with colliding TypeScript names found:
+      Types with colliding TypeScript names found:
 
       #{Enum.map_join(collisions, "\n", &"  • #{&1}")}
 
-      Rename one of them: set `ts_alias "…"` on its `map` entry in your manifest module's \
-      `custom_types` section, or define `typescript_type_alias/0` on a type without one.
+      Rename one of them as each line says.
       """
     )
   end

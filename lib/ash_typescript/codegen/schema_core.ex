@@ -405,13 +405,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   @doc """
-  The name of a declared custom type's named schema for `formatter`'s
-  library: its TypeScript alias followed by the configured `schema_suffix/0`
+  The name of an aliased type's named schema for `formatter`'s library: its
+  TypeScript alias followed by the configured `schema_suffix/0`
   (`MoneyZodSchema`). `nil` when it has none: a `zod` / `valibot`
   replacement, a definition that reaches a non-embedded resource
   (`AshTypescript.Codegen.CustomTypeAliases.reaches_resource?/1`: such a
-  resource has no schema to reference), or one that isn't a declared custom
-  type.
+  resource has no schema to reference), or one without an alias
+  (`AshTypescript.Codegen.CustomTypeAliases.plain_name/1`: neither a declared
+  custom type nor an aliased field-bearing NewType).
   """
   @spec custom_type_schema_name(module(), SpecType.t()) :: String.t() | nil
   def custom_type_schema_name(formatter, %SpecType{} = definition) do
@@ -436,8 +437,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   @doc """
-  Generates the named schemas of the declared custom types (manifest
-  definitions with `AshRpc.Manifest.Custom.custom_type?/1` and a schema name,
+  Generates the named schemas of the aliased types (declared custom types and
+  aliased field-bearing NewTypes with a schema name,
   `custom_type_schema_name/2`), under a "Schemas for Custom Types" section
   header. Returns `""` when there are none.
 
@@ -447,7 +448,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   are deferred with `wrap_lazy/1`. Named schemas that reference each other in
   a cycle throw `{:error, message}`
   (`AshTypescript.Codegen.CustomTypeAliases.recursion_message/1`); codegen
-  rejects recursive declared types before rendering any schema
+  rejects recursive aliased types before rendering any schema
   (`CustomTypeAliases.check_recursive_types!/0`).
 
   Definitions are read from the configured manifest

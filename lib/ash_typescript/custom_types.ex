@@ -68,9 +68,6 @@ defmodule AshTypescript.CustomTypes do
           optional(:alias_all_types?) => boolean()
         }
 
-  @rename_hint "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on " <>
-                 "a type without one)"
-
   @identifier ~r/\A[A-Za-z_$][A-Za-z0-9_$]*\z/
   # Names TypeScript doesn't accept for an exported type or const: type
   # keywords, the JavaScript reserved words (strict mode included) and the
@@ -362,10 +359,14 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # How a message tells the user to rename a declared custom type's alias,
-  # and with it its named schemas: "rename it #{rename_hint()}."
-  @spec rename_hint() :: String.t()
-  def rename_hint, do: @rename_hint
+  # How a message tells the user to rename a type's alias, and with it its
+  # named schemas, by the kind of type: "rename it #{rename_hint(:map)}".
+  # `:map` covers declared custom types and field-bearing NewTypes.
+  @spec rename_hint(:map) :: String.t()
+  def rename_hint(:map),
+    do:
+      "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on the type, " <>
+        "when no entry sets `ts_alias`)"
 
   @doc """
   The `map` entry a declared custom type's uses resolve to (`entry_of` maps a

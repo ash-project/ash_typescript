@@ -560,9 +560,8 @@ Codegen checks what the manifest can't see, and fails before writing any file:
   another schema of the file, such as an alias `User` whose `UserZodSchema` is
   also the schema of the resource `User`.
 
-Each message names the custom type and its fix: rename its alias with
-`ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on a type
-without one). A schema is named after the alias, so renaming the alias renames
+Each message names the type and its fix: rename its alias with
+`ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on the type, when no entry sets `ts_alias`). A schema is named after the alias, so renaming the alias renames
 its schemas.
 
 ## Built-In Types
@@ -674,8 +673,8 @@ is deferred with `z.lazy(() => …)` / `v.lazy(() => …)`, since resource schem
 come later. A type whose fields reach a resource that isn't embedded gets no
 named schema (see [Generated TypeScript](#generated-typescript)).
 
-Recursive declared custom types aren't supported. Codegen fails before
-rendering anything with "These declared custom types contain themselves,
+Recursive aliased types aren't supported. Codegen fails before
+rendering anything with "These aliased types contain themselves,
 directly or through other named types", when a type's fields reach the type
 itself (through arrays, unions, typed maps or other named types; a resource
 field ends the search). Expand the type to a fixed depth.

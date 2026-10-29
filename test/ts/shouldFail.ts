@@ -28,6 +28,7 @@ import "./shouldFail/typedControllerResults";
 import "./shouldFail/getByMappedField";
 import "./shouldFail/unexposedRelationships";
 import "./shouldFail/customTypes";
+import "./shouldFail/typeAliases";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";

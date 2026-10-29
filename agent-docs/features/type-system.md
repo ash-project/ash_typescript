@@ -92,15 +92,16 @@ definitions), so a type used only nested still gets its alias declared. Roots
 are resource fields, calculation arguments, action inputs, returns and
 metadata, the `returns` types of the manifest's stored typed channel
 publications (their payload types are appended to `ash_types.ts`), and every
-declared custom type definition (`CustomTypeAliases.definitions/0`, so
-route-only types get their aliases too).
+aliased definition (declared custom types and aliased field-bearing NewTypes,
+`CustomTypeAliases.definitions/0`, so route-only types get their aliases too).
 
 ### Complex Types
 - Embedded resources → Full resource schema with field selection
 - Unions → Union type with selective member fetching
 - Scalar custom types → Type name from `typescript_type/0` callback
-- Declared (map-like) custom types → their alias (`Money`) at plain positions,
-  the inline `TypedMap` form at schema positions (see
+- Declared (map-like) custom types and aliased field-bearing NewTypes → their
+  alias (`Money`, `TaskStats`) at input and plain positions, the inline
+  `TypedMap` form at schema positions (see
   [Declared Custom Type Aliases](#declared-custom-type-aliases))
 
 ### Third-Party Types
@@ -266,8 +267,13 @@ A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
 gets `type_alias_names` too, by the same precedence, beside its `type_name`
 when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
 when it exports `typescript_type/0`. Codegen reads map-like aliases only
-through `CustomTypeAliases.plain_name/1`, which still names declared
-definitions only, so NewType names don't change output yet.
+through `CustomTypeAliases.plain_name/1` (any definition with
+`type_alias_names`), so an aliased NewType renders exactly like a declared
+custom type: its alias and `Input` alias in the declared block, references at
+input and plain positions, named zod/valibot schemas, the recursion check.
+NewTypes that don't opt in stay inline everywhere. `TypeMapper.expand_plain/1`
+maps a NewType's scalar members with their `scalar` entry's constraints
+(`custom_fields?` is `custom_type?(definition)`), as its inline rendering does.
 
 A type module the manifest reaches (a `manifest.types` definition, or an
 `:unknown` node of `AshTypescript.Manifest.TypeUses.nodes/1`, which walks
@@ -283,7 +289,7 @@ fields fails ash_rpc's undeclared-type check first.
 type aliases (`// Declared custom types`, sorted by name): the plain alias
 (`TypeMapper.expand_plain/1`, every key present) and, when
 `TypeMapper.expand_input/1` differs, `<Name>Input` (`input_name/1`). Nested
-declared types reference their aliases (their input aliases inside an `Input`
+aliased types reference their aliases (their input aliases inside an `Input`
 alias). A definition whose fields reach a non-embedded resource
 (`CustomTypeAliases.reaches_resource?/1`, through arrays, unions, typed
 containers and named types; embedded resources end the walk) gets only its
@@ -291,7 +297,7 @@ plain alias: `input_name/1` and `SchemaCore.custom_type_schema_name/2` return
 `nil`, so its input and schema uses stay inline (that resource has no
 `InputSchema` and no zod/valibot schema). Before any alias or schema is
 rendered, the orchestrator calls `CustomTypeAliases.check_recursive_types!/0`,
-which throws "These declared custom types contain themselves" for a declared
+which throws "These aliased types contain themselves" for an aliased
 definition reaching itself (resources end the walk): expanding it would not
 terminate (`input_name/1` hung before this check). References:
 
@@ -299,15 +305,15 @@ terminate (`input_name/1` hung before this check). References:
 |----------|---------|
 | Inputs, calculation arguments, identity and `getBy` (`config_builder.ex`) | `map_type/3` `:input` → `input_name/1` (`map_plain_type(t, :input)` for identity/`getBy`) |
 | Route results, channel payloads | `map_route_result_type/1` / `map_channel_payload_type/1` → `plain_name/1` |
-| Filter values (`filter_types.ex`), action metadata (`metadata_types.ex`) | `map_plain_type(t, :output)`: typed containers plain, declared types the alias, unions in schema form |
+| Filter values (`filter_types.ex`), action metadata (`metadata_types.ex`) | `map_plain_type(t, :output)`: typed containers plain, aliased types the alias, unions in schema form |
 | Resource schemas, field selection, generic action results | inline `TypedMap` (unchanged) |
 
 Known limitation: an embedded-resource field renders as its resource schema in
 a plain alias and in filter values (`LineItem = {…, meta: TaskMetadataResourceSchema | null}`),
 which requires the `__type` markers.
 
-`AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames` reports ("Declared
-custom types with colliding TypeScript names found", one aggregated `DslError`
+`AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames` reports ("Types with
+colliding TypeScript names found", one aggregated `DslError`
 at `[:custom_types]`; Spark turns a verifier error into a compile warning, so it
 fails `--warnings-as-errors`, and codegen re-runs it and fails) an alias shared
 by two types,
@@ -326,8 +332,9 @@ imports from the types file or declares (a schema `z` needs an empty
 `zod_schema_suffix`), an alias equal to an `import_into_generated` /
 `typed_controller_import_into_generated` `import_name`, and a schema name equal
 to a `*_import_into_generated` one. Every fix hint is
-`CustomTypes.rename_hint/0` (rename the alias: `ts_alias` or
-`typescript_type_alias/0`).
+`CustomTypes.rename_hint(:map)` (rename the alias: `ts_alias` or
+`typescript_type_alias/0`); each verifier line ends in its type's hint, and
+the closing line is "Rename one of them as each line says."
 
 ### Import Configuration
 
@@ -433,7 +440,7 @@ Custom types integrate at multiple levels:
 - **`Undeclared map-like custom types found`** / **`returns an undeclared custom type`**: a `storage_type :map` or composite custom type with no declared fields. Declare them (a `map` entry, `typescript_fields/0`, or `composite?/1` + `composite_types/1`)
 - **`Map-like custom types that declare a TypeScript type`**: remove `typescript_type/0` (or turn the `scalar` entry into a `map` one); the TypeScript is generated from the fields
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
-- **`Declared custom types with colliding TypeScript names found`**: `VerifyCustomTypeNames`. Set `ts_alias "…"` on one type's `map` entry, or `typescript_type_alias/0` on a type without one
+- **`Types with colliding TypeScript names found`**: `VerifyCustomTypeNames`. Set `ts_alias "…"` on one type's `map` entry, or `typescript_type_alias/0` on the type when no entry sets `ts_alias`
 - **`Duplicate exported type names in …`** / **`… imports types from … that it also declares`** / **`… imports names that it also imports from … or declares`** / an alias or schema that is an `import_name`: the orchestrator backstop; the message names the custom type and how to rename its alias
 - **Type not detected**: Ensure `typescript_type/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)

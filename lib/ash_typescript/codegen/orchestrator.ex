@@ -396,7 +396,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
   end
 
   # `custom_type_names` maps the named custom-type schemas to their modules,
-  # so a duplicate among them says how to rename the custom type's alias.
+  # so a duplicate among them says how to rename the type's alias.
   defp validate_unique_schema_names!(formatter, schema_strings, custom_type_names) do
     all_names =
       schema_strings
@@ -421,9 +421,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
       custom_type_hints =
         Enum.map(custom_type_duplicates, fn name ->
-          "`#{name}` is the generated schema of the custom type " <>
+          "`#{name}` is the generated schema of the type " <>
             "#{inspect(Map.fetch!(custom_type_names, name))}, named after its alias: " <>
-            "rename the alias #{CustomTypes.rename_hint()}.\n"
+            "rename the alias #{CustomTypes.rename_hint(:map)}.\n"
         end)
 
       route_hint =
@@ -447,8 +447,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
   end
 
   # The names the shared types file exports, after checking that none is
-  # exported twice (a declared custom type's alias equal to a channel payload
-  # type, or anything else `VerifyCustomTypeNames` can't see).
+  # exported twice (a type's alias equal to a channel payload type, or
+  # anything else `VerifyCustomTypeNames` can't see).
   defp extract_exported_type_names(typescript_content, types_output_file, name_hints) do
     duplicates =
       ~r/^export type (\w+)/m
@@ -577,9 +577,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
       for key <- [:import_into_generated, :typed_controller_import_into_generated],
           name <- import_names(Application.get_env(:ash_typescript, key, [])),
           module = Map.get(alias_modules, name) do
-        "The TypeScript alias `#{name}` of the custom type #{inspect(module)} is an " <>
+        "The TypeScript alias `#{name}` of the type #{inspect(module)} is an " <>
           "`import_name` in the `#{inspect(key)}` config: rename it " <>
-          "#{CustomTypes.rename_hint()}, or change the `import_name`."
+          "#{CustomTypes.rename_hint(:map)}, or change the `import_name`."
       end
 
     throw_errors!(errors)
@@ -592,9 +592,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
     errors =
       for name <- import_names(formatter.custom_imports()),
           module = Map.get(schema_modules, name) do
-        "The #{formatter.library_name()} schema `#{name}` of the custom type " <>
+        "The #{formatter.library_name()} schema `#{name}` of the type " <>
           "#{inspect(module)} is an `import_name` in the `#{inspect(key)}` config: rename " <>
-          "its alias #{CustomTypes.rename_hint()}, or change the `import_name`."
+          "its alias #{CustomTypes.rename_hint(:map)}, or change the `import_name`."
       end
 
     throw_errors!(errors)
@@ -605,7 +605,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
   defp throw_errors!([]), do: :ok
   defp throw_errors!(errors), do: throw({:error, Enum.join(errors, "\n")})
 
-  # Alias name (plain and input) => the declared custom type it belongs to.
+  # Alias name (plain and input) => the aliased type it belongs to.
   defp custom_type_alias_modules do
     for definition <- CustomTypeAliases.definitions(),
         name <- [
@@ -617,24 +617,24 @@ defmodule AshTypescript.Codegen.Orchestrator do
         do: {name, definition.module}
   end
 
-  # Generated name => the hints naming the custom type it belongs to and how
+  # Generated name => the hints naming the type it belongs to and how
   # to rename its alias: aliases, and the named schemas (named after the
   # alias) of the enabled schema libraries.
   defp custom_type_name_hints(alias_modules, schema_formatters) do
     alias_hints =
       for {name, module} <- alias_modules do
         {name,
-         "`#{name}` is the TypeScript alias of the custom type #{inspect(module)}: " <>
-           "rename it #{CustomTypes.rename_hint()}.\n"}
+         "`#{name}` is the TypeScript alias of the type #{inspect(module)}: " <>
+           "rename it #{CustomTypes.rename_hint(:map)}.\n"}
       end
 
     schema_hints =
       for formatter <- schema_formatters,
           {name, module} <- SchemaCore.custom_type_schema_names(formatter) do
         {name,
-         "`#{name}` is the #{formatter.library_name()} schema of the custom type " <>
+         "`#{name}` is the #{formatter.library_name()} schema of the type " <>
            "#{inspect(module)}, named after its alias: rename the alias " <>
-           "#{CustomTypes.rename_hint()}.\n"}
+           "#{CustomTypes.rename_hint(:map)}.\n"}
       end
 
     Enum.group_by(alias_hints ++ schema_hints, &elem(&1, 0), &elem(&1, 1))

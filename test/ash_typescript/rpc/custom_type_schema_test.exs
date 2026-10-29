@@ -422,6 +422,9 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
                 map AshTypescript.Test.TodoRef do
                   field :todo, :struct, constraints: [instance_of: AshTypescript.Test.Todo]
                 end
+
+                # A field-bearing NewType opted in by a field-less entry (joined name).
+                map AshTypescript.Test.TodoTimestamp
               end
             end
         )

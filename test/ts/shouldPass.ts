@@ -9,6 +9,7 @@
 
 // Import all shouldPass feature tests
 import "./shouldPass/customTypes";
+import "./shouldPass/typeAliases";
 import "./shouldPass/calculations";
 import "./shouldPass/relationships";
 import "./shouldPass/operations";

@@ -250,11 +250,11 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Solution:** Select its sub-fields: `{ colorPalette: ["primary", "secondary"] }`.
 
-#### Error: "Declared custom types with colliding TypeScript names found"
+#### Error: "Types with colliding TypeScript names found"
 
 **Cause:** A map-like custom type's generated alias (its `ts_alias`, its `typescript_type_alias/0`, or its joined module name) equals another declared type's alias, another alias followed by `Input`, a name generated for a resource (`XResourceSchema`, `XFilterInput`, …), a primitive alias (`UUID`, `Decimal`, …) or a utility type (`InferResult`, …). Each collision is listed. The manifest verifier reports it as a warning when the manifest compiles (an error under `mix compile --warnings-as-errors`), and `mix ash_typescript.codegen` fails with it.
 
-**Solution:** Rename one of the types: set `ts_alias "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_type_alias/0` on a type without one. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
+**Solution:** Rename one of the types as each listed line says: set `ts_alias "…"` on its `map` entry in the manifest's `custom_types` section, or define `typescript_type_alias/0` on the type when no entry sets `ts_alias`. See [Naming the Type](../advanced/custom-types.md#naming-the-type) and [Name Collisions](../advanced/custom-types.md#name-collisions).
 
 #### Error: "The ts_alias … is not a TypeScript identifier" / "The typescript_type_alias/0 result … is a TypeScript reserved word"
 
@@ -266,7 +266,7 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A custom type's alias equals another export of the types file (a typed channel payload type), a name the RPC, routes or typed channels file declares itself (an action's `XInput`), a name a generated file imports itself (`Channel` from phoenix in the RPC file, `z` / `v` in the schema files, an `import * as` module), or an `import_name` of `import_into_generated` / `typed_controller_import_into_generated`; or its named schema (the alias plus the schema suffix) equals such an imported name or an `import_name` of `zod_import_into_generated` / `valibot_import_into_generated`. Codegen stops before writing any file. The import check covers every generated name, so a typed channel module named `Channel` fails it too when channel RPC actions are generated.
 
-**Solution:** The message names the custom type: rename its alias (and with it its schemas) with `ts_alias "…"` on its `map` entry, or `typescript_type_alias/0` on a type without one, or change the `import_name`.
+**Solution:** The message names the type: rename its alias (and with it its schemas) with `ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on the type, when no entry sets `ts_alias`), or change the `import_name`.
 
 #### Errors about resources/modules that only exist in another environment
 
@@ -276,11 +276,11 @@ See [Custom Types](../advanced/custom-types.md).
 
 ### Validation Schema Issues
 
-#### Codegen error: "These declared custom types contain themselves, directly or through other named types"
+#### Codegen error: "These aliased types contain themselves, directly or through other named types"
 
 **Cause:** A map-like custom type's fields reach the type itself, through arrays, unions, typed maps or other named types. Codegen expands a declared type's fields into its input alias and its zod/valibot schemas, which doesn't end for a recursive type, and a named schema would have to be defined before itself. Codegen stops before rendering anything.
 
-**Solution:** Recursive declared custom types aren't supported: expand the type to a fixed depth.
+**Solution:** Recursive aliased types aren't supported: expand the type to a fixed depth.
 
 #### Codegen error: "Duplicate Zod schema names detected" naming a custom type
 

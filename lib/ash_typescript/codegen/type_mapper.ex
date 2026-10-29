@@ -199,7 +199,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     case type_info.kind do
       :type_ref ->
         # Resolve the named type module to its full definition and re-dispatch.
-        # An input position references a declared custom type's input alias;
+        # An input position references an aliased type's input alias;
         # output (schema) positions keep the inline form.
         full_type = Introspection.named_type_definition(type_info.module)
 
@@ -475,8 +475,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
   A pushed payload has no field selection, so it maps like a route result
   (`map_route_result_type/1`): typed containers, nested ones and array items
   included, are plain object types without the `__type`/`__primitiveFields`
-  metadata RPC output types carry, and declared custom types reference their
-  alias (`AshTypescript.Codegen.CustomTypeAliases`). Field names come from the
+  metadata RPC output types carry, and aliased types (declared custom types,
+  aliased field-bearing NewTypes) reference their alias
+  (`AshTypescript.Codegen.CustomTypeAliases`). Field names come from the
   types' decoration, so they match the pushed payload.
   """
   @spec map_channel_payload_type(Type.t()) :: String.t()
@@ -493,9 +494,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   Field names come from each type's decoration (read through
   `Codegen.ClientNames`), so they are the names the runtime sends.
-  Declared custom types reference their alias
-  (`AshTypescript.Codegen.CustomTypeAliases`); other named types (NewTypes,
-  enums) are expanded from the manifest: route-only named types are in it.
+  Aliased types (declared custom types, aliased field-bearing NewTypes)
+  reference their alias (`AshTypescript.Codegen.CustomTypeAliases`); other
+  named types (NewTypes without an alias, enums) are expanded from the
+  manifest: route-only named types are in it.
   Resources and unions are rejected at compile time by
   `AshTypescript.TypedController.Transformers.FoldArgumentConstraints`.
   """
@@ -509,36 +511,40 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   - `:output`, for filter operator values and action metadata: the
     `map_route_result_type/1` mapping. Typed containers (nested ones and array
-    items included) are plain objects with every key present, and declared
-    custom types reference their alias. A filter value is cast with the
+    items included) are plain objects with every key present, and aliased
+    types reference their alias. A filter value is cast with the
     attribute's type and compared whole, so it takes the full shape. Unions,
     resources and scalars map as in `map_type/3`.
   - `:input`, for identity and `getBy` values: the `map_type/3` input mapping
-    (declared custom types reference their input alias).
+    (aliased types reference their input alias).
   """
   @spec map_plain_type(Type.t(), direction()) :: String.t()
   def map_plain_type(%Type{} = type, :output), do: map_plain_output_type(type, false)
   def map_plain_type(%Type{} = type, :input), do: map_type(type, [], :input)
 
   @doc """
-  A declared custom type's plain rendering, from its own fields: the body of
-  its alias (`AshTypescript.Codegen.CustomTypeAliases`). Every key is
-  present, nullable members are `T | null`, and nested declared types
-  reference their aliases.
+  An aliased type's plain rendering, from its own fields: the body of its
+  alias (`AshTypescript.Codegen.CustomTypeAliases`). Every key is present,
+  nullable members are `T | null`, and nested aliased types reference their
+  aliases. Scalar members map as at the type's inline uses: with their own
+  constraints in a declared custom type's definition, with their `scalar`
+  entry's in a NewType's.
   """
   @spec expand_plain(Type.t()) :: String.t()
-  def expand_plain(%Type{} = definition),
-    do:
-      plain_object_type(
-        definition,
-        Type.get_fields(definition),
-        &map_plain_output_type(&1, true)
-      )
+  def expand_plain(%Type{} = definition) do
+    custom_fields? = AshRpc.Manifest.Custom.custom_type?(definition)
+
+    plain_object_type(
+      definition,
+      Type.get_fields(definition),
+      &map_plain_output_type(&1, custom_fields?)
+    )
+  end
 
   @doc """
-  A declared custom type's input rendering, from its own fields: the body of
-  its `Input` alias when it differs from `expand_plain/1`. Nullable members are
-  optional, and nested declared types reference their input aliases.
+  An aliased type's input rendering, from its own fields: the body of its
+  `Input` alias when it differs from `expand_plain/1`. Nullable members are
+  optional, and nested aliased types reference their input aliases.
   """
   @spec expand_input(Type.t()) :: String.t()
   def expand_input(%Type{} = definition), do: build_field_input_type(definition)

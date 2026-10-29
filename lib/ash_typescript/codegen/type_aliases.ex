@@ -5,8 +5,8 @@
 defmodule AshTypescript.Codegen.TypeAliases do
   @moduledoc """
   Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.),
-  followed by the aliases of declared custom types
-  (`AshTypescript.Codegen.CustomTypeAliases`).
+  followed by the aliases of declared custom types and aliased field-bearing
+  NewTypes (`AshTypescript.Codegen.CustomTypeAliases`).
   """
 
   alias Ash.Info.Manifest.Type
@@ -35,8 +35,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   `extra_types` are additional `%Ash.Info.Manifest.Type{}` roots rendered into
   the same file outside any resource (e.g. typed channel payload types).
-  Declared custom type definitions are roots too (route-only ones included),
-  and their aliases follow the primitive aliases.
+  Aliased definitions (`CustomTypeAliases.definitions/0`: declared custom
+  types and aliased field-bearing NewTypes, route-only ones included) are
+  roots too, and their aliases follow the primitive aliases.
   """
   def generate_ash_type_aliases(resources, resource_lookup \\ nil, extra_types \\ [])
 

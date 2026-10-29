@@ -548,10 +548,10 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
       assert message =~ "AshMoney.Types.Money"
 
       assert message =~
-               "`UserZodSchema` is the generated schema of the custom type " <>
+               "`UserZodSchema` is the generated schema of the type " <>
                  "AshMoney.Types.Money, named after its alias: rename the alias with " <>
-                 "`ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on a type " <>
-                 "without one)."
+                 "`ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on the " <>
+                 "type, when no entry sets `ts_alias`)."
 
       refute message =~ "_schema_name"
       refute message =~ "typed controller route"
@@ -687,10 +687,10 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
         assert {:error, message} = recursion_error(definitions)
 
         assert message =~
-                 "These declared custom types contain themselves, directly or through " <>
+                 "These aliased types contain themselves, directly or through " <>
                    "other named types: #{Enum.map_join(recursive, ", ", &inspect/1)}."
 
-        assert message =~ "Recursive declared custom types aren't supported"
+        assert message =~ "Recursive aliased types aren't supported"
 
         refute message =~ "ts_alias"
         refute message =~ "_schema_name"

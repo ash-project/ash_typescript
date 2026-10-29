@@ -390,8 +390,8 @@ for (const action of manifest.actions) {
 | "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |
 | "Map-like custom types that declare a TypeScript type" | Remove `typescript_type/0` (or the `scalar` entry); TS comes from the fields |
 | `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |
-| "Declared custom types with colliding TypeScript names found" (compile warning, codegen error), "Duplicate exported type names" / "imports types from ... that it also declares" / "imports names that it also imports from ... or declares" / "is an `import_name`" / "Duplicate Zod schema names detected" (codegen) | Rename the alias (and so its schemas) with `ts_alias "…"` on a `map` entry, or `typescript_type_alias/0` on a type without one |
-| "These declared custom types contain themselves" | Recursive custom types aren't supported: expand the type to a fixed depth |
+| "Types with colliding TypeScript names found" (compile warning, codegen error), "Duplicate exported type names" / "imports types from ... that it also declares" / "imports names that it also imports from ... or declares" / "is an `import_name`" / "Duplicate Zod schema names detected" (codegen) | Rename the alias (and so its schemas) with `ts_alias "…"` on a `map` entry, or `typescript_type_alias/0` on the type when no entry sets `ts_alias` |
+| "These aliased types contain themselves" | Recursive aliased types aren't supported: expand the type to a fixed depth |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
 

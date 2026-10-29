@@ -5,11 +5,15 @@
 defmodule AshTypescript.Codegen.CustomTypeAliases do
   @moduledoc """
   TypeScript aliases for declared custom types (`manifest.types` definitions
-  with `AshRpc.Manifest.Custom.custom_type?/1`).
+  with `AshRpc.Manifest.Custom.custom_type?/1`) and aliased field-bearing
+  NewTypes (TypedStructs and NewTypes over `:map`, `:keyword`, `:tuple` or
+  `:struct` that opt in: a field-less `map` entry, `typescript_type_alias/0`
+  or `alias_all_types?`).
 
-  Every declared definition gets an exported alias in the shared types file,
-  named by its `typescript` name
-  (`AshTypescript.Manifest.Custom.type_alias_names/1`):
+  Every definition with a decorated name gets an exported alias in the shared
+  types file, named by its `typescript` name
+  (`AshTypescript.Manifest.Custom.type_alias_names/1`); NewTypes that don't
+  opt in have none and stay inline everywhere:
 
     * the plain alias (`Money`), every key present, nullable members typed
       `T | null`: the shape the runtime sends. Route results, channel payloads
@@ -22,7 +26,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
 
   The bodies are rendered from the definition's own fields
   (`TypeMapper.expand_plain/1`, `TypeMapper.expand_input/1`), so a definition
-  never maps to its own alias; nested declared types reference their aliases.
+  never maps to its own alias; nested aliased types reference their aliases.
   Schema positions (resource schemas, field selection, generic action results)
   keep their inline form.
 
@@ -36,7 +40,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.TypeSystem.Introspection
 
-  @doc "The declared definitions, which all get an alias, sorted by alias name."
+  @doc "The definitions that get an alias (`plain_name/1`), sorted by alias name."
   @spec definitions() :: [Type.t()]
   def definitions do
     AshTypescript.manifest().types
@@ -44,21 +48,24 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
     |> Enum.sort_by(&plain_name/1)
   end
 
-  @doc "A declared definition's plain alias name, or `nil`."
+  @doc """
+  A definition's plain alias name, or `nil`: the decorated `typescript` name
+  of a declared custom type or an aliased field-bearing NewType. This is the
+  single gate for map-like aliases: every alias, reference and named schema
+  is keyed by it.
+  """
   @spec plain_name(Type.t() | nil) :: String.t() | nil
   def plain_name(%Type{} = definition) do
-    if AshRpc.Manifest.Custom.custom_type?(definition) do
-      case Custom.type_alias_names(definition) do
-        %{typescript: name} -> name
-        _ -> nil
-      end
+    case Custom.type_alias_names(definition) do
+      %{typescript: name} -> name
+      _ -> nil
     end
   end
 
   def plain_name(_), do: nil
 
   @doc """
-  The alias name an input position references for a declared definition:
+  The alias name an input position references for an aliased definition:
   its plain name when the input and plain renderings are equal, else
   `<name>Input`. `nil` for a definition without a plain alias, or one that
   reaches a non-embedded resource (`reaches_resource?/1`): its input uses
@@ -80,9 +87,10 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   end
 
   @doc """
-  Throws `{:error, message}` when a declared definition in the configured
-  manifest contains itself, through arrays, union members, typed containers
-  and other named types (`recursion_message/1`); returns `:ok` otherwise.
+  Throws `{:error, message}` when an aliased definition (`plain_name/1`) in
+  the configured manifest contains itself, through arrays, union members,
+  typed containers and other named types (`recursion_message/1`); returns
+  `:ok` otherwise.
   Resources end the walk: they are referenced by name, not expanded.
 
   Codegen calls it before rendering any alias or schema, since expanding a
@@ -93,7 +101,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   def check_recursive_types! do
     recursive =
       for %Type{} = definition <- AshTypescript.manifest().types,
-          AshRpc.Manifest.Custom.custom_type?(definition),
+          plain_name(definition),
           contains?(children(definition), definition.module, %{}),
           do: definition.module
 
@@ -104,7 +112,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   end
 
   @doc """
-  The codegen error for declared custom types that contain themselves:
+  The codegen error for aliased types that contain themselves:
   `check_recursive_types!/0`, and a cycle among named schemas
   (`AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas/1`).
   """
@@ -113,10 +121,10 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
     modules = modules |> Enum.map(&inspect/1) |> Enum.sort() |> Enum.join(", ")
 
     """
-    These declared custom types contain themselves, directly or through other named types: \
+    These aliased types contain themselves, directly or through other named types: \
     #{modules}.
 
-    Recursive declared custom types aren't supported: codegen expands their fields into \
+    Recursive aliased types aren't supported: codegen expands their fields into \
     their input aliases and zod/valibot schemas, which doesn't end for a type that contains \
     itself, and a named schema would have to be defined before itself; expand the type to \
     a fixed depth.
@@ -140,7 +148,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   arrays, union members, typed containers and other named types (declared or
   not). Embedded resources end the walk.
 
-  Such a declared type gets its plain alias only, with no `Input` alias
+  Such an aliased type gets its plain alias only, with no `Input` alias
   (`input_name/1`) and no named zod/valibot schemas
   (`AshTypescript.Codegen.SchemaCore.custom_type_schema_name/2`): a
   non-embedded resource has no input schema and no zod/valibot schema to

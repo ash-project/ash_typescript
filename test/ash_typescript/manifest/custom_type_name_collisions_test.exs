@@ -149,12 +149,10 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     T.SwatchInputSchema => "SwatchInputSchemaAlias"
   }
 
-  @fix "Rename one of them: set `ts_alias \"…\"` on its `map` entry in your manifest " <>
-         "module's `custom_types` section, or define `typescript_type_alias/0` on a type " <>
-         "without one."
+  @fix "Rename one of them as each line says."
 
-  @rename "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on a " <>
-            "type without one)"
+  @rename "with `ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on the type, " <>
+            "when no entry sets `ts_alias`)"
 
   # The scoped manifest prints the RPC resource warnings and the verifier's
   # diagnostics; they're captured.
@@ -215,11 +213,11 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       message =
         collision_error!(SameAlias, %{T.Billing.Money => "Money", T.Shop.Money => "Money"})
 
-      assert message =~ "Declared custom types with colliding TypeScript names"
+      assert message =~ "Types with colliding TypeScript names found:"
 
       assert message =~
                "`Money` is the TypeScript alias of both #{inspect(T.Billing.Money)} and " <>
-                 "#{inspect(T.Shop.Money)}."
+                 "#{inspect(T.Shop.Money)}: rename one of them #{@rename}."
 
       assert message =~ @fix
     end
@@ -229,7 +227,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
 
       assert message =~
                "`ShadeInput` is the TypeScript alias of #{inspect(T.ShadeInput)} and the " <>
-                 "input alias name of #{inspect(T.Shade)}."
+                 "input alias name of #{inspect(T.Shade)}: rename one of them #{@rename}."
 
       assert message =~ @fix
     end
@@ -243,7 +241,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert message =~
                "`CollisionHolderResourceSchema` is the TypeScript alias of " <>
                  "#{inspect(T.CollisionHolderResourceSchema)} and a type generated for the " <>
-                 "resource #{inspect(T.Holder)}."
+                 "resource #{inspect(T.Holder)}: rename it #{@rename}."
 
       assert message =~ @fix
     end
@@ -253,7 +251,8 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
 
       assert message =~
                "`SwatchInputSchema` is the TypeScript alias of #{inspect(T.SwatchInputSchema)} " <>
-                 "and a type generated for the resource #{inspect(T.Swatch)}."
+                 "and a type generated for the resource #{inspect(T.Swatch)}: rename it " <>
+                 "#{@rename}."
     end
 
     test "an alias equal to a primitive alias" do
@@ -261,7 +260,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
 
       assert message =~
                "`Decimal` is the TypeScript alias of #{inspect(T.Decimal)} and a type " <>
-                 "ash_typescript generates."
+                 "ash_typescript generates: rename it #{@rename}."
 
       assert message =~ @fix
     end
@@ -271,7 +270,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
 
       assert message =~
                "`InferResult` is the TypeScript alias of #{inspect(T.InferResult)} and a " <>
-                 "type ash_typescript generates."
+                 "type ash_typescript generates: rename it #{@rename}."
     end
 
     test "every collision is listed in one error" do
@@ -397,7 +396,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert message =~ "  - TrackerSummaryPayload"
 
       assert message =~
-               "`TrackerSummaryPayload` is the TypeScript alias of the custom type " <>
+               "`TrackerSummaryPayload` is the TypeScript alias of the type " <>
                  "AshMoney.Types.Money: rename it #{@rename}."
     end
 
@@ -411,7 +410,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                  "that it also declares:\n  - ListTodosInput"
 
       assert message =~
-               "`ListTodosInput` is the TypeScript alias of the custom type " <>
+               "`ListTodosInput` is the TypeScript alias of the type " <>
                  "AshMoney.Types.Money: rename it #{@rename}."
     end
 
@@ -437,7 +436,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert {:error, message} = generate_with_money_names(%{typescript: "CustomTypes"})
 
       assert message =~
-               "The TypeScript alias `CustomTypes` of the custom type AshMoney.Types.Money " <>
+               "The TypeScript alias `CustomTypes` of the type AshMoney.Types.Money " <>
                  "is an `import_name` in the `:import_into_generated` config"
 
       assert message =~ "config: rename it #{@rename}, or change the `import_name`."
@@ -447,7 +446,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert {:error, message} = generate_with_money_names(%{typescript: "RouteHooks"})
 
       assert message =~
-               "The TypeScript alias `RouteHooks` of the custom type AshMoney.Types.Money " <>
+               "The TypeScript alias `RouteHooks` of the type AshMoney.Types.Money " <>
                  "is an `import_name` in the `:typed_controller_import_into_generated` config"
     end
 
@@ -456,7 +455,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                generate_with_suffix(:zod_schema_suffix, "Schemas", %{typescript: "NestedZod"})
 
       assert message =~
-               "The Zod schema `NestedZodSchemas` of the custom type AshMoney.Types.Money " <>
+               "The Zod schema `NestedZodSchemas` of the type AshMoney.Types.Money " <>
                  "is an `import_name` in the `:zod_import_into_generated` config: rename its " <>
                  "alias #{@rename}, or change the `import_name`."
     end
@@ -474,7 +473,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                  ~s(  - Channel \(imported from "phoenix"\))
 
       assert message =~
-               "`Channel` is the TypeScript alias of the custom type " <>
+               "`Channel` is the TypeScript alias of the type " <>
                  "AshMoney.Types.Money: rename it #{@rename}."
 
       assert message =~ "A file can bind each name once: rename what generates the clashing name."
@@ -489,7 +488,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                  ~s(  - z \(imported from "zod"\))
 
       assert message =~
-               "`z` is the Zod schema of the custom type AshMoney.Types.Money, named after " <>
+               "`z` is the Zod schema of the type AshMoney.Types.Money, named after " <>
                  "its alias: rename the alias #{@rename}."
     end
 
@@ -503,7 +502,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                  ~s(  - v \(imported from "valibot"\))
 
       assert message =~
-               "`v` is the Valibot schema of the custom type AshMoney.Types.Money, named " <>
+               "`v` is the Valibot schema of the type AshMoney.Types.Money, named " <>
                  "after its alias: rename the alias #{@rename}."
     end
 

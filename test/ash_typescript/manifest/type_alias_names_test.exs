@@ -459,11 +459,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
       app = AshTypescript.manifest()
 
-      for module <- [
-            AshTypescript.Test.TaskStats,
-            AshTypescript.Test.TodoTimestamp,
-            AshTypescript.Test.ThemeMap
-          ] do
+      for module <- [AshTypescript.Test.TodoStatistics, AshTypescript.Test.ThemeMap] do
         assert definition(app, module), "#{inspect(module)} is in the app manifest"
         assert names_in(app, module) == nil
       end

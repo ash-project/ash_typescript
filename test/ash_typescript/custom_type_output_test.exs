@@ -137,8 +137,9 @@ defmodule AshTypescript.CustomTypeOutputTest do
   end
 
   describe "generated TypeScript" do
-    # The route result and channel payload types codegen emits: Money is
-    # referenced by its alias (`export type Money` in the types file).
+    # The route result and channel payload types codegen emits: Money and the
+    # aliased TaskStats are referenced by their aliases (`export type Money`,
+    # `export type TaskStats` in the types file).
     test "a route result references the declared custom type's alias" do
       route = AshTypescript.Manifest.Custom.route(manifest(), Session, :reply)
 
@@ -148,6 +149,7 @@ defmodule AshTypescript.CustomTypeOutputTest do
         end)
 
       assert result =~ ~r/price\??: Money/
+      assert result =~ ~r/stats\??: TaskStats\b/
     end
 
     test "a channel payload references the declared custom type's alias" do
@@ -167,6 +169,7 @@ defmodule AshTypescript.CustomTypeOutputTest do
       # A pushed payload has no field selection: nested typed containers are
       # plain objects too, without the TypedMap metadata, as in route results.
       assert payload =~ ~r/price\??: Money/
+      assert payload =~ ~r/stats\??: TaskStats\b/
       refute payload =~ "__type"
 
       assert AshTypescript.with_manifest(manifest(), fn ->

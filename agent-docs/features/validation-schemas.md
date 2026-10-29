@@ -127,7 +127,9 @@ subtype's entry. Otherwise a definition with a schema name
 resource schemas: ordered so each follows the named schemas it references,
 references to resource schemas deferred with `wrap_lazy/1`, a cycle a codegen
 error (`CustomTypeAliases.recursion_message/1`; codegen rejects recursive
-declared types earlier, `check_recursive_types!/0`). A type whose fields reach
+aliased types earlier, `check_recursive_types!/0`). An aliased field-bearing
+NewType (one with `type_alias_names`, `CustomTypeAliases.plain_name/1`) gets a
+named schema the same way. A type whose fields reach
 a non-embedded resource (`CustomTypeAliases.reaches_resource?/1`: that resource
 has no schema) has no schema name, so its object stays inline.
 

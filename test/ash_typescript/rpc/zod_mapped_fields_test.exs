@@ -22,6 +22,16 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Test.Task
 
+  # The body of TaskStats' named schema, in the custom types section.
+  defp task_stats_schema do
+    ZodSchemaGenerator
+    |> AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas()
+    |> String.split("export const TaskStatsZodSchema = ")
+    |> Enum.at(1)
+    |> String.split("\n")
+    |> hd()
+  end
+
   describe "Zod schemas for create actions with mapped field names" do
     test "generate_zod_schema includes mapped field names for accepts" do
       action = AshTypescript.Test.SpecHelpers.spec_action(Task, :create)
@@ -333,17 +343,11 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   end
 
   describe "Zod schemas for typed structs with mapped field names" do
-    test "typed struct fields use mapped field names in action Zod schemas" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
-
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
-
-      # Should contain the stats field with mapped field names
-      assert zod_schema =~ "stats:"
-      assert zod_schema =~ "z.object({"
-
-      # Extract the stats field definition
-      stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
+    test "typed struct fields use mapped field names in the named Zod schema" do
+      # TaskStats has an alias (typescript_type_alias/0), so its fields are in
+      # its named schema, which the action schema references.
+      stats_section = task_stats_schema()
+      assert stats_section =~ "z.object({"
 
       # Should contain mapped field names
       assert stats_section =~ "completed:"
@@ -355,11 +359,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct mapped fields have correct types" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
-
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
-
-      stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
+      stats_section = task_stats_schema()
 
       # completed (from completed?) should be boolean
       assert stats_section =~ "completed: z.boolean()"
@@ -375,11 +375,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct nullable fields wrap with .nullable().optional()" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
-
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
-
-      stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
+      stats_section = task_stats_schema()
 
       # Typed-struct fields with allow_nil? true (the default in `:fields`
       # constraints) get nullable + optional wrappers.
@@ -391,11 +387,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct fields with allow_nil? true wrap with .nullable().optional()" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
-
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
-
-      stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
+      stats_section = task_stats_schema()
 
       # completed? has allow_nil? true, so nullable + optional
       assert stats_section =~ "completed: z.boolean().nullable().optional()"
@@ -412,16 +404,11 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
       # The entire stats field is allow_nil? true on the resource attribute,
       # so it gets nullable + optional in the update accept-field path.
-      assert zod_schema =~ "stats: z.object({"
-      assert zod_schema =~ "}).nullable().optional()"
+      assert zod_schema =~ "stats: TaskStatsZodSchema.nullable().optional()"
     end
 
     test "all typed struct fields use consistent mapped names" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
-
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
-
-      stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
+      stats_section = task_stats_schema()
 
       # All mapped field names should appear
       assert stats_section =~ "completed:"
