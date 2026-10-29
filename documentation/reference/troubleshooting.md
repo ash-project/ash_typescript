@@ -222,7 +222,7 @@ New projects get this automatically from `mix igniter.install ash_typescript`. S
 
 **Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping. The error lists every offending type with its location.
 
-**Solution:** Either implement `typescript_type/0` on the type module, or, for a type you don't own, declare it in the manifest module's `custom_types` section:
+**Solution:** Declare it in the manifest module's `custom_types` section with its base type (or, on a type you own, implement `typescript_type/0`):
 
 ```elixir
 custom_types do
@@ -264,15 +264,51 @@ See [Custom Types](../advanced/custom-types.md).
 
 #### Error: "The ts_alias … is not a TypeScript identifier" / "The typescript_type_alias/0 result … is a TypeScript reserved word"
 
-**Cause:** A `map` entry's `ts_alias`, or a custom type's `typescript_type_alias/0`, isn't a name TypeScript can export: not an identifier (`Geo-Point`), or a reserved word (`string`, `default`, `class`, `await`, …). A `typescript_type_alias/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
+**Cause:** A `map` or `scalar` entry's `ts_alias`, or a type's `typescript_type_alias/0`, isn't a name TypeScript can export: not an identifier (`Geo-Point`), or a reserved word (`string`, `default`, `class`, `await`, …). A `typescript_type_alias/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
 
 **Solution:** Return or set a TypeScript identifier that isn't a reserved word. `ts_alias` takes a string only (`false` is no longer accepted: every declared type gets an alias).
+
+#### Error: "exports `typescript_type_name/0`, which is now `typescript_type/0`: rename it."
+
+**Cause:** A type module the manifest reaches still exports a callback under its v0.19 name. `typescript_type_name/0` is now `typescript_type/0` (and the alias callback is `typescript_type_alias/0`).
+
+**Solution:** Rename the function. See the [upgrade guide](../upgrading/ash-rpc.md#typescript_type_name-0-is-now-typescript_type-0).
+
+#### Error: "The map … needs at least one field (a field-less `map` entry is only for an `Ash.Type.NewType` with fields …)"
+
+**Cause:** A `map` entry without fields for a module that isn't an `Ash.Type.NewType` with fields (an `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or `:struct` with `fields`). A field-less entry only opts such a NewType into an alias.
+
+**Solution:** Declare the fields of a map-like custom type with `field` entries, or remove the entry.
+
+#### Error: "The fields of … come from the type; remove them from its `map` entry." / "has no fields, so its `zod` would never be used"
+
+**Cause:** A `map` entry for an `Ash.Type.NewType` with fields declares fields, or a `zod` / `valibot` replacement. Its fields and schemas come from the type; the entry only opts it into an alias.
+
+**Solution:** Remove the fields (or `zod` / `valibot`) from the entry, leaving `map MyApp.Types.Address` or `map MyApp.Types.Address, ts_alias: "Address"`.
+
+#### Error: "exports `typescript_type/0`: remove it; the alias is generated from the fields."
+
+**Cause:** An `Ash.Type.NewType` with fields is opted into an alias (a field-less `map` entry, or `typescript_type_alias/0`) and also names its own TypeScript type. Its alias is generated from its fields.
+
+**Solution:** Remove `typescript_type/0`, or the opt-in to keep the type inline with the callback's TypeScript. A scalar may combine `typescript_type/0` with an alias. See [NewTypes With Fields](../advanced/custom-types.md#newtypes-with-fields).
+
+#### Error: "an MFA `ts_alias` needs an MFA `ts_type`"
+
+**Cause:** A `scalar` entry's `ts_alias` is an MFA (a name per use's constraints) but its `ts_type` is a string or missing, so every name would have the same body.
+
+**Solution:** Give it an MFA `ts_type` too, or a string `ts_alias`. See [Scalar Aliases](../advanced/custom-types.md#scalar-aliases).
 
 #### Codegen error: "Duplicate exported type names", "... imports types from ... that it also declares", "... imports names that it also imports from ... or declares", or an alias / schema that "is an `import_name`"
 
 **Cause:** A custom type's alias equals another export of the types file (a typed channel payload type), a name the RPC, routes or typed channels file declares itself (an action's `XInput`), a name a generated file imports itself (`Channel` from phoenix in the RPC file, `z` / `v` in the schema files, an `import * as` module), or an `import_name` of `import_into_generated` / `typed_controller_import_into_generated`; or its named schema (the alias plus the schema suffix) equals such an imported name or an `import_name` of `zod_import_into_generated` / `valibot_import_into_generated`. Codegen stops before writing any file. The import check covers every generated name, so a typed channel module named `Channel` fails it too when channel RPC actions are generated.
 
 **Solution:** The message names the type: rename its alias (and with it its schemas) with `ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on the type, when no entry sets `ts_alias`), or change the `import_name`.
+
+#### Codegen error: "The TypeScript alias `X` of a scalar has more than one body"
+
+**Cause:** One scalar alias name is used for different TypeScript types: an MFA `ts_alias` that returns one name for uses whose `ts_type` differs, or one name on two scalars that render differently. An alias names one TypeScript type. Codegen lists each body with its modules and stops before writing any file.
+
+**Solution:** Give each its own name (an MFA `ts_alias` that returns a name per `ts_type`), or return `nil` from the MFA to keep a use inline.
 
 #### Errors about resources/modules that only exist in another environment
 

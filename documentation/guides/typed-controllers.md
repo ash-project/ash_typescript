@@ -622,8 +622,9 @@ if (response.ok) {
 | `:map`, `:keyword`, `:tuple` **without** `fields` constraints | `Record<string, any>` (or your `untyped_map_type`) |
 | `:struct` **without** `fields` constraints (or with `fields: []`, unless `instance_of` is an Ash type) | Rejected when the manifest compiles (use an `Ash.TypedStruct`, `fields` constraints or a plain `:map`) |
 | `{:array, inner}` | `Array<inner>` |
-| `Ash.Type.NewType` of any of the above | Expanded inline |
+| `Ash.Type.NewType` of any of the above | Expanded inline, or its alias when it has one (see [Naming the Type](../advanced/custom-types.md#naming-the-type)) |
 | A map-like custom type with declared fields | Its exported alias (`Money`, see [Custom Types](../advanced/custom-types.md#generated-typescript)) |
+| A scalar custom type | Its TypeScript type, or its alias when it has one (`ULID`, a `ts_alias`) |
 
 Resources, embedded resources (including `:struct` with `instance_of` a resource)
 and unions are rejected when the manifest compiles, at any depth, including inside
@@ -1076,7 +1077,7 @@ When enabled, 500 responses include the real exception message (or the inspected
 
 Route generation covers the controllers listed in the manifest module's `typed_controllers:` option (not a config key; see [Quick Start](#3-configure-code-generation)). `router` is needed for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory.
 
-Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
+Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. Without RPC output (no `output_file`), the shared types file holds only the aliases the routes use (`UUID`, `Decimal`, the aliases of custom types and NewTypes), and isn't written when they use none. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 
 ### Path Params Style
 

@@ -53,8 +53,8 @@ defmodule AshTypescript.Manifest.Dsl do
     name: :scalar,
     target: AshTypescript.CustomTypes.Scalar,
     describe: """
-    Declares a custom type you don't own whose values are a single value of
-    a base Ash type. Its TypeScript, zod and valibot are generated from the
+    Declares a custom type whose values are a single value of a base Ash
+    type. Its TypeScript, zod and valibot are generated from the
     base type and constraints unless `ts_type`, `zod` or `valibot` is
     given. With `ts_alias`, its TypeScript is exported as an alias of that
     name.
@@ -103,8 +103,8 @@ defmodule AshTypescript.Manifest.Dsl do
     describe: """
     Has two roles:
 
-      * with fields, declares the fields of a map-like custom type you don't
-        own (one with `storage_type :map`, or composite). Its TypeScript is
+      * with fields, declares the fields of a map-like custom type (one
+        with `storage_type :map`, or composite). Its TypeScript is
         generated from its fields, so a map has no `ts_type` option: a
         map-like type that only names a TypeScript type declares its fields
         instead (see "Migrating from `typescript_type_name/0`" in the Custom
@@ -155,12 +155,16 @@ defmodule AshTypescript.Manifest.Dsl do
   @custom_types %Spark.Dsl.Section{
     name: :custom_types,
     describe: """
-    Declares custom types (`use Ash.Type` modules) you don't own: a `scalar`
-    for a single-value type, a `map` for a map-like one. Each module appears
-    once. A declaration replaces the type's own callbacks
-    (`typescript_type/0`, `typescript_fields/0`) and its built-in entry,
-    if any. Built-in entries cover `AshMoney.Types.Money`,
-    `AshDoubleEntry.ULID`, `AshPostgres.Ltree` and `AshUUID.UUID`.
+    Declares custom types (`use Ash.Type` modules) AshTypescript can't type
+    by itself, yours or a dependency's: a `scalar` for a single-value type, a
+    `map` for a map-like one. A `map` without fields opts an
+    `Ash.Type.NewType` with fields into an alias. Each module appears once.
+    A declaration replaces the type's built-in entry, if any; a `scalar`'s
+    `ts_type` wins over the type's `typescript_type/0`, a `map`'s fields
+    over its `typescript_fields/0`, and an entry's `ts_alias` over its
+    `typescript_type_alias/0`. Built-in entries cover
+    `AshMoney.Types.Money`, `AshDoubleEntry.ULID`, `AshPostgres.Ltree` and
+    `AshUUID.UUID`.
     """,
     examples: [
       """

@@ -139,6 +139,8 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 
 `types_output_file`, `zod_output_file`, and `valibot_output_file` auto-derive from the `output_file` directory — set `output_file` and the others follow. Override individually if needed.
 
+Without `output_file` (a project with only typed controllers or typed channels), the shared types file holds only what the routes and typed channels files use: the aliases their arguments, results and payloads reach, and the channel types. It is written to `types_output_file` (`assets/js/ash_types.ts` unless set), and the routes and channels files import from it and re-export it. When they use no shared name, no types file is written and they neither import nor re-export one.
+
 ## Quick Reference
 
 | Option | Type | Default | Description |
@@ -154,10 +156,10 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
-| `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names, including the named schemas of custom types (`MoneyZodSchema`) |
+| `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names, including the named schemas of aliased map-like types and NewTypes (`MoneyZodSchema`) |
 | `generate_valibot_schemas` | `boolean` | `false` | Whether to generate Valibot validation schemas |
 | `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
-| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for generated Valibot schema names, including the named schemas of custom types (`MoneyValibotSchema`) |
+| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for generated Valibot schema names, including the named schemas of aliased map-like types and NewTypes (`MoneyValibotSchema`) |
 | `generate_validation_functions` | `boolean` | `false` | Whether to generate form validation functions |
 | `generate_phx_channel_rpc_actions` | `boolean` | `false` | Whether to generate Phoenix channel-based RPC functions |
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |
@@ -263,7 +265,7 @@ end
 
 ### Custom types
 
-Custom types you don't own are declared in the manifest module's `custom_types` section: a `scalar` maps a single-value type to TypeScript and validation schemas, a `map` declares the fields of a map-like type. See [Custom Types](../advanced/custom-types.md) and the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
+Custom types AshTypescript can't type by itself are declared in the manifest module's `custom_types` section: a `scalar` maps a single-value type to TypeScript and validation schemas (`ts_type`, `zod` and `valibot` replace the generated ones), a `map` declares the fields of a map-like type. `ts_alias` exports a type's TypeScript under that name, and a `map` entry without fields opts an `Ash.Type.NewType` with fields (an `Ash.TypedStruct`, …) into an alias. See [Custom Types](../advanced/custom-types.md) and the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
 
 ```elixir
 defmodule MyApp.AshTypescriptManifest do
@@ -271,11 +273,14 @@ defmodule MyApp.AshTypescriptManifest do
 
   custom_types do
     scalar SomeLib.ObjectId, :string
+    scalar SomeLib.Email, :string, ts_alias: "Email"
 
     map SomeLib.ColorPalette do
       field :primary, :string, allow_nil?: false
       field :accent, :string
     end
+
+    map MyApp.Types.Address, ts_alias: "Address"
   end
 end
 ```
@@ -433,7 +438,7 @@ config :ash_typescript,
 |--------|------|---------|-------------|
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, generation is skipped) |
 
-Channel types (branded types, payload aliases, event maps) are appended to the shared types file (`ash_types.ts`). Channel functions (factory, subscription helpers) go into `typed_channels_output_file` and import their types from `ash_types.ts`.
+Channel types (branded types, payload aliases, event maps) are appended to the shared types file (`ash_types.ts`), which is generated without `output_file` too (see [Multi-File Output](#multi-file-output)). Channel functions (factory, subscription helpers) go into `typed_channels_output_file` and import their types from `ash_types.ts`.
 
 See [Typed Channels](../guides/typed-channels.md) for complete documentation.
 

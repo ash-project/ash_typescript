@@ -107,7 +107,7 @@ The Orchestrator generates multiple files (types, Zod, RPC, routes, namespace re
 
 ## Extension Points
 
-- **Custom types**: `typescript_type/0` (scalars), `typescript_fields/0` (map-like types), or the manifest's `custom_types` section for types you don't own
+- **Custom types**: the manifest's `custom_types` section (`scalar` / `map`, `ts_alias` for an exported name, a field-less `map` to alias a field-bearing NewType), or on a type you own `typescript_type/0` (scalars), `typescript_fields/0` (map-like types), `typescript_type_alias/0` (the alias)
 - **Field formatters**: Custom formatting in result processor
 - **Calculation handlers**: Extend complex calculation support
 - **Error handlers**: Custom error formatting

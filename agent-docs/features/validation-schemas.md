@@ -113,7 +113,9 @@ shared with the TypeScript side). A scalar's base type uses the entry's
 constraints, or the node's for a member of a declared custom type (a field typed
 by a module with a `scalar` entry carries the entry's constraints merged under its
 own, whichever source declared the fields). `typescript_type/0` has no schema
-counterpart, so it never replaces a built-in's schema.
+counterpart, so it never replaces a built-in's schema. Scalar aliases
+(`AshTypescript.Codegen.ScalarAliases`: a `ts_alias`, `typescript_type_alias/0`,
+ULID, Ltree) are TypeScript-only: their schemas stay inline at every use.
 
 A declared custom type (Money, a DSL `map`, `typescript_fields/0`) is a
 `:type_ref` to its `kind: :map` definition. Its `map` entry (the manifest's, else

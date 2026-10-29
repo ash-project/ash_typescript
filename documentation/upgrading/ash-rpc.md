@@ -599,7 +599,7 @@ client-side only: on the server the value is cast by `ColorPalette`'s own
 `MyApp.HexColor` (the [Custom Types](../advanced/custom-types.md#precise-member-types)
 guide shows one).
 
-### Money, ULID and Ltree
+### Money, ULID, Ltree and AshUUID
 
 These are built-in declarations now:
 
@@ -612,6 +612,8 @@ These are built-in declarations now:
 - The `ULID`, `AshPostgresLtreeArray` and `AshPostgresLtreeFlexible` aliases
   stay, each now exported only when a field uses it (both Ltree aliases were
   exported whenever Ltree was used). Their zod/valibot schemas are unchanged.
+- `AshUUID.UUID` maps to the `UUID` alias, so its `type_mapping_overrides`
+  entry needs no `custom_types` replacement.
 - A `custom_types` entry for one of these modules replaces the built-in.
 
 ### Declared custom types are exported
@@ -628,6 +630,9 @@ schema per type, the alias plus the schema suffix (`MoneyZodSchema`),
 referenced at each use. See
 [Naming the Type](../advanced/custom-types.md#naming-the-type) and
 [Generated TypeScript](../advanced/custom-types.md#generated-typescript).
+An `Ash.TypedStruct` or other NewType with fields, and a scalar, stay inline
+unless you opt them into an alias the same way (a field-less `map` entry, a
+`ts_alias` on a `scalar` entry, or `typescript_type_alias/0`).
 
 - Hand-written aliases for these types can be replaced by imports of the
   generated ones. A `Money` (or other alias) of your own that your code
@@ -758,3 +763,10 @@ work as before.
   or global config.
   `AshTypescript.FieldFormatter` remains for codegen.
 - `AshTypescript.Rpc.ValidationErrorSchemas` was removed.
+- A project with typed controllers or typed channels and no `output_file` now
+  gets the shared types file (`types_output_file`, by default
+  `assets/js/ash_types.ts`), holding the aliases and channel types the routes
+  and channels files use; before, those files imported names from a types
+  file that was never generated. When they use no shared name, no types file
+  is written and they no longer re-export one. See
+  [Multi-File Output](../reference/configuration.md#multi-file-output).

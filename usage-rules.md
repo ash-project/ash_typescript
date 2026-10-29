@@ -59,9 +59,11 @@ SPDX-License-Identifier: MIT
 | **Description** | `description: "Custom desc"` | Override JSDoc description |
 | **Channel Function** | `actionNameChannel({channel, resultHandler})` | Phoenix channel RPC |
 | **Validation Fn** | `validateActionName({...})` | Client-side validation |
-| **Scalar Custom Type** | `def typescript_type, do: "CustomTypes.X"` | Own single-value type |
-| **Map-Like Custom Type** | `def typescript_fields, do: [primary: [type: :string]]` | `:map`/composite type; select `{ palette: ["primary"] }` |
-| **Types You Don't Own** | manifest `custom_types do scalar Mod, :string; map Mod do field :a, :string end end` | Replaces the removed `type_mapping_overrides` / `zod_`/`valibot_mapping_overrides` config |
+| **Scalar Custom Type** | manifest `custom_types do scalar Mod, :integer, constraints: [min: 1] end`, or `def typescript_type, do: "number"` on a type you own | Hand-rolled single-value type; `ts_type`/`zod`/`valibot` replace the generated ones. `import_into_generated` only for TypeScript you maintain yourself |
+| **Map-Like Custom Type** | `def typescript_fields, do: [primary: [type: :string]]`, or a manifest `map Mod do field :a, :string end` | `:map`/composite type; select `{ palette: ["primary"] }` |
+| **Custom Types In The Manifest** | manifest `custom_types do scalar Mod, :string; map Mod do field :a, :string end end` | Works for types you own and dependencies'; replaces the removed `type_mapping_overrides` / `zod_`/`valibot_mapping_overrides` config |
+| **Scalar Alias** | `scalar Mod, :string, ts_alias: "Email"` or `def typescript_type_alias, do: "Email"` | Exports `type Email = string` once, referenced at every use; zod/valibot stay inline. Combines with `typescript_type/0` / `ts_type` (the alias body). An MFA `ts_alias` needs an MFA `ts_type` |
+| **NewType Alias** | `map MyApp.Types.Address` (no fields; joined name) / `map Mod, ts_alias: "Address"`, or `def typescript_type_alias, do: "Address"` | Opts an `Ash.TypedStruct` / NewType with fields into an alias (+ `AddressInput`, named schemas) like a declared type; never with fields or `zod`/`valibot` on the entry, and an aliased one can't export `typescript_type/0` |
 | **Custom Type Alias** | `import type { Money, ThemeInput } from "./ash_rpc"` | A declared map-like custom type is exported as `Money` (and `ThemeInput` when its input shape differs), with schemas `MoneyZodSchema` / `MoneyValibotSchema`; import it instead of redeclaring it. The alias is a `map` entry's `ts_alias "…"`, else the type's `typescript_type_alias/0`, else the joined module name (`SomeLibCoordinates`); schemas are the alias plus the suffix |
 | **Typed Controller** | `use AshTypescript.TypedController` | Controller-style routes |
 | **Controller Module** | `typed_controller do module_name MyWeb.Ctrl` | Generated controller module |
@@ -392,6 +394,10 @@ for (const action of manifest.actions) {
 | `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |
 | "Types with colliding TypeScript names found" (compile warning, codegen error), "Duplicate exported type names" / "imports types from ... that it also declares" / "imports names that it also imports from ... or declares" / "is an `import_name`" / "Duplicate Zod schema names detected" (codegen) | Rename the alias (and so its schemas) with `ts_alias "…"` on a `map` entry, or `typescript_type_alias/0` on the type when no entry sets `ts_alias` |
 | "These aliased types contain themselves" | Recursive aliased types aren't supported: expand the type to a fixed depth |
+| "exports `typescript_type_name/0`, which is now `typescript_type/0`" | Rename the callback to `typescript_type/0` (the alias callback is `typescript_type_alias/0`) |
+| "a field-less `map` entry is only for an `Ash.Type.NewType` with fields" / "The fields of … come from the type" | Field-less `map` entries only opt NewTypes with fields into an alias; custom types declare their fields, NewTypes don't |
+| "exports `typescript_type/0`: remove it; the alias is generated from the fields" | An aliased NewType with fields can't name its TypeScript: remove the callback or the opt-in |
+| "an MFA `ts_alias` needs an MFA `ts_type`" / "The TypeScript alias `X` of a scalar has more than one body" | One scalar alias name names one TypeScript type: MFA `ts_alias` with an MFA `ts_type`, a name per body |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
 

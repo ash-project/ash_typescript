@@ -319,6 +319,17 @@ returns) that still exports `typescript_type_name/0` or
 `check_alias_names/2`). A map-like `:unknown` type with the old callback and no
 fields fails ash_rpc's undeclared-type check first.
 
+Without RPC output (no `output_file`), the orchestrator writes the types file
+from `SharedTypesGenerator.generate_standalone/1`: header, custom imports, the
+alias block scoped to what the route argument/result types and channel payload
+types reach (`TypeAliases.generate_aliases_for_roots/2`, the scalar and map-like
+aliases included; `CustomTypeAliases.reachable/1`), then the channel types. No
+resource schemas, filter or utility types: route arguments and results are plain
+data (`AshTypescript.Manifest.PlainData`), so nothing reaches a resource. When
+that content is empty no file is written, and the routes and channels files get
+`import_paths: %{types: nil}` (no import, no `export type *`). The RPC branch is
+unchanged (`no_rpc_types_file_test.exs`).
+
 `AshTypescript.Codegen.CustomTypeAliases` renders the block appended to the
 type aliases (`// Declared custom types`, sorted by name): the plain alias
 (`TypeMapper.expand_plain/1`, every key present) and, when
@@ -388,14 +399,15 @@ config :ash_typescript,
 
 ### Scalar Entries
 
-For scalar **dependency types** you can't modify (e.g., `AshUUID.UUID`), declare a
+For scalar types without the callback (dependency types such as
+`SomeLib.ObjectId`, or your own), declare a
 `scalar` in the manifest module's `custom_types` section instead of the callback
 (`config :ash_typescript, :type_mapping_overrides` is no longer read, and setting
 it warns at manifest compile):
 
 ```elixir
 custom_types do
-  scalar AshUUID.UUID, :string                       # maps as its base type
+  scalar SomeLib.ObjectId, :string                   # maps as its base type
   scalar MyDep.Code, :string, ts_type: "`code-${string}`"
   scalar MyDep.Path, :string, ts_type: {MyDep.Ts, :path, []}  # apply(m, f, [constraints | a])
 end

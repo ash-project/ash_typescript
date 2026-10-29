@@ -341,7 +341,7 @@ Fields inside a payload may be anything a typed field can be, untyped ones (`:te
 at every depth, including inside NewTypes and custom types declared in the manifest
 module's `custom_types` section.
 
-Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system. A map-like custom type with declared fields references its exported alias (`Money`, see [Custom Types](../advanced/custom-types.md#generated-typescript)).
+Map types with `:fields` constraints, nested ones included, generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system. A map-like custom type with declared fields references its exported alias (`Money`, see [Custom Types](../advanced/custom-types.md#generated-typescript)), and so does a NewType or scalar with an alias (see [Naming the Type](../advanced/custom-types.md#naming-the-type)).
 
 ### Multi-Channel Payload Deduplication
 
@@ -452,7 +452,7 @@ config :ash_typescript,
 |--------|------|---------|-------------|
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, no file is generated) |
 
-Channel types are appended to `ash_types.ts`. Channel functions go into the separate `typed_channels_output_file` and import their types from `ash_types.ts`.
+Channel types are appended to `ash_types.ts`. Channel functions go into the separate `typed_channels_output_file` and import their types from `ash_types.ts`. A project without RPC output (no `output_file`) gets an `ash_types.ts` holding just the channel types and the aliases the payloads use (see [Multi-File Output](../reference/configuration.md#multi-file-output)).
 
 ## Next Steps
 

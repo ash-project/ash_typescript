@@ -167,6 +167,11 @@ and responses. The formatter only applies to fields without a mapping. With
 `{ field1, isActive, line2 }`, and an unmapped `created_at` field next to them
 would become `CreatedAt`.
 
+When such a type is exported as an alias (a `map` entry without fields, or
+`typescript_type_alias/0`; see
+[NewTypes With Fields](custom-types.md#newtypes-with-fields)), its alias, its
+`Input` alias and its named schemas use the same names.
+
 ## Metadata Field Name Mapping
 
 For invalid metadata field names, use the `metadata_field_names` option on the RPC action:
