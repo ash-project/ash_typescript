@@ -322,7 +322,7 @@ runtime.entrypoints["list_todos"]
 | **Codegen client names (every emitted resource/type/action name)** | `lib/ash_typescript/codegen/client_names.ex` (reads `custom.ash_rpc`; guarded by `test/ash_typescript/codegen_name_source_guard_test.exs`) |
 | **Formatter-only names (static vocabulary, TS identifiers)** | `lib/ash_typescript/field_formatter.ex` |
 | **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
-| **Declared custom type aliases (`Money`, `ThemeInput`)** | `lib/ash_typescript/codegen/custom_type_aliases.ex` (names read through `AshTypescript.Manifest.Custom.custom_type_names/1`; `reaches_resource?/1`, `check_recursive_types!/0`) |
+| **Declared custom type aliases (`Money`, `ThemeInput`)** | `lib/ash_typescript/codegen/custom_type_aliases.ex` (names read through `AshTypescript.Manifest.Custom.type_alias_names/1`; `reaches_resource?/1`, `check_recursive_types!/0`) |
 | **Custom type alias collision verifier** | `lib/ash_typescript/manifest/verifiers/verify_custom_type_names.ex` |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |

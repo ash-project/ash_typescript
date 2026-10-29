@@ -179,21 +179,19 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
   # An explicit alias opt-in (a field-less `map` entry, a `scalar` with a
   # `type_name`) on a type that names its own TypeScript type. The callback
-  # opt-in (`typescript_alias_name/0`) is checked by `DecorateManifest`.
+  # opt-in (`typescript_alias_name/0`) and `alias_all_types?` are checked by
+  # `DecorateManifest` (`CustomTypes.check_alias_names/2`).
   defp check_no_type_name_callback(%Scalar{type_name: nil}), do: :ok
 
   defp check_no_type_name_callback(entry) do
     if exports_type_name?(entry.module) do
-      {path, source} =
+      {path, kind} =
         case entry do
-          %Scalar{} -> {[:scalar, entry.module, :type_name], "its TypeScript"}
-          %MapType{} -> {[:map, entry.module], "the fields"}
+          %Scalar{} -> {[:scalar, entry.module, :type_name], :scalar}
+          %MapType{} -> {[:map, entry.module], :map}
         end
 
-      {:error,
-       {entry, path,
-        "#{inspect(entry.module)} exports `typescript_type_name/0`: remove it; the alias is " <>
-          "generated from #{source}."}}
+      {:error, {entry, path, CustomTypes.type_name_callback_message(entry.module, kind)}}
     else
       :ok
     end

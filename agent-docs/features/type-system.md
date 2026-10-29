@@ -239,12 +239,12 @@ end
 Every declared definition (`AshRpc.Manifest.Custom.custom_type?/1`) gets names
 at manifest compile: `AshTypescript.CustomTypes.names/2`, written by
 `AshTypescript.Manifest.Decorator` under
-`custom.ash_typescript.custom_type_names` and read only through
-`AshTypescript.Manifest.Custom.custom_type_names/1`
+`custom.ash_typescript.type_alias_names` and read only through
+`AshTypescript.Manifest.Custom.type_alias_names/1`
 (`%{typescript: name, zod: :derive | nil, valibot: :derive | nil}`). The
-TypeScript name (`CustomTypes.alias_name/2`) is the manifest `map` entry's
-`type_name` (an entry without one: the joined module name), else the type's
-`typescript_alias_name/0`, else a built-in entry's `type_name` (Money:
+TypeScript name (`CustomTypes.alias_name/3`) is the manifest `map` entry's
+`type_name`, else the type's `typescript_alias_name/0` (also under an entry
+without `type_name`), else a built-in entry's `type_name` (Money:
 `"Money"`), else `Codegen.Helpers.module_type_name/1` (the join resources use
 too, `SomeLib.Coordinates` → `SomeLibCoordinates`). It is never inherited from
 a NewType's subtype. A schema name is `nil` when the effective entry
@@ -257,9 +257,17 @@ per-type schema name or inline opt-out. `CustomTypes.check_name/2` (used by
 non-string) rejects non-identifiers (anchored with `\A`/`\z`) and
 TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`); both
 are compile errors (`DslError`), not verifier warnings. A type whose callback
-names it is a compile dependency of the manifest
+names it, and every NewType definition, is a compile dependency of the manifest
 (`CustomTypes.compile_dependencies/3`). Names are fixed at decoration:
 `with_manifest/2` doesn't change them.
+
+A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
+(a field-less `map` entry, `typescript_alias_name/0`, or `alias_all_types?`)
+gets `type_alias_names` too, by the same precedence, beside its `type_name`
+when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
+when it exports `typescript_type_name/0`. Codegen reads map-like aliases only
+through `CustomTypeAliases.plain_name/1`, which still names declared
+definitions only, so NewType names don't change output yet.
 
 `AshTypescript.Codegen.CustomTypeAliases` renders the block appended to the
 type aliases (`// Declared custom types`, sorted by name): the plain alias

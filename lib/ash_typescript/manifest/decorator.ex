@@ -20,9 +20,13 @@ defmodule AshTypescript.Manifest.Decorator do
     * `manifest.types[i].custom.ash_typescript` — the `type_name` for type
       modules that export `typescript_field_names/0` or `typescript_type_name/0`,
       except declared custom types (`AshRpc.Manifest.Custom.custom_type?/1`),
-      which get their `custom_type_names` instead
+      which get their `type_alias_names` instead
       (`AshTypescript.CustomTypes.names/2`, read through
-      `AshTypescript.Manifest.Custom.custom_type_names/1`).
+      `AshTypescript.Manifest.Custom.type_alias_names/1`). A field-bearing
+      NewType that opts into an alias (a field-less `map` entry,
+      `typescript_alias_name/0` or `alias_all_types?`;
+      `AshTypescript.CustomTypes.alias_name/3`) gets `type_alias_names` too,
+      beside its `type_name` when it has one.
 
     * `manifest.entrypoints[i].custom.ash_typescript` — mirrors the
       `config.ash_typescript` payload that `RpcConfigCollector` passed into
@@ -117,24 +121,39 @@ defmodule AshTypescript.Manifest.Decorator do
     end
   end
 
-  # Only types whose effective module exports `typescript_field_names/0` or
-  # `typescript_type_name/0` get decorated (codegen reads `type_name`). Field
-  # name overrides live under `custom.ash_rpc`. A declared custom type
+  # Types whose effective module exports `typescript_field_names/0` or
+  # `typescript_type_name/0` get a `type_name` (codegen reads it). Field name
+  # overrides live under `custom.ash_rpc`. A declared custom type
   # (`AshRpc.Manifest.Custom.custom_type?/1`) gets no `type_name`: its
   # TypeScript comes from its fields, and `VerifyMappableTypes` rejects a
-  # `typescript_type_name/0`. It gets the names of its alias and schemas.
+  # `typescript_type_name/0`. It gets the names of its alias and schemas, as
+  # does a field-bearing NewType that opts into an alias, beside its
+  # `type_name`.
   defp build_type_custom(%Manifest.Type{} = type, custom_types) do
     module = Manifest.Type.effective_module(type)
 
-    cond do
-      AshRpc.Manifest.Custom.custom_type?(type) ->
-        %{custom_type_names: CustomTypes.names(type.module, custom_types)}
+    if AshRpc.Manifest.Custom.custom_type?(type) do
+      %{type_alias_names: CustomTypes.names(type.module, custom_types)}
+    else
+      type_name =
+        if Helpers.has_typescript_field_names?(module) or type_name_exported?(module),
+          do: %{type_name: resolve_type_module_name(module)},
+          else: %{}
 
-      Helpers.has_typescript_field_names?(module) or type_name_exported?(module) ->
-        %{type_name: resolve_type_module_name(module)}
+      custom = Map.merge(type_name, new_type_alias_names(type, custom_types))
+      if custom == %{}, do: nil, else: custom
+    end
+  end
 
-      true ->
-        nil
+  # `CustomTypes.check_alias_names/2` has rejected invalid names before.
+  defp new_type_alias_names(type, custom_types) do
+    with true <- CustomTypes.field_bearing_new_type?(type),
+         {:ok, name} when is_binary(name) <-
+           CustomTypes.alias_name(type.module, custom_types, false) do
+      %{type_alias_names: CustomTypes.names(type.module, custom_types)}
+    else
+      {:error, message} -> raise ArgumentError, message
+      _ -> %{}
     end
   end
 

@@ -47,8 +47,8 @@ defmodule AshTypescript.CustomTypes do
   @type fields_fun :: (module() -> [AshRpc.MappingSource.field_spec()] | nil)
 
   @typedoc """
-  The names codegen gives a declared custom type
-  (`custom.ash_typescript.custom_type_names`): the TypeScript alias, and per
+  The names codegen gives an aliased map-like type
+  (`custom.ash_typescript.type_alias_names`): the TypeScript alias, and per
   schema library `:derive` (a named schema: the alias followed by the
   configured suffix) or `nil` (the entry's replacement, used at every use).
   """
@@ -125,19 +125,29 @@ defmodule AshTypescript.CustomTypes do
   # (`AshRpc.Manifest.Custom.custom_type?/1`), plus a NewType's subtype when the
   # fields came from it. The manifest module recompiles when one of them does.
   # Fields from manifest entries and built-ins need no dependency.
-  # A type whose `typescript_alias_name/0` supplied the alias is one too.
+  # A declared type whose `typescript_alias_name/0` supplied the alias is one
+  # too, and so is every NewType definition in `manifest.types`, so adding
+  # `typescript_alias_name/0` to one later recompiles the manifest.
   @spec compile_dependencies(Manifest.t(), entries(), entries()) :: [module()]
   def compile_dependencies(%Manifest{types: types}, declared, builtin) do
-    types
-    |> Enum.filter(&AshRpc.Manifest.Custom.custom_type?/1)
-    |> Enum.flat_map(fn %Manifest.Type{module: module} ->
-      {_specs, dependencies} = resolve(module, declared, builtin)
+    custom_type_dependencies =
+      types
+      |> Enum.filter(&AshRpc.Manifest.Custom.custom_type?/1)
+      |> Enum.flat_map(fn %Manifest.Type{module: module} ->
+        {_specs, dependencies} = resolve(module, declared, builtin)
 
-      if alias_callback?(module, declared),
-        do: [module | dependencies],
-        else: dependencies
-    end)
-    |> Enum.uniq()
+        if alias_callback?(module, declared),
+          do: [module | dependencies],
+          else: dependencies
+      end)
+
+    new_types =
+      for %Manifest.Type{module: module} <- types,
+          is_atom(module) and not is_nil(module),
+          new_type?(module),
+          do: module
+
+    Enum.uniq(custom_type_dependencies ++ new_types)
   end
 
   @doc """
@@ -168,10 +178,11 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc """
-  The names of the declared custom type `module` (`t:names/0`).
-  `custom_types` is the persisted `%{declared: entries, builtin: entries}`.
+  The names of the aliased map-like type `module` (`t:names/0`): a declared
+  custom type, or a field-bearing NewType that opts into an alias.
+  `custom_types` is the persisted `t:custom_types/0`.
 
-  The alias is `alias_name/2`'s. A library's schema name is `nil` when the
+  The alias is `alias_name/3`'s. A library's schema name is `nil` when the
   entry the type's uses resolve to (`map_entry/2`) has a replacement for that
   library, else `:derive`. Raises `ArgumentError` for an invalid
   `typescript_alias_name/0` result (`check_alias_names/2` reports it first).
@@ -181,7 +192,7 @@ defmodule AshTypescript.CustomTypes do
     effective = map_entry(module, &entry(&1, declared, builtin))
 
     typescript =
-      case alias_name(module, custom_types) do
+      case alias_name(module, custom_types, true) do
         {:ok, name} -> name
         {:error, message} -> raise ArgumentError, message
       end
@@ -194,27 +205,37 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc """
-  The TypeScript alias of the declared custom type `module`, the first of:
+  The TypeScript alias of the map-like type `module` (a declared custom type
+  or a field-bearing NewType), the first of:
 
-    1. with a manifest `map` entry for the module, its `type_name`, else the
-       joined module name (`SomeLib.Coordinates` → `SomeLibCoordinates`);
+    1. the `type_name` of its manifest `map` entry;
     2. the type's `typescript_alias_name/0`;
     3. a built-in `map` entry's `type_name` (`Money`);
-    4. the joined module name.
+    4. the joined module name (`SomeLib.Coordinates` → `SomeLibCoordinates`),
+       when the type is aliased at all: `aliased_by_default?` (declared custom
+       types), a manifest `map` entry for it (a field-less one opts a
+       field-bearing NewType in), or `alias_all_types?`.
 
-  Like fields, the built-ins rank below the type's own callback. None of these
-  is inherited, so a NewType over a declared type has its own.
+  `{:ok, nil}` when none applies. Like fields, the built-ins rank below the
+  type's own callback. None of these is inherited, so a NewType over a
+  declared type has its own.
 
   `{:error, message}`, naming the module, when `typescript_alias_name/0`
-  returns anything but a TypeScript identifier that isn't a reserved word.
+  decides the name and returns anything but a TypeScript identifier that
+  isn't a reserved word.
   """
-  @spec alias_name(module(), custom_types()) :: {:ok, String.t()} | {:error, String.t()}
-  def alias_name(module, %{declared: declared, builtin: builtin}) do
-    joined = Codegen.Helpers.module_type_name(module)
+  @spec alias_name(module(), custom_types(), boolean()) ::
+          {:ok, String.t() | nil} | {:error, String.t()}
+  def alias_name(
+        module,
+        %{declared: declared, builtin: builtin} = custom_types,
+        aliased_by_default?
+      ) do
+    entry = Map.get(declared, module)
 
     cond do
-      match?(%MapType{}, declared[module]) ->
-        {:ok, declared[module].type_name || joined}
+      match?(%MapType{type_name: name} when is_binary(name), entry) ->
+        {:ok, entry.type_name}
 
       exports?(module, :typescript_alias_name, 0) ->
         callback_alias_name(module)
@@ -222,8 +243,12 @@ defmodule AshTypescript.CustomTypes do
       match?(%MapType{type_name: name} when is_binary(name), builtin[module]) ->
         {:ok, builtin[module].type_name}
 
+      aliased_by_default? or match?(%MapType{}, entry) or
+          Map.get(custom_types, :alias_all_types?, false) ->
+        {:ok, Codegen.Helpers.module_type_name(module)}
+
       true ->
-        {:ok, joined}
+        {:ok, nil}
     end
   end
 
@@ -242,19 +267,49 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # The first invalid alias (`alias_name/2`) among the manifest's declared
-  # custom types, as `{:error, message}`; `:ok` when there is none.
+  # The first alias error among the manifest's map-like definitions (declared
+  # custom types and field-bearing NewTypes), as `{:error, message}`; `:ok`
+  # when there is none. An error is an invalid `alias_name/3` result, or an
+  # aliased field-bearing NewType that exports `typescript_type_name/0`
+  # (through `typescript_alias_name/0` or `alias_all_types?`; a field-less
+  # `map` entry on such a type is rejected by `NormalizeCustomTypes`).
   @spec check_alias_names(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
   def check_alias_names(%Manifest{types: types}, custom_types) do
     Enum.find_value(types, :ok, fn type ->
-      with true <- AshRpc.Manifest.Custom.custom_type?(type),
-           {:error, _message} = error <- alias_name(type.module, custom_types) do
-        error
-      else
-        _ -> nil
+      cond do
+        AshRpc.Manifest.Custom.custom_type?(type) ->
+          alias_error(alias_name(type.module, custom_types, true))
+
+        field_bearing_new_type?(type) ->
+          case alias_name(type.module, custom_types, false) do
+            {:ok, name} when is_binary(name) ->
+              if exports?(type.module, :typescript_type_name, 0),
+                do: {:error, type_name_callback_message(type.module, :map)}
+
+            result ->
+              alias_error(result)
+          end
+
+        true ->
+          nil
       end
     end)
   end
+
+  defp alias_error({:error, _message} = error), do: error
+  defp alias_error(_ok), do: nil
+
+  @doc false
+  # The error for an aliased type (`:map` or `:scalar` kind) that exports
+  # `typescript_type_name/0`.
+  @spec type_name_callback_message(module(), :map | :scalar) :: String.t()
+  def type_name_callback_message(module, kind) do
+    "#{inspect(module)} exports `typescript_type_name/0`: remove it; the alias is " <>
+      "generated from #{alias_source(kind)}."
+  end
+
+  defp alias_source(:map), do: "the fields"
+  defp alias_source(:scalar), do: "its TypeScript"
 
   @doc false
   # `:ok` when `name` can be exported as a TypeScript type or const, else
@@ -339,8 +394,9 @@ defmodule AshTypescript.CustomTypes do
     if effective && Map.fetch!(effective, library), do: nil, else: :derive
   end
 
+  # The callback names the type unless its entry's `type_name` does.
   defp alias_callback?(module, declared) do
-    not match?(%MapType{}, Map.get(declared, module)) and
+    not match?(%MapType{type_name: name} when is_binary(name), Map.get(declared, module)) and
       exports?(module, :typescript_alias_name, 0)
   end
 

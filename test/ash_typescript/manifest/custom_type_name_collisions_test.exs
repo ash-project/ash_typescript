@@ -360,7 +360,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       types =
         Enum.map(manifest.types, fn
           %Type{module: AshMoney.Types.Money} = money ->
-            update_in(money.custom.ash_typescript.custom_type_names, &Map.merge(&1, names))
+            update_in(money.custom.ash_typescript.type_alias_names, &Map.merge(&1, names))
 
           type ->
             type

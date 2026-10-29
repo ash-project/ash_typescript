@@ -209,9 +209,9 @@ Every declared type is exported under one name, its alias (see
 schemas are that name followed by the schema suffix (see
 [Named Schemas](#named-schemas)). The alias is the first of:
 
-1. the manifest `map` entry's `type_name`. A type with a `map` entry and no
-   `type_name` gets the joined module name (step 4);
-2. the type's `typescript_alias_name/0`;
+1. the manifest `map` entry's `type_name`;
+2. the type's `typescript_alias_name/0` (also for a type whose `map` entry has
+   no `type_name`);
 3. a built-in entry's name (`Money`, see [Built-In Types](#built-in-types));
 4. the module name with its segments joined, as for resources
    (`SomeLib.ColorPalette` becomes `SomeLibColorPalette`).

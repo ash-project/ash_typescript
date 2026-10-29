@@ -415,12 +415,13 @@ defmodule AshTypescript.Codegen.SchemaCore do
   """
   @spec custom_type_schema_name(module(), SpecType.t()) :: String.t() | nil
   def custom_type_schema_name(formatter, %SpecType{} = definition) do
-    names = Custom.custom_type_names(definition)
+    name = CustomTypeAliases.plain_name(definition)
 
     cond do
-      is_nil(names) or is_nil(Map.fetch!(names, formatter.library())) -> nil
+      is_nil(name) -> nil
+      is_nil(Map.fetch!(Custom.type_alias_names(definition), formatter.library())) -> nil
       CustomTypeAliases.reaches_resource?(definition) -> nil
-      true -> names.typescript <> formatter.schema_suffix()
+      true -> name <> formatter.schema_suffix()
     end
   end
 

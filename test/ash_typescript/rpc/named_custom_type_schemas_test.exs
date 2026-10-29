@@ -388,7 +388,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
           end),
         custom:
           if(declared?,
-            do: Map.put(custom, :ash_typescript, %{custom_type_names: names}),
+            do: Map.put(custom, :ash_typescript, %{type_alias_names: names}),
             else: custom
           )
       }
@@ -462,7 +462,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
     test "a derived name uses the TypeScript name" do
       renamed =
         put_in(
-          definition(T.Orig, "Orig", other: ref(AshMoney.Types.Money)).custom.ash_typescript.custom_type_names.typescript,
+          definition(T.Orig, "Orig", other: ref(AshMoney.Types.Money)).custom.ash_typescript.type_alias_names.typescript,
           "Renamed"
         )
 
@@ -477,7 +477,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
       # replaces its schema, so there is no cycle.
       replaced =
         put_in(
-          definition(T.Replaced, "Replaced", other: ref(T.X)).custom.ash_typescript.custom_type_names.zod,
+          definition(T.Replaced, "Replaced", other: ref(T.X)).custom.ash_typescript.type_alias_names.zod,
           nil
         )
 
@@ -533,7 +533,7 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
         with_types(fn types ->
           Enum.map(types, fn
             %Type{module: AshMoney.Types.Money} = money ->
-              put_in(money.custom.ash_typescript.custom_type_names.typescript, "User")
+              put_in(money.custom.ash_typescript.type_alias_names.typescript, "User")
 
             type ->
               type

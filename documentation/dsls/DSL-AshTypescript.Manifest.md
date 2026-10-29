@@ -128,8 +128,9 @@ instead (see "Migrating from `typescript_type_name/0`" in the Custom
 Types guide);
 * without fields, opts a field-bearing `Ash.Type.NewType` (an
 `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
-`:struct` with `fields`) into an exported alias, named by `type_name`
-or else the joined module name. Its fields come from the type.
+`:struct` with `fields`) into an exported alias, named by `type_name`,
+else the type's `typescript_alias_name/0`, else the joined module
+name. Its fields come from the type.
 
 A map for any other module needs at least one field.
 
@@ -170,7 +171,7 @@ map MyApp.Types.Label, type_name: "Label"
 |------|------|---------|------|
 | [`zod`](#custom_types-map-zod){: #custom_types-map-zod } | `String.t \| mfa` |  | A zod schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`valibot`](#custom_types-map-valibot){: #custom_types-map-valibot } | `String.t \| mfa` |  | A valibot schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
-| [`type_name`](#custom_types-map-type_name){: #custom_types-map-type_name } | `String.t` |  | The name of the generated TypeScript alias (default: the module name joined, `SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`. |
+| [`type_name`](#custom_types-map-type_name){: #custom_types-map-type_name } | `String.t` |  | The name of the generated TypeScript alias (default: the type's `typescript_alias_name/0`, else the module name joined, `SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`. |
 
 
 ### custom_types.map.field

@@ -276,7 +276,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       assert AshRpc.Manifest.Custom.type_field_names(declared) == %{is_on?: "isOn"}
 
       assert declared.custom.ash_typescript == %{
-               custom_type_names: %{
+               type_alias_names: %{
                  typescript: "AshTypescriptManifestDecoratorTestNamedFields",
                  zod: :derive,
                  valibot: :derive

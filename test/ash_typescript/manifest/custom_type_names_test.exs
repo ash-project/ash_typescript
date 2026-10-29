@@ -6,8 +6,8 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
   # The names of declared custom types: the `map` entry's `type_name`, the
   # type's `typescript_alias_name/0`, the joined module name default, their
   # validation, `AshTypescript.CustomTypes.names/2`, and the decorated
-  # `custom.ash_typescript.custom_type_names` read through
-  # `AshTypescript.Manifest.Custom.custom_type_names/1`.
+  # `custom.ash_typescript.type_alias_names` read through
+  # `AshTypescript.Manifest.Custom.type_alias_names/1`.
   # Manifests are compiled with `Module.create/3` under fixed names.
   use ExUnit.Case, async: false
 
@@ -208,7 +208,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
   defp definition(manifest, module), do: Enum.find(manifest.types, &(&1.module == module))
 
   defp names_in(manifest, module),
-    do: Custom.custom_type_names(definition(manifest, module))
+    do: Custom.type_alias_names(definition(manifest, module))
 
   describe "map entry options" do
     test "type_name is persisted" do
@@ -469,12 +469,33 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                    end
     end
 
-    test "an invalid result is ignored when a map entry applies" do
+    test "an invalid result is ignored when the map entry has a type_name" do
       :persistent_term.put({T.Configurable, :alias}, "Geo-Aliased")
 
       module =
         compile_manifest!(
           EntryOverBadCallback,
+          quote do
+            custom_types do
+              map AshTypescript.Manifest.CustomTypeNamesTest.Configurable do
+                type_name "EntryConfigurable"
+                field :lat, :float, allow_nil?: false
+              end
+            end
+          end,
+          [T.CallbackHolderDomain]
+        )
+
+      assert module |> AshTypescript.manifest() |> names_in(T.Configurable) ==
+               %{typescript: "EntryConfigurable", zod: :derive, valibot: :derive}
+    end
+
+    test "an invalid result is a DslError when the map entry has no type_name" do
+      :persistent_term.put({T.Configurable, :alias}, "Geo-Aliased")
+
+      message =
+        compile_error!(
+          EntryWithoutNameBadCallback,
           quote do
             custom_types do
               map AshTypescript.Manifest.CustomTypeNamesTest.Configurable do
@@ -485,12 +506,9 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           [T.CallbackHolderDomain]
         )
 
-      assert module |> AshTypescript.manifest() |> names_in(T.Configurable) ==
-               %{
-                 typescript: "AshTypescriptManifestCustomTypeNamesTestConfigurable",
-                 zod: :derive,
-                 valibot: :derive
-               }
+      assert message =~
+               ~s[The typescript_alias_name/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
+                 "is not a TypeScript identifier."
     end
   end
 
@@ -547,11 +565,11 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       assert names(T.Aliased) == Map.put(@derived, :typescript, "GeoAliased")
     end
 
-    test "an entry wins over typescript_alias_name/0, its type_name or not" do
+    test "an entry's type_name wins over typescript_alias_name/0; without one the callback names it" do
       entry = %MapType{module: T.Aliased, fields: [%Field{name: :lat, type: :float}]}
 
       assert names(T.Aliased, %{T.Aliased => entry}) ==
-               Map.put(@derived, :typescript, "AshTypescriptManifestCustomTypeNamesTestAliased")
+               Map.put(@derived, :typescript, "GeoAliased")
 
       assert names(T.Aliased, %{T.Aliased => %{entry | type_name: "EntryAliased"}}) ==
                Map.put(@derived, :typescript, "EntryAliased")
@@ -645,7 +663,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       names =
         AshTypescript.manifest().types
         |> Enum.filter(&AshRpc.Manifest.Custom.custom_type?/1)
-        |> Map.new(&{&1.module, Custom.custom_type_names(&1)})
+        |> Map.new(&{&1.module, Custom.type_alias_names(&1)})
 
       assert names == %{
                AshMoney.Types.Money => %{typescript: "Money", zod: :derive, valibot: :derive},
@@ -674,12 +692,12 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       theme_map = definition(manifest, AshTypescript.Test.ThemeMap)
 
       assert theme_map
-      assert Custom.custom_type_names(theme_map) == nil
+      assert Custom.type_alias_names(theme_map) == nil
 
       named = Enum.filter(manifest.types, &Custom.type_name/1)
 
       assert named != []
-      assert Enum.all?(named, &(Custom.custom_type_names(&1) == nil))
+      assert Enum.all?(named, &(Custom.type_alias_names(&1) == nil))
     end
 
     test "DSL names reach the definition" do

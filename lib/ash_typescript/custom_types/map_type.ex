@@ -16,9 +16,10 @@ defmodule AshTypescript.CustomTypes.MapType do
   `zod` and `valibot` are optional escape hatches: a string, or an MFA called
   as `apply(m, f, [constraints | a])` that returns one.
 
-  `type_name` is the exported TypeScript alias (default: the joined module
-  name, `SomeLib.Coordinates` → `SomeLibCoordinates`;
-  `AshTypescript.CustomTypes.alias_name/2`). The named zod / valibot schemas
+  `type_name` is the exported TypeScript alias (default: the type's
+  `typescript_alias_name/0`, else the joined module name,
+  `SomeLib.Coordinates` → `SomeLibCoordinates`;
+  `AshTypescript.CustomTypes.alias_name/3`). The named zod / valibot schemas
   are the alias followed by the configured schema suffix; a replacement gets
   none.
   """

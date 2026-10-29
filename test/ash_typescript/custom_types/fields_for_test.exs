@@ -427,7 +427,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
         custom: %{ash_rpc: %{custom_type: true}}
       }
 
-    test "lists the modules whose callbacks supplied a definition's fields or alias" do
+    test "lists the modules whose callbacks supplied a definition's fields or alias, and every NewType" do
       declared = %{
         T.NamesOnly => map_entry(T.NamesOnly, [%Field{name: :x, type: Ash.Type.Integer}])
       }
@@ -453,7 +453,10 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
                  T.Composite,
                  T.NewWithOwn,
                  T.NewOverComposite,
-                 T.NamedNewOverMoney
+                 T.NamedNewOverMoney,
+                 # NewTypes whose fields and alias need no callback.
+                 T.NewOverCallbacks,
+                 T.NewOverMoney
                ])
     end
 

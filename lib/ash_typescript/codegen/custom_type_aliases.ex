@@ -9,7 +9,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
 
   Every declared definition gets an exported alias in the shared types file,
   named by its `typescript` name
-  (`AshTypescript.Manifest.Custom.custom_type_names/1`):
+  (`AshTypescript.Manifest.Custom.type_alias_names/1`):
 
     * the plain alias (`Money`), every key present, nullable members typed
       `T | null`: the shape the runtime sends. Route results, channel payloads
@@ -48,7 +48,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   @spec plain_name(Type.t() | nil) :: String.t() | nil
   def plain_name(%Type{} = definition) do
     if AshRpc.Manifest.Custom.custom_type?(definition) do
-      case Custom.custom_type_names(definition) do
+      case Custom.type_alias_names(definition) do
         %{typescript: name} -> name
         _ -> nil
       end

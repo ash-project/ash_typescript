@@ -32,9 +32,12 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   over the same declarations (`AshTypescript.CustomTypes.hint/3`), so it
   also says to remove a `scalar` entry that covers the type.
   `AshTypescript.Manifest.Decorator` gets the declarations too, for the
-  names of the declared custom types' aliases and schemas. A
-  `typescript_alias_name/0` that returns no valid alias is a
-  `Spark.Error.DslError` (`AshTypescript.CustomTypes.check_alias_names/2`).
+  names of the aliases and schemas of declared custom types and of the
+  field-bearing NewTypes that opt into an alias. A `typescript_alias_name/0`
+  that returns no valid alias, and an aliased field-bearing NewType that
+  exports `typescript_type_name/0` (named by `typescript_alias_name/0` or
+  under `alias_all_types?`), are a `Spark.Error.DslError`
+  (`AshTypescript.CustomTypes.check_alias_names/2`).
   """
 
   use Spark.Dsl.Transformer
@@ -105,9 +108,11 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
 
   # Each type module whose `typescript_fields/0` or `composite_types/1`
   # supplied a declared custom type's fields, or whose
-  # `typescript_alias_name/0` its alias, gets a compile-time edge, so the
-  # manifest recompiles when it changes. Such modules must never read the
-  # manifest at compile time: it depends on them.
+  # `typescript_alias_name/0` its alias, and every NewType definition in the
+  # manifest gets a compile-time edge, so the manifest recompiles when it
+  # changes (adding `typescript_alias_name/0` to a NewType later included).
+  # Such modules must never read the manifest at compile time: it depends on
+  # them.
   defp track_type_modules(dsl_state, manifest, %{declared: declared, builtin: builtin}) do
     manifest
     |> AshTypescript.CustomTypes.compile_dependencies(declared, builtin)

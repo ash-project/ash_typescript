@@ -111,8 +111,9 @@ defmodule AshTypescript.Manifest.Dsl do
         Types guide);
       * without fields, opts a field-bearing `Ash.Type.NewType` (an
         `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
-        `:struct` with `fields`) into an exported alias, named by `type_name`
-        or else the joined module name. Its fields come from the type.
+        `:struct` with `fields`) into an exported alias, named by `type_name`,
+        else the type's `typescript_alias_name/0`, else the joined module
+        name. Its fields come from the type.
 
     A map for any other module needs at least one field.
     """,
@@ -143,7 +144,8 @@ defmodule AshTypescript.Manifest.Dsl do
       type_name: [
         type: :string,
         doc:
-          "The name of the generated TypeScript alias (default: the module name joined, " <>
+          "The name of the generated TypeScript alias (default: the type's " <>
+            "`typescript_alias_name/0`, else the module name joined, " <>
             "`SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot " <>
             "schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`."
       ]
