@@ -1074,23 +1074,26 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
   end
 
-  describe "embedded resource argument type" do
+  describe "typed map argument type" do
     setup %{files: files} do
-      types = CodegenTestHelper.types_content(files)
-      zod = CodegenTestHelper.zod_content(files)
-      %{types: types, zod: zod}
+      %{zod: CodegenTestHelper.zod_content(files)}
     end
 
-    test "generates input type with embedded resource reference in routes file", %{
+    test "generates input type with the typed map inline in routes file", %{
       typescript: typescript
     } do
       assert String.contains?(typescript, "export type CreateTaskInput = {")
       assert String.contains?(typescript, "title: string;")
-      assert String.contains?(typescript, "metadata: TaskMetadataInputSchema;")
+
+      assert String.contains?(
+               typescript,
+               "metadata: {notes?: string | null, priorityLevel?: number | null};"
+             )
+
       assert String.contains?(typescript, "priority?: number | null;")
     end
 
-    test "generates Zod schema referencing embedded resource Zod schema", %{zod: zod} do
+    test "generates Zod schema with the typed map inline", %{zod: zod} do
       assert String.contains?(zod, "export const createTaskRouteZodSchema = z.object({")
 
       [_, after_schema] =
@@ -1099,7 +1102,12 @@ defmodule AshTypescript.TypedController.CodegenTest do
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
       assert String.contains?(schema_body, "title: z.string().min(1).max(200),")
-      assert String.contains?(schema_body, "metadata: TaskMetadataZodSchema,")
+
+      assert String.contains?(
+               schema_body,
+               "metadata: z.object({ notes: z.string().min(1).nullable().optional(), " <>
+                 "priorityLevel: z.number().int().nullable().optional() }),"
+             )
 
       assert String.contains?(
                schema_body,
@@ -1110,23 +1118,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "generates action function for create_task in routes file", %{typescript: typescript} do
       assert String.contains?(typescript, "export async function createTask(")
       assert String.contains?(typescript, "input: CreateTaskInput")
-    end
-
-    test "generates TaskMetadataInputSchema type definition in types file", %{types: types} do
-      assert String.contains?(types, "export type TaskMetadataInputSchema = {")
-      assert String.contains?(types, "createdBy: string;")
-    end
-
-    test "generates TaskMetadataZodSchema in zod file", %{zod: zod} do
-      assert String.contains?(zod, "export const TaskMetadataZodSchema = z.object({")
-    end
-
-    test "types file defines TaskMetadataInputSchema referenced by routes file", %{
-      types: types,
-      typescript: typescript
-    } do
-      assert String.contains?(types, "export type TaskMetadataInputSchema")
-      assert String.contains?(typescript, "metadata: TaskMetadataInputSchema;")
     end
   end
 
@@ -1241,7 +1232,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
              )
     end
 
-    test "generates Valibot schema referencing embedded resource Valibot schema", %{
+    test "generates Valibot schema with the typed map inline", %{
       valibot: valibot
     } do
       assert String.contains?(valibot, "export const createTaskRouteValibotSchema = v.object({")
@@ -1256,7 +1247,12 @@ defmodule AshTypescript.TypedController.CodegenTest do
                "title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),"
              )
 
-      assert String.contains?(schema_body, "metadata: TaskMetadataValibotSchema,")
+      assert String.contains?(
+               schema_body,
+               "metadata: v.object({ notes: v.optional(v.nullable(v.pipe(v.string(), " <>
+                 "v.minLength(1)))), priorityLevel: v.optional(v.nullable(v.pipe(v.number(), " <>
+                 "v.integer()))) }),"
+             )
     end
   end
 
@@ -1344,16 +1340,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       assert %AshTypescript.Manifest.Route{source_module: AshTypescript.Test.Session} =
                info.manifest_route
-    end
-
-    test "referenced_embedded_resources/1 lists top-level embedded non-path arguments from the manifest" do
-      infos =
-        Codegen.resolve_route_infos(
-          AshTypescript.router(),
-          RouteConfigCollector.manifest_routes_config()
-        )
-
-      assert Codegen.referenced_embedded_resources(infos) == [AshTypescript.Test.TaskMetadata]
     end
 
     test "the route set follows with_manifest/2, not config" do

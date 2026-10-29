@@ -134,7 +134,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-route-argument-name){: #typed_controller-route-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-route-argument-type){: #typed_controller-route-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-route-argument-type){: #typed_controller-route-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -209,7 +209,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-get-argument-name){: #typed_controller-get-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-get-argument-type){: #typed_controller-get-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-get-argument-type){: #typed_controller-get-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -284,7 +284,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-post-argument-name){: #typed_controller-post-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-post-argument-type){: #typed_controller-post-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-post-argument-type){: #typed_controller-post-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -359,7 +359,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-patch-argument-name){: #typed_controller-patch-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-patch-argument-type){: #typed_controller-patch-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-patch-argument-type){: #typed_controller-patch-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -434,7 +434,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-put-argument-name){: #typed_controller-put-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-put-argument-type){: #typed_controller-put-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-put-argument-type){: #typed_controller-put-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -509,7 +509,7 @@ Define an argument for this route.
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-delete-argument-name){: #typed_controller-delete-argument-name .spark-required} | `atom` |  | The argument name |
-| [`type`](#typed_controller-delete-argument-type){: #typed_controller-delete-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`) |
+| [`type`](#typed_controller-delete-argument-type){: #typed_controller-delete-argument-type .spark-required} | `module` |  | The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map). Plain data only: resources, embedded resources, unions and recursive types are rejected at any depth when the manifest module compiles. |
 ### Options
 
 | Name | Type | Default | Docs |

@@ -83,8 +83,8 @@ end
 6. **Format + cast** values. `AshRpc.ValueFormatter` (`:input`, a runtime built from
    `AshTypescript.manifest()`, via `format_input/3`) maps nested client keys back by
    exact lookup (a miss → `unknown_input` with the argument's client name first in
-   `path`), the same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
-   resources, union unwrapping (a thrown union error → "is invalid"). Untyped maps pass
+   `path`), the same type-driven path RPC inputs use: typed maps and `typescript_field_names`
+   (arguments are plain data, so no resources or unions reach it). Untyped maps pass
    through unchanged. Then `Ash.Type.cast_input/3` runs; invalid → 422 error
 7. **Apply constraints** via `Ash.Type.apply_constraints/3` — trims strings per `trim?`,
    converts `""` → `nil` under `allow_empty?: false`, and enforces declared constraints
@@ -107,9 +107,10 @@ reads it, honouring `AshTypescript.with_manifest/2`), so it is fixed at compile 
 Tests vary it with
 `AshTypescript.with_manifest(AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case), fn -> ... end)`
 rather than `Application.put_env/3`. Errors are formatted with `AshRpc.ErrorFormatter`.
-Named types that route arguments and `returns` reference (route-only NewTypes, embedded
-resources) are collected into `manifest.types` / `manifest.resources` when the manifest
-builds, so they are decorated like RPC types.
+Named types that route arguments and `returns` reference (route-only NewTypes, typed
+structs, enums) are collected into `manifest.types` when the manifest builds, so they
+are decorated like RPC types. Resources are never collected: arguments and `returns`
+are plain data.
 
 Handlers **must** return `%Plug.Conn{}` — the request handler returns a 500 JSON error if they return anything else.
 
@@ -246,7 +247,7 @@ end
 | `namespace` | string | No | - | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | - | Override generated Zod schema name (avoids collisions with RPC) |
 | `valibot_schema_name` | string | No | - | Override generated Valibot schema name (avoids collisions with RPC) |
-| `returns` | Ash type | No | - | JSON response body type → exported `{Route}Result` TS type. Plain data only (no resources, unions or recursive types, at any depth; checked when the manifest compiles). Declarative only — the handler still sends the body |
+| `returns` | Ash type | No | - | JSON response body type → exported `{Route}Result` TS type. Plain data only (no resources, unions or recursive types, at any depth; checked when the manifest compiles, like argument types). Declarative only — the handler still sends the body |
 | `constraints` | keyword | No | `[]` | Constraints for `returns`; validated/folded at compile time like argument constraints |
 
 ### Argument Options
@@ -254,7 +255,7 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | atom | Yes | - | Argument name (positional arg) |
-| `type` | Ash type | Yes | - | Any form `Ash.OptionsHelpers.ash_type/0` accepts — `:string`, a custom type module, or `{:array, inner}`. Array item constraints go under `constraints: [items: [...]]` |
+| `type` | Ash type | Yes | - | Any form `Ash.OptionsHelpers.ash_type/0` accepts — `:string`, a custom type module, or `{:array, inner}`. Array item constraints go under `constraints: [items: [...]]`. Plain data only, like `returns` (no resources, embedded resources, unions or recursive types; checked when the manifest compiles) |
 | `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and the generated Zod/Valibot schemas. |
 | `allow_nil?` | boolean | No | `true` | Whether argument can be nil. Set to `false` to make required. |
 | `default` | any | No | - | Default value |
@@ -445,7 +446,8 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   otherwise. A plain `Response` is assignable to it, so no cast is needed.
 - **Plain data only, checked when the manifest compiles.**
   `AshTypescript.Manifest.PlainData.check_route!/2`, run from `TypedRoutes.decorate/5`
-  right after the untyped-struct check, walks the decorated `returns` with
+  right after the untyped-struct check, walks the decorated arguments (in declaration
+  order, labelled `argument :name`, verb "accepts") and then `returns` with
   `AshRpc.Introspection.find_type_root/4` (`cycles: :report`) and raises a
   `Spark.Error.DslError` (path `[:typed_controller, route]`; Spark sets `module` to the
   manifest module, the message names the controller and route) for a resource, an
@@ -789,7 +791,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `test/ash_typescript/typed_controller/router_introspection_test.exs` | Router matching and multi-mount |
 | `test/ash_typescript/typed_controller/verify_typed_controller_test.exs` | Compile-time verification |
 | `test/ash_typescript/manifest/routes_test.exs` | Stored `%Route{}` data, client names, collisions |
-| `test/ash_typescript/manifest/plain_data_test.exs` | Plain-data `returns` (resources, unions, recursion, through NewTypes and declared custom types) |
+| `test/ash_typescript/manifest/plain_data_test.exs` | Plain-data arguments and `returns` (resources, unions, recursion, through NewTypes and declared custom types) |
 | `test/ash_typescript/manifest/access_invariant_test.exs` | Routes and publications leave RPC entrypoints and gates unchanged |
 | `test/support/inline_manifest.ex` | `InlineManifest.build!/1`: scoped manifests with other typed module lists |
 | `test/support/resources/session.ex` | Test typed controller module |

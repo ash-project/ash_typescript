@@ -170,21 +170,19 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   defp reaches_resource?([type | rest], walked),
     do: reaches_resource?(children(type) ++ rest, walked)
 
-  @doc false
   # The types directly inside a type, as the alias and schema renderings
   # descend: array items, union members, typed container fields and a named
   # type's definition. Resources, embedded ones included, are leaves.
-  @spec children(Type.t() | nil) :: [Type.t()]
-  def children(%Type{kind: :array, item_type: item}), do: List.wrap(item)
-  def children(%Type{kind: :union, members: members}), do: Enum.map(members || [], & &1.type)
+  defp children(%Type{kind: :array, item_type: item}), do: List.wrap(item)
+  defp children(%Type{kind: :union, members: members}), do: Enum.map(members || [], & &1.type)
 
-  def children(%Type{kind: :type_ref, module: module}),
+  defp children(%Type{kind: :type_ref, module: module}),
     do: [Introspection.named_type_definition(module)]
 
-  def children(%Type{kind: kind} = container) when kind in [:map, :keyword, :tuple, :struct],
+  defp children(%Type{kind: kind} = container) when kind in [:map, :keyword, :tuple, :struct],
     do: Enum.map(Type.get_fields(container), & &1.type)
 
-  def children(_type), do: []
+  defp children(_type), do: []
 
   @doc """
   The aliased definitions (`plain_name/1`) that `roots`

@@ -258,7 +258,7 @@ updateProvider({ provider: "github" }, { enabled: true })
 - Path param `allow_nil?` must match presence: always present → `false`, sometimes present (multi-mount) → `true`
 - Arguments follow Ash action-argument semantics: `constraints:` are validated at compile time and enforced at runtime — a failure returns 422 without invoking the handler
 - Empty string on a required string argument → 422 `is required`; on a nilable string argument the handler receives `nil`. Strings are trimmed by default (`trim?`)
-- Route arguments accept any Ash type form, including `{:array, inner}`; item constraints go under `constraints: [items: [...]]`
+- Route arguments accept any Ash type form, including `{:array, inner}`; item constraints go under `constraints: [items: [...]]`. They are plain data like `returns`: no resources, embedded resources, unions or recursive types (use a typed map or an `Ash.TypedStruct`)
 - Validation schemas are generated for every route with non-path arguments (GET query params included), not just mutations — they live in the shared `ash_zod.ts`/`ash_valibot.ts`, and the JSON manifest advertises them under `typedControllerRoutes[].types`
 
 ## Typed Channel (Event Subscriptions)
@@ -325,7 +325,7 @@ unsubscribeOrgChannel(channel, refs);
 - Event names must be unique across all resources in a channel
 - Publications need `public?: true` (warning if missing — toggle with `warn_on_non_public_publications`)
 - Publications need a `returns` that is a typed map: `transform :some_calc` with an `:auto` map calculation (`expr(%{id: id, title: title})`), or an explicit `returns: :map` with `fields` constraints. A missing `returns`, a scalar, enum, array or untyped payload is a compile error when the manifest compiles
-- Route `returns` and publication `returns` are plain data: resources, embedded resources, unions and recursive types are rejected at any depth. Declare a typed map and build it from the record (`%{email: user.email}`)
+- Route arguments, route `returns` and publication `returns` are plain data: resources, embedded resources, unions and recursive types are rejected at any depth. Declare a typed map and build it from the record (`%{email: user.email}`)
 - The branded channel type exposes `on`/`off`/`join`/`leave` — cast to Phoenix's `Channel` if you need anything else (e.g. `push`)
 - Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
 
@@ -386,7 +386,7 @@ for (const action of manifest.actions) {
 | Duplicate channel event names | Use unique event names across all resources in one channel |
 | Manifest compile error "publication ... has no `returns`" | Use `transform :some_calc` (an `:auto` map calculation) on the publication, or add explicit `returns: :map` with `fields` and a `transform:` function |
 | Manifest compile error "... which is not a typed map" / "returns untyped data" | Channel payloads are typed maps: `returns: :map` with `fields`, and put the value in a field |
-| Manifest compile error "... returns a resource / an embedded resource / a union / a recursive type, at <path>" | Route and publication `returns` are plain data: a typed map built from the record, a field per union variant, a fixed depth for recursion |
+| Manifest compile error "... returns / accepts a resource / an embedded resource / a union / a recursive type, at <path>" | Route arguments and route and publication `returns` are plain data: a typed map (built from the record for results), a field per union variant, a fixed depth for recursion; resource input goes through an RPC action |
 | "undeclared custom type" / "Undeclared map-like custom types found" | Declare fields: `typescript_fields/0`, a manifest `custom_types` `map`, or `composite_types/1` |
 | "Map-like custom types that declare a TypeScript type" | Remove `typescript_type/0` (or the `scalar` entry); TS comes from the fields |
 | `requires_field_selection` on a custom type (Money, a `:map` type) | Select sub-fields: `{ price: ["currency", "amount"] }` |

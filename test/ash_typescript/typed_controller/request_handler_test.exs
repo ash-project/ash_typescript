@@ -719,8 +719,8 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "nested misses are reported in one 422 together with required and invalid_argument errors" do
-      # create_task: title is required, metadata is TaskMetadata (an exposed
-      # embedded resource, so strict), priority is an integer
+      # create_task: title is required, metadata is a typed map (so strict),
+      # priority is an integer
       conn = call(:create_task, %{"metadata" => %{"bogus" => 1}, "priority" => "not_a_number"})
 
       assert conn.status == 422

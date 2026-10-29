@@ -84,30 +84,24 @@ defmodule AshTypescript.Manifest.TypedRouteCollector do
     do: TypeResolver.resolve(Ash.Type.get_type(type), constraints || [])
 
   @doc false
-  # `{resource_modules, other_named_type_modules}`. The first list covers
-  # embedded and domain resources; the second covers enums, NewTypes and
-  # typed structs, with nested named types found by walking each definition.
-  @spec named_modules([Type.t() | nil]) :: {[module()], [module()]}
+  # The named type modules (enums, NewTypes and typed structs) the types
+  # reach, sorted, with nested named types found by walking each definition.
+  # Resources and what they reach are skipped: they aren't plain data.
+  @spec named_modules([Type.t() | nil]) :: [module()]
   def named_modules(types) do
-    {resources, named} = Enum.reduce(types, {MapSet.new(), MapSet.new()}, &walk/2)
-    {Enum.sort_by(resources, &inspect/1), Enum.sort_by(named, &inspect/1)}
+    types
+    |> Enum.reduce(MapSet.new(), &walk/2)
+    |> Enum.sort_by(&inspect/1)
   end
 
-  defp walk(nil, acc), do: acc
+  defp walk(nil, named), do: named
 
-  defp walk(%Type{kind: kind} = type, {resources, named})
-       when kind in [:resource, :embedded_resource],
-       do: {MapSet.put(resources, Type.effective_resource(type)), named}
+  defp walk(%Type{kind: kind}, named) when kind in [:resource, :embedded_resource], do: named
 
-  defp walk(%Type{kind: :type_ref, module: module}, {resources, named} = acc) do
-    if MapSet.member?(named, module) do
-      acc
-    else
-      walk_children(
-        TypeResolver.resolve_definition(module),
-        {resources, MapSet.put(named, module)}
-      )
-    end
+  defp walk(%Type{kind: :type_ref, module: module}, named) do
+    if MapSet.member?(named, module),
+      do: named,
+      else: walk_children(TypeResolver.resolve_definition(module), MapSet.put(named, module))
   end
 
   defp walk(%Type{} = type, acc), do: walk_children(type, acc)

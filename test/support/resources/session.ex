@@ -145,7 +145,13 @@ defmodule AshTypescript.Test.Session do
       valibot_schema_name "createTaskRouteValibotSchema"
 
       argument :title, :string, allow_nil?: false, constraints: [min_length: 1, max_length: 200]
-      argument :metadata, AshTypescript.Test.TaskMetadata, allow_nil?: false
+
+      argument :metadata, :map,
+        allow_nil?: false,
+        constraints: [
+          fields: [notes: [type: :string], priority_level: [type: :integer]]
+        ]
+
       argument :priority, :integer, constraints: [min: 1, max: 5]
 
       returns :integer

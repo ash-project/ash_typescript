@@ -47,53 +47,7 @@ defmodule AshTypescript.Manifest.AccessInvariantTest do
     end
   end
 
-  defmodule ArgumentResourceRoutes do
-    @moduledoc false
-    # A route argument typed as a domain resource with a read action.
-    use AshTypescript.TypedController
-
-    typed_controller do
-      module_name AshTypescript.Manifest.AccessInvariantTest.ArgumentResourceRoutes.Controller
-
-      post :save do
-        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-
-        argument :record, :struct,
-          constraints: [instance_of: AshTypescript.Test.NoRelationshipsResource]
-      end
-    end
-  end
-
-  test "a resource brought in only by a route argument has no callable action" do
-    # SecondDomain has no entrypoint for NoRelationshipsResource;
-    # `read_no_relationships` is its read action's wire name in the test Domain.
-    resource = AshTypescript.Test.NoRelationshipsResource
-
-    m =
-      InlineManifest.build!(
-        domains: [AshTypescript.Test.SecondDomain],
-        typed_controllers: [ArgumentResourceRoutes]
-      )
-
-    assert Map.has_key?(AshRpc.Manifest.resource_lookup(m), resource)
-    refute Enum.any?(m.entrypoints, &(&1.resource == resource))
-
-    refute Enum.any?(
-             Map.values(AshRpc.Manifest.ash_rpc!(m).entrypoints),
-             &(&1.resource == resource)
-           )
-
-    conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
-
-    assert %{"success" => false, "errors" => [%{"type" => "action_not_found"} | _]} =
-             AshRpc.run_action(
-               AshTypescript.RpcProfile,
-               conn,
-               %{"action" => "read_no_relationships", "fields" => ["id"]},
-               manifest: m
-             )
-  end
-
-  # A resource can't be brought in by a publication: resource payloads are
-  # rejected when the manifest compiles (plain_data_test.exs).
+  # A resource can't be brought in by a route or a publication: resource
+  # arguments, results and payloads are rejected when the manifest compiles
+  # (plain_data_test.exs).
 end

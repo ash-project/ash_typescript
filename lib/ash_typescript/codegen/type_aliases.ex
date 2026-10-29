@@ -132,9 +132,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end
   end
 
-  @doc "A resource's field types and calculation argument types."
-  @spec field_types(Ash.Info.Manifest.Resource.t()) :: [Type.t()]
-  def field_types(api_resource) do
+  # A resource's field types, and calculation argument types.
+  defp field_types(api_resource) do
     api_resource.fields
     |> Map.values()
     |> Enum.flat_map(fn field ->

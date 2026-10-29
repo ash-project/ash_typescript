@@ -16,11 +16,11 @@ defmodule AshTypescript.Manifest.TypedRoutes do
   # publication `returns` goes through `AshRpc.Introspection.find_untyped_root/2`,
   # and an untyped struct or undeclared map-like custom type raises a
   # `Spark.Error.DslError` (the latter with the declaration hint; resources
-  # aren't offered as an alternative). Then route and publication `returns`
-  # go through `AshTypescript.Manifest.PlainData`, which raises the same way
-  # for anything that isn't plain data (and for publications, a missing or
-  # non-map `returns`). RPC entrypoints (ash_rpc's decorator) and typed queries
-  # (`AshTypescript.Manifest.Decorator`) raise
+  # aren't offered as an alternative). Then route arguments and route and
+  # publication `returns` go through `AshTypescript.Manifest.PlainData`, which
+  # raises the same way for anything that isn't plain data (and for
+  # publications, a missing or non-map `returns`). RPC entrypoints (ash_rpc's
+  # decorator) and typed queries (`AshTypescript.Manifest.Decorator`) raise
   # `AshRpc.Manifest.UntypedStructError` instead.
 
   alias Ash.Info.Manifest
@@ -137,8 +137,7 @@ defmodule AshTypescript.Manifest.TypedRoutes do
           "#{inspect(route.source_module)} route #{inspect(route.name)} #{verb} " <>
             AshRpc.Manifest.UntypedStructError.details(type, path,
               hint: hint,
-              # Arguments are outside the plain-data rule and may be resources.
-              allow_resource?: verb == "accepts"
+              allow_resource?: false
             )
     end
   end

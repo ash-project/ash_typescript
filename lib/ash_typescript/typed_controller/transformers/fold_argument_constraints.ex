@@ -19,8 +19,8 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
 
   A route's `returns` constraints are folded the same way, so result type
   generation sees the same normalized shape as a generic action's `returns`.
-  The `returns` type's plain-data rule is checked when the manifest compiles
-  (`AshTypescript.Manifest.PlainData`).
+  The plain-data rule for argument and `returns` types is checked when the
+  manifest compiles (`AshTypescript.Manifest.PlainData`).
 
   Invalid constraints (typos, wrong option types) and types that aren't Ash
   types become compile-time errors, matching Ash's behavior for resource

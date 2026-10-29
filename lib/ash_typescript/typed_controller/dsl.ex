@@ -95,7 +95,11 @@ defmodule AshTypescript.TypedController.Dsl do
         # works here too — including `{:array, inner_type}`.
         type: Ash.OptionsHelpers.ash_type(),
         required: true,
-        doc: "The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`)"
+        doc: """
+        The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`, a typed map).
+        Plain data only: resources, embedded resources, unions and recursive types
+        are rejected at any depth when the manifest module compiles.
+        """
       ],
       constraints: [
         type: :keyword_list,

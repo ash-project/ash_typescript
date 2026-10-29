@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Manifest.PlainDataTest do
-  # Typed controller route `returns` and typed channel publication `returns`
-  # are plain data, checked when the manifest module compiles: resources,
-  # embedded resources, unions and recursive named types are rejected at any
-  # depth, declared custom types and NewTypes included. Publications must
+  # Typed controller route arguments and `returns`, and typed channel
+  # publication `returns`, are plain data, checked when the manifest module
+  # compiles: resources, embedded resources, unions and recursive named types
+  # are rejected at any depth, declared custom types and NewTypes included. Publications must
   # also have a `returns` that is a typed map at the top level. Fixture
   # modules are created with `Module.create/3` under fixed names, so the
   # tests aren't async.
@@ -20,6 +20,9 @@ defmodule AshTypescript.Manifest.PlainDataTest do
   @resource_hint "Declare a typed map and build it from the record, for example " <>
                    "`returns: :map, constraints: [fields: [email: [type: :string]]]` " <>
                    "with `%{email: user.email}`."
+  @argument_resource_hint "Declare a typed map argument, for example `argument :user, :map, " <>
+                            "constraints: [fields: [email: [type: :string]]]`, or take " <>
+                            "resource input through an RPC action."
   @union_hint "Use a typed map with a field per variant (all `allow_nil?: true`)."
   @cycle_hint "Expand it to a fixed depth or send an untyped `:map` field."
   @non_map_hint "Phoenix only pushes JSON objects."
@@ -37,6 +40,26 @@ defmodule AshTypescript.Manifest.PlainDataTest do
           children: [type: {:array, AshTypescript.Manifest.PlainDataTest.Node}, init?: false]
         ]
       ]
+  end
+
+  defmodule Loose do
+    @moduledoc false
+    # An embedded resource that only a route argument reaches.
+    use Ash.Resource, data_layer: :embedded
+
+    attributes do
+      attribute :label, :string, public?: true
+    end
+  end
+
+  defmodule Detached do
+    @moduledoc false
+    # A resource without a domain, so never in the manifest.
+    use Ash.Resource, domain: nil
+
+    attributes do
+      uuid_primary_key :id
+    end
   end
 
   defmodule Owned do
@@ -181,6 +204,31 @@ defmodule AshTypescript.Manifest.PlainDataTest do
     module
   end
 
+  # A route whose second argument, `:value`, has the given type.
+  defp define_argument_controller!(name, type, constraints) do
+    module = Module.concat(T, name)
+
+    Module.create(
+      module,
+      quote do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name unquote(Module.concat(module, Controller))
+
+          post :save do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+            argument :name, :string
+            argument :value, unquote(type), constraints: unquote(constraints)
+          end
+        end
+      end,
+      Macro.Env.location(__ENV__)
+    )
+
+    module
+  end
+
   defp define_feed!(name, publish_opts, calculations \\ nil) do
     resource = Module.concat(T, name)
     channel = Module.concat(resource, Channel)
@@ -269,6 +317,31 @@ defmodule AshTypescript.Manifest.PlainDataTest do
              Custom.route(manifest, Module.concat(T, name), :result)
   end
 
+  defp argument_rejected!(name, type, constraints, body \\ nil) do
+    {error, message} =
+      rejected!(fn ->
+        controller = define_argument_controller!(name, type, constraints)
+        compile_manifest!(Module.concat(name, Manifest), [typed_controllers: [controller]], body)
+      end)
+
+    controller = Module.concat(T, name)
+    assert error.module == Module.concat(controller, Manifest)
+    assert error.path == [:typed_controller, :save]
+    assert message =~ "#{inspect(controller)} route :save accepts "
+    message
+  end
+
+  defp argument_accepted!(name, type, constraints) do
+    manifest =
+      quietly(fn ->
+        controller = define_argument_controller!(name, type, constraints)
+        compile_manifest!(Module.concat(name, Manifest), [typed_controllers: [controller]], nil)
+      end)
+
+    assert %AshTypescript.Manifest.Route{} =
+             Custom.route(manifest, Module.concat(T, name), :save)
+  end
+
   defp publication_rejected!(name, publish_opts, calculations \\ nil, body \\ nil) do
     {error, message} =
       rejected!(fn ->
@@ -309,7 +382,7 @@ defmodule AshTypescript.Manifest.PlainDataTest do
       assert message =~
                "returns an embedded resource, AshTypescript.Test.TaskMetadata, at returns.\n\n"
 
-      assert message =~ "Route results and channel payloads are plain data"
+      assert message =~ "Route arguments, route results and channel payloads are plain data"
       assert message =~ @resource_hint
     end
 
@@ -412,38 +485,116 @@ defmodule AshTypescript.Manifest.PlainDataTest do
     end
   end
 
-  describe "manifest roots" do
-    test "a resource reached by a route argument is still in the manifest" do
-      # Arguments are outside the plain-data rule, so their resources stay
-      # `always:` roots; resources in `returns` don't need to be.
-      controller = Module.concat(T, ArgumentRoot)
+  describe "route arguments rejected at any depth" do
+    test "an embedded resource" do
+      message = argument_rejected!(ArgumentEmbedded, AshTypescript.Test.TaskMetadata, [])
 
-      manifest =
-        quietly(fn ->
-          Module.create(
-            controller,
-            quote do
-              use AshTypescript.TypedController
+      assert message =~
+               "accepts an embedded resource, AshTypescript.Test.TaskMetadata, " <>
+                 "at argument :value.\n\n"
 
-              typed_controller do
-                module_name AshTypescript.Manifest.PlainDataTest.ArgumentRoot.Controller
+      assert message =~ "Route arguments, route results and channel payloads are plain data"
+      assert message =~ @argument_resource_hint
+    end
 
-                post :save do
-                  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-                  argument :metadata, AshTypescript.Test.TaskMetadata
-                end
-              end
-            end,
-            Macro.Env.location(__ENV__)
-          )
+    test "an embedded resource only a route argument reaches" do
+      message = argument_rejected!(ArgumentLoose, T.Loose, [])
 
-          compile_manifest!(ArgumentRootManifest, [typed_controllers: [controller]], nil)
-        end)
+      assert message =~
+               "accepts an embedded resource, #{inspect(T.Loose)}, at argument :value.\n\n"
+    end
 
-      assert Map.has_key?(
-               AshRpc.Manifest.resource_lookup(manifest),
-               AshTypescript.Test.TaskMetadata
-             )
+    test "an embedded resource in a typed map field" do
+      message =
+        argument_rejected!(ArgumentMapField, :map,
+          fields: [meta: [type: AshTypescript.Test.TaskMetadata]]
+        )
+
+      assert message =~
+               "accepts an embedded resource, AshTypescript.Test.TaskMetadata, " <>
+                 "at argument :value → meta."
+    end
+
+    test "a :struct instance_of a domain resource" do
+      message = argument_rejected!(ArgumentStruct, :struct, instance_of: AshTypescript.Test.User)
+
+      assert message =~ "accepts a resource, AshTypescript.Test.User, at argument :value.\n\n"
+      assert message =~ @argument_resource_hint
+    end
+
+    test "a :struct instance_of a resource without a domain" do
+      message = argument_rejected!(ArgumentDetached, :struct, instance_of: T.Detached)
+
+      assert message =~ "accepts a resource, #{inspect(T.Detached)}, at argument :value.\n\n"
+    end
+
+    test "a :struct instance_of a domain resource in an array" do
+      message =
+        argument_rejected!(ArgumentStructArray, {:array, :struct},
+          items: [instance_of: AshTypescript.Test.User]
+        )
+
+      assert message =~ "accepts a resource, AshTypescript.Test.User, at argument :value → []."
+    end
+
+    test "a union at the top" do
+      message =
+        argument_rejected!(ArgumentUnion, :union,
+          types: [text: [type: :string], number: [type: :integer]]
+        )
+
+      assert message =~ "accepts a union, at argument :value.\n\n"
+      assert message =~ @union_hint
+    end
+
+    test "a union in a field of an array item" do
+      message =
+        argument_rejected!(ArgumentNestedUnion, {:array, :map},
+          items: [
+            fields: [
+              choice: [
+                type: :union,
+                constraints: [types: [text: [type: :string], number: [type: :integer]]]
+              ]
+            ]
+          ]
+        )
+
+      assert message =~ "accepts a union, at argument :value → [] → choice.\n\n"
+    end
+
+    test "a recursive NewType" do
+      message = argument_rejected!(ArgumentRecursive, T.Node, [])
+
+      assert message =~
+               "accepts a recursive type, #{inspect(T.Node)}, " <>
+                 "at argument :value → children → [].\n\n"
+
+      assert message =~ @cycle_hint
+    end
+
+    test "a recursive NewType in a typed map field" do
+      message = argument_rejected!(ArgumentNestedRecursive, :map, fields: [tree: [type: T.Node]])
+
+      assert message =~
+               "accepts a recursive type, #{inspect(T.Node)}, " <>
+                 "at argument :value → tree → children → []."
+    end
+  end
+
+  describe "route arguments accepted" do
+    test "scalars, enums and untyped values" do
+      argument_accepted!(ArgumentString, :string, [])
+      argument_accepted!(ArgumentEnum, AshTypescript.Test.Todo.Status, [])
+      argument_accepted!(ArgumentTerm, :term, [])
+      argument_accepted!(ArgumentUntypedMap, :map, [])
+    end
+
+    test "a TypedStruct, NewTypes over typed maps and arrays of typed maps" do
+      argument_accepted!(ArgumentTypedStruct, AshTypescript.Test.TaskStats, [])
+      argument_accepted!(ArgumentEnvelope, T.Envelope, [])
+
+      argument_accepted!(ArgumentArray, {:array, :map}, items: [fields: [email: [type: :string]]])
     end
   end
 
@@ -462,6 +613,13 @@ defmodule AshTypescript.Manifest.PlainDataTest do
 
       assert message =~ "returns a union, at returns → choice."
       assert message =~ @union_hint
+    end
+
+    test "a route argument of one with a resource field is rejected at that field" do
+      message = argument_rejected!(ArgumentHolder, T.Holder, [], @declared_types)
+
+      assert message =~
+               "accepts a resource, AshTypescript.Test.User, at argument :value → owner."
     end
 
     test "a route returning a recursive one is rejected" do
@@ -743,41 +901,17 @@ defmodule AshTypescript.Manifest.PlainDataTest do
       refute message =~ "`instance_of` an Ash resource"
     end
 
-    test "on a route argument, with the resource alternative" do
-      # Arguments are outside the plain-data rule and may be resources.
+    test "on a route argument, without the resource alternative" do
+      message =
+        argument_rejected!(ArgumentPlainToken, :struct, instance_of: T.PlainToken)
+
       controller = Module.concat(T, ArgumentPlainToken)
-
-      {error, message} =
-        rejected!(fn ->
-          Module.create(
-            controller,
-            quote do
-              use AshTypescript.TypedController
-
-              typed_controller do
-                module_name AshTypescript.Manifest.PlainDataTest.ArgumentPlainToken.Controller
-
-                post :save do
-                  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-
-                  argument :token, :struct,
-                    constraints: [instance_of: AshTypescript.Manifest.PlainDataTest.PlainToken]
-                end
-              end
-            end,
-            Macro.Env.location(__ENV__)
-          )
-
-          compile_manifest!(ArgumentPlainTokenManifest, [typed_controllers: [controller]], nil)
-        end)
-
-      assert error.path == [:typed_controller, :save]
 
       assert message =~
                "#{inspect(controller)} route :save accepts an untyped struct, " <>
-                 "#{inspect(T.PlainToken)}, at argument :token."
+                 "#{inspect(T.PlainToken)}, at argument :value."
 
-      assert message =~ "* `instance_of` an Ash resource"
+      refute message =~ "`instance_of` an Ash resource"
     end
   end
 end

@@ -265,23 +265,6 @@ defmodule AshTypescript.TypedController.Codegen do
     end
   end
 
-  @doc false
-  # Embedded resources used directly as non-path route arguments, read from the
-  # manifest route types. Their input schemas go to the shared schema output.
-  def referenced_embedded_resources(route_infos) do
-    route_infos
-    |> Enum.flat_map(fn info ->
-      path_params = MapSet.new(info.path_params)
-
-      for %{type: %Ash.Info.Manifest.Type{kind: :embedded_resource} = type, name: name} <-
-            info.manifest_route.inputs,
-          not MapSet.member?(path_params, name),
-          do: Ash.Info.Manifest.Type.effective_resource(type)
-    end)
-    |> Enum.uniq()
-    |> Enum.sort_by(&AshTypescript.Codegen.Helpers.build_resource_type_name/1)
-  end
-
   defp generate_typescript_with_imports(
          route_infos,
          import_paths,

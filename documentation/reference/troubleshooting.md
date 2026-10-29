@@ -499,16 +499,15 @@ end
 
 **Solution:** Fix the constraint keys/values to match what the type supports (e.g. `min_length`/`max_length`/`match` for `:string`, `min`/`max` for `:integer`).
 
-#### Error: "... returns a resource / an embedded resource / a union / a recursive type, at <path>"
+#### Error: "... returns / accepts a resource / an embedded resource / a union / a recursive type, at <path>"
 
-**Cause:** Route `returns` and channel publication `returns` are plain data (`AshTypescript.Manifest.PlainData`). A resource, an embedded resource, a union or a type that contains itself is rejected at any depth, including through NewTypes and declared `custom_types`, when the manifest module compiles. The error names the route or publication and the path (`returns → owner`).
+**Cause:** Route arguments, route `returns` and channel publication `returns` are plain data (`AshTypescript.Manifest.PlainData`). A resource, an embedded resource, a union or a type that contains itself is rejected at any depth, including through NewTypes and declared `custom_types`, when the manifest module compiles. The error names the route or publication and the path (`returns → owner`, `argument :metadata → []`).
 
 **Solution:**
-- Resource or embedded resource: declare a typed map and build it from the record, for example `returns :map` with `constraints fields: [email: [type: :string]]` and `%{email: user.email}`
+- Resource or embedded resource in `returns`: declare a typed map and build it from the record, for example `returns :map` with `constraints fields: [email: [type: :string]]` and `%{email: user.email}`
+- Resource or embedded resource in an argument: declare a typed map (or an `Ash.TypedStruct`) argument with the fields the client sends, or take resource input through an RPC action
 - Union: a typed map with a field per variant (all `allow_nil?: true`)
 - Recursive type: expand it to a fixed depth, or send an untyped `:map` field
-
-Route arguments are not affected: they may be resources.
 
 #### Every Request to a Typed Controller Returns 500
 

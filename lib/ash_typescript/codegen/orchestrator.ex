@@ -122,22 +122,13 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
 
-    controller_resources =
-      if routes_config == [] do
-        []
-      else
-        AshTypescript.router()
-        |> ControllerCodegen.resolve_route_infos(routes_config)
-        |> ControllerCodegen.referenced_embedded_resources()
-      end
-
     all_resources =
-      (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (rpc_resources ++ embedded_resources ++ struct_argument_resources)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
     schema_resources =
-      (embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (embedded_resources ++ struct_argument_resources)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 

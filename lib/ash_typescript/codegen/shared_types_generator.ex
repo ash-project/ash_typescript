@@ -15,13 +15,10 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
   import AshTypescript.Codegen
   import AshTypescript.Codegen.FilterTypes
 
-  alias Ash.Info.Manifest.Type
-
   alias AshTypescript.Codegen.{
     CustomTypeAliases,
     Helpers,
     ImportResolver,
-    ResourceSchemas,
     SortTypes,
     TypeAliases,
     UtilityTypes
@@ -90,17 +87,12 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
   @doc """
   Generates the shared types file for a project without RPC output: what the
   routes and typed channels files reference, and nothing else (no resource
-  filter, sort or utility types).
+  schemas, filter, sort or utility types; route arguments and results and
+  channel payloads are plain data, so they reach no resource).
 
-  The roots are the route types, the `:extra_alias_types` and the fields of
-  the resources they reach, transitively (through arrays, unions, typed
-  containers, named types and those resources' fields): embedded resources,
-  and resources a route takes as a `:struct` argument (`instance_of`), of
-  which only the attributes count. The file holds the custom imports, the
-  aliases the roots reach (`TypeAliases.generate_aliases_for_roots/2`, with
-  the aliased definitions of `CustomTypeAliases.reachable/1`), every schema
-  of those embedded resources, the input schemas of the other resources
-  (route results and channel payloads can't be resources), and the
+  The file holds the custom imports, the aliases the route types and the
+  `:extra_alias_types` reach (`TypeAliases.generate_aliases_for_roots/2`,
+  with the aliased definitions of `CustomTypeAliases.reachable/1`), and the
   `:channel_types` content.
 
   ## Parameters
@@ -114,37 +106,20 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
 
   ## Returns
 
-  The TypeScript content, or `""` when there are no aliases, schemas or
-  channel types to declare.
+  The TypeScript content, or `""` when there are no aliases or channel types
+  to declare.
   """
   def generate_standalone(opts) do
-    types =
+    roots =
       Keyword.get(opts, :route_types, []) ++ Keyword.get(opts, :extra_alias_types, [])
 
     channel_types = Keyword.get(opts, :channel_types, "")
     types_output_file = Keyword.fetch!(opts, :types_output_file)
-    resource_lookup = AshTypescript.resource_lookup()
-
-    {embedded_resources, input_resources} = schema_resources(types, resource_lookup)
-
-    roots =
-      types ++
-        Enum.flat_map(embedded_resources ++ input_resources, fn resource ->
-          rendered_types(Map.fetch!(resource_lookup, resource))
-        end)
 
     type_aliases =
       TypeAliases.generate_aliases_for_roots(roots, CustomTypeAliases.reachable(roots))
 
-    schemas =
-      [
-        generate_all_schemas_for_resources(embedded_resources, embedded_resources, []),
-        Enum.map_join(input_resources, "\n\n", &input_schema/1)
-      ]
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("\n\n")
-
-    if type_aliases == "" and schemas == "" and channel_types == "" do
+    if type_aliases == "" and channel_types == "" do
       ""
     else
       content = """
@@ -154,68 +129,10 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
       #{generate_custom_imports(types_output_file)}
 
       #{type_aliases}
-
-      #{schemas}
       """
 
       if channel_types == "", do: content, else: content <> "\n" <> channel_types
     end
-  end
-
-  # The resources whose schemas `types` reference, and those the schemas
-  # reference, each sorted: embedded resources (all their schemas) and
-  # other resources (route `:struct` arguments with a resource
-  # `instance_of`; their input schema only). `seen` holds the walked named
-  # types and the resources found (`{:resource, module}`).
-  defp schema_resources(types, resource_lookup) do
-    resources =
-      for {{:resource, resource}, true} <- schema_closure(types, resource_lookup, %{}),
-          do: resource
-
-    resources
-    |> Enum.sort_by(&inspect/1)
-    |> Enum.split_with(&Map.fetch!(resource_lookup, &1).embedded?)
-  end
-
-  defp schema_closure([], _lookup, seen), do: seen
-
-  defp schema_closure([%Type{kind: kind} = type | rest], lookup, seen)
-       when kind in [:resource, :embedded_resource] do
-    resource = Type.effective_resource(type)
-    key = {:resource, resource}
-
-    if Map.has_key?(seen, key) do
-      schema_closure(rest, lookup, seen)
-    else
-      fields = rendered_types(Map.fetch!(lookup, resource))
-      schema_closure(fields ++ rest, lookup, Map.put(seen, key, true))
-    end
-  end
-
-  defp schema_closure([%Type{kind: :type_ref, module: module} = type | rest], lookup, seen) do
-    key = {:type, module}
-
-    if Map.has_key?(seen, key),
-      do: schema_closure(rest, lookup, seen),
-      else:
-        schema_closure(CustomTypeAliases.children(type) ++ rest, lookup, Map.put(seen, key, true))
-  end
-
-  defp schema_closure([type | rest], lookup, seen),
-    do: schema_closure(CustomTypeAliases.children(type) ++ rest, lookup, seen)
-
-  # The types a resource's generated schemas render: every field (and
-  # calculation argument) of an embedded resource; the attributes of another
-  # resource, whose input schema is its only schema here.
-  defp rendered_types(%Ash.Info.Manifest.Resource{embedded?: true} = resource),
-    do: TypeAliases.field_types(resource)
-
-  defp rendered_types(resource),
-    do: resource |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute) |> Enum.map(& &1.type)
-
-  defp input_schema(resource) do
-    "// #{Helpers.build_resource_type_name(resource)} Schema\n" <>
-      ResourceSchemas.generate_input_schema(resource)
   end
 
   defp generate_custom_imports(target_output_file) do

@@ -261,7 +261,7 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | name | atom | Yes | — | Argument name (positional arg) |
-| type | Ash type | Yes | — | Any Ash type: `:string`, `:boolean`, `:integer`, a custom type module, or `{:array, inner}` |
+| type | Ash type | Yes | — | An Ash type that is plain data: `:string`, `:boolean`, `:integer`, an enum, a typed map (`:map` with `fields`, an `Ash.TypedStruct`, a NewType of one), a custom type module, or `{:array, inner}` of those. Resources, embedded resources, unions and recursive types are rejected (see [Response Types](#response-types)) |
 | `constraints` | keyword | No | `[]` | Type constraints (e.g. `min_length`, `match`, `min`, `max`). Validated against `Ash.Type.constraints/1` at compile time — invalid constraints are compile errors — and enforced at runtime like Ash action arguments |
 | `allow_nil?` | boolean | No | `true` | If `false`, argument is required |
 | `default` | any | No | — | Default value |
@@ -324,7 +324,7 @@ When a request hits a typed controller route, AshTypescript automatically:
 2. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
 3. **Extracts** only declared arguments (undeclared params are dropped)
 4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
-5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings and embedded resource field names included; any other key is an `unknown_input` 422 whose `path` locates it), wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
+5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings included; any other key is an `unknown_input` 422 whose `path` locates it), and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
 6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
@@ -650,6 +650,21 @@ end
 
 For a union, use a typed map with a field per variant (all `allow_nil?: true`); for
 a recursive type, expand it to a fixed depth or send an untyped `:map` field.
+
+Route arguments follow the same rule: a resource, an embedded resource (including
+`:struct` with `instance_of` a resource), a union or a recursive type is rejected at
+any depth. Declare the fields the client sends as a typed map (or an
+`Ash.TypedStruct`), and take resource input through an RPC action:
+
+```elixir
+post :save_settings do
+  argument :settings, :map,
+    allow_nil?: false,
+    constraints: [fields: [theme: [type: :string], page_size: [type: :integer]]]
+
+  run fn conn, %{settings: settings} -> ... end
+end
+```
 
 Field names inside `fields` constraints must be representable in TypeScript, since
 the body is sent as-is: names with a `?` or an underscore before a digit
@@ -1086,7 +1101,7 @@ AshTypescript validates typed controllers at compile time:
 - **Unique route names** — no duplicates within a module
 - **Handlers present** — every route must have a `run` handler
 - **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
-- **Plain-data `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
+- **Plain-data arguments and `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
 - **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters
 - **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
 

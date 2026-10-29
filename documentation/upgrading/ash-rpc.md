@@ -314,11 +314,11 @@ either is still set. `AshTypescript.typed_controllers/0` and
   `push_formatted/4` is now
   `push_formatted(socket, channel_module, resource, event, payload)`.
 
-## Route results and channel payloads are plain data
+## Route arguments, results and channel payloads are plain data
 
-Typed controller route `returns` and typed channel publication `returns` are
-checked when the manifest module compiles, and a violation raises naming the
-route or publication and the path to the offending type:
+Typed controller route arguments and `returns`, and typed channel publication
+`returns`, are checked when the manifest module compiles, and a violation raises
+naming the route or publication and the path to the offending type:
 
 - Resources, embedded resources (including `:struct` with `instance_of` a
   resource) and unions are rejected at any depth, including inside NewTypes and
@@ -353,6 +353,32 @@ publish :update, [:id],
   constraints: [fields: [email: [type: :string], name: [type: :string]]],
   transform: fn %{data: user} -> %{email: user.email, name: user.name} end
 ```
+
+Route arguments follow the same rule. Before, an argument could be an embedded
+resource (codegen emitted its input type and zod/valibot schemas), a union or
+another resource; now it fails the manifest compile with "route :name accepts an
+embedded resource, …, at argument :name". Declare the fields the client sends as
+a typed map or an `Ash.TypedStruct`, and take resource input through an RPC
+action:
+
+```elixir
+# Before
+post :create_task do
+  argument :metadata, MyApp.TaskMetadata, allow_nil?: false
+end
+
+# After
+post :create_task do
+  argument :metadata, :map,
+    allow_nil?: false,
+    constraints: [fields: [notes: [type: :string], priority: [type: :integer]]]
+end
+```
+
+The generated route input type and schemas then inline the map
+(`metadata: {notes?: string | null, priority?: number | null}`) instead of
+referencing `TaskMetadataInputSchema` / `TaskMetadataZodSchema`. A route argument
+no longer brings a resource into the manifest.
 
 A scalar payload becomes a field of a map (`expr(title)` becomes
 `expr(%{title: title})` in an `:auto` calculation, and the client reads

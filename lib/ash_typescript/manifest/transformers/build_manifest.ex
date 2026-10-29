@@ -77,32 +77,23 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
 
     # Route and publication types become `always:` roots, so their named types
     # are decorated like RPC ones. This never adds entrypoints: membership in the
-    # manifest decides naming, not what RPC can call. Resources are roots only
-    # when a route argument reaches them: a resource in a route or publication
-    # `returns` is rejected (`AshTypescript.Manifest.PlainData`), and that check
-    # matches the node itself, so it needs no lookup entry.
-    {argument_resources, argument_types} =
+    # manifest decides naming, not what RPC can call. Resources are never roots:
+    # a resource in a route argument or `returns` or a publication `returns` is
+    # rejected (`AshTypescript.Manifest.PlainData`), and that check matches the
+    # node itself, so it needs no lookup entry.
+    route_types =
       typed_routes
-      |> Enum.flat_map(fn route -> Enum.map(route.inputs, & &1.type) end)
-      |> TypedRouteCollector.named_modules()
-
-    {_returns_resources, returns_types} =
-      typed_routes
-      |> Enum.map(& &1.returns)
+      |> Enum.flat_map(fn route -> [route.returns | Enum.map(route.inputs, & &1.type)] end)
       # nil returns (no-returns routes and publications) are skipped by named_modules/1
       |> Kernel.++(Enum.map(typed_publications, & &1.returns))
       |> TypedRouteCollector.named_modules()
-
-    route_types = Enum.sort_by(Enum.uniq(argument_types ++ returns_types), &inspect/1)
-
-    Enum.each(argument_resources, &Code.ensure_compiled!/1)
 
     # Generate unified Ash.Info.Manifest with action-scoped reachability and RPC config
     {:ok, manifest} =
       Ash.Info.Manifest.Generator.generate(
         otp_app: otp_app,
         action_entrypoints: all_entrypoints,
-        overrides: [always: [resources: argument_resources, types: route_types]]
+        overrides: [always: [types: route_types]]
       )
 
     # Ensure every module the decorator will later interrogate is compiled.

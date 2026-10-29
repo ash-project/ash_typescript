@@ -4,10 +4,11 @@
 
 defmodule AshTypescript.Manifest.PlainData do
   @moduledoc false
-  # Typed controller route `returns` and typed channel publication `returns`
-  # are plain data: the handler or transform decides what a value holds, so a
-  # resource's loaded fields, field policies and relationship exposure can't
-  # be typed for the client, and a union has no plain wire shape. Run from
+  # Typed controller route arguments and `returns`, and typed channel
+  # publication `returns`, are plain data: the handler or transform decides
+  # what a result holds and what it does with an argument, so a resource's
+  # loaded fields, field policies and relationship exposure can't be typed
+  # for the client, and a union has no plain wire shape. Run from
   # `AshTypescript.Manifest.TypedRoutes.decorate/5` on the decorated types,
   # after the untyped-struct check. Rejected at any depth, through declared
   # custom types and NewTypes: resources, embedded resources, `:struct`
@@ -20,12 +21,18 @@ defmodule AshTypescript.Manifest.PlainData do
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Manifest.{Publication, Route}
 
-  @plain_data "Route results and channel payloads are plain data"
+  @plain_data "Route arguments, route results and channel payloads are plain data"
 
+  # Arguments first, in declaration order, then `returns`.
   @spec check_route!(Route.t(), AshRpc.Introspection.type_lookups()) :: :ok
   def check_route!(%Route{} = route, lookups) do
-    with {reason, path, type} <- find_not_plain(route.returns, lookups) do
-      raise_route!(route, describe(reason, path, type))
+    roots =
+      Enum.map(route.inputs, &{"argument #{inspect(&1.name)}", &1.type, :argument}) ++
+        [{"returns", route.returns, :returns}]
+
+    with {reason, path, type, role} <- find_not_plain(roots, lookups) do
+      verb = if role == :argument, do: "accepts ", else: "returns "
+      raise_route!(route, verb <> describe(reason, path, type, role))
     end
 
     :ok
@@ -43,26 +50,19 @@ defmodule AshTypescript.Manifest.PlainData do
   end
 
   def check_publication!(%Publication{returns: returns} = publication, lookups) do
-    case find_not_plain(returns, lookups) do
-      {reason, path, type} ->
-        raise_publication!(publication, "returns " <> describe(reason, path, type))
+    case find_not_plain([{"returns", returns, :returns}], lookups) do
+      {reason, path, type, role} ->
+        raise_publication!(publication, "returns " <> describe(reason, path, type, role))
 
       nil ->
         check_top_level!(publication, returns, lookups)
     end
   end
 
-  defp find_not_plain(type, lookups) do
-    case AshRpc.Introspection.find_type_root(
-           [{"returns", type, nil}],
-           lookups,
-           &not_plain?/1,
-           cycles: :report
-         ) do
-      {reason, path, found, _tag} -> {reason, path, found}
-      nil -> nil
-    end
-  end
+  # `{reason, path, type, role}` for the first root (`{label, type, role}`)
+  # reaching something that isn't plain data, or nil.
+  defp find_not_plain(roots, lookups),
+    do: AshRpc.Introspection.find_type_root(roots, lookups, &not_plain?/1, cycles: :report)
 
   # A decorated `:struct` `instance_of` a resource is a resource-kind node.
   defp not_plain?(%Type{kind: :union}), do: true
@@ -112,23 +112,35 @@ defmodule AshTypescript.Manifest.PlainData do
   defp name(%Type{module: module}) when not is_nil(module), do: inspect(module)
   defp name(%Type{kind: kind}), do: inspect(kind)
 
-  defp describe(:cycle, path, %Type{module: module}) do
+  defp describe(:cycle, path, %Type{module: module}, _role) do
     "a recursive type, #{inspect(module)}, at #{format_path(path)}.\n\n" <>
       "#{@plain_data} whose TypeScript types are generated inline, so a type can't " <>
       "contain itself. Expand it to a fixed depth or send an untyped `:map` field."
   end
 
-  defp describe(:match, path, %Type{kind: :union}) do
+  defp describe(:match, path, %Type{kind: :union}, _role) do
     "a union, at #{format_path(path)}.\n\n" <>
       "#{@plain_data}, and a union has no plain wire shape. " <>
       "Use a typed map with a field per variant (all `allow_nil?: true`)."
   end
 
-  defp describe(:match, path, %Type{} = type) do
+  defp describe(:match, path, %Type{} = type, role) do
     what = if type.kind == :embedded_resource, do: "an embedded resource", else: "a resource"
 
     "#{what}, #{inspect(Type.effective_resource(type))}, at #{format_path(path)}.\n\n" <>
-      "#{@plain_data}: the handler or transform decides what is loaded, so a " <>
+      resource_hint(role)
+  end
+
+  defp resource_hint(:argument) do
+    "#{@plain_data}: the handler decides what it does with an argument, so a " <>
+      "resource's fields, policies and relationships don't describe what the client " <>
+      "may send. Declare a typed map argument, for example `argument :user, :map, " <>
+      "constraints: [fields: [email: [type: :string]]]`, or take resource input " <>
+      "through an RPC action."
+  end
+
+  defp resource_hint(:returns) do
+    "#{@plain_data}: the handler or transform decides what is loaded, so a " <>
       "resource's fields can't be typed for the client. Declare a typed map and build " <>
       "it from the record, for example `returns: :map, constraints: " <>
       "[fields: [email: [type: :string]]]` with `%{email: user.email}`."
@@ -145,7 +157,7 @@ defmodule AshTypescript.Manifest.PlainData do
     raise Spark.Error.DslError,
       module: route.source_module,
       path: [:typed_controller, route.name],
-      message: "#{inspect(route.source_module)} route #{inspect(route.name)} returns " <> text
+      message: "#{inspect(route.source_module)} route #{inspect(route.name)} " <> text
   end
 
   defp raise_publication!(%Publication{} = publication, text) do

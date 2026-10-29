@@ -50,7 +50,7 @@ defmodule AshTypescript.Manifest.TypedRouteCollectorTest do
 
       create_task = Enum.find(routes, &(&1.name == :create_task))
       metadata = Enum.find(create_task.inputs, &(&1.name == :metadata))
-      assert metadata.type.kind == :embedded_resource
+      assert metadata.type.kind == :map
     end
 
     test "reads declared events that have a returns type" do
@@ -78,7 +78,7 @@ defmodule AshTypescript.Manifest.TypedRouteCollectorTest do
   end
 
   describe "named_modules/1" do
-    test "resources (embedded and domain) and named types, walking into definitions" do
+    test "named types, walking into definitions and skipping resources" do
       types = [
         TypeResolver.resolve(Outer, []),
         TypeResolver.resolve({:array, AshTypescript.Test.TaskMetadata}, []),
@@ -87,8 +87,7 @@ defmodule AshTypescript.Manifest.TypedRouteCollectorTest do
         nil
       ]
 
-      assert TypedRouteCollector.named_modules(types) ==
-               {[AshTypescript.Test.TaskMetadata, AshTypescript.Test.User], [Inner, Outer]}
+      assert TypedRouteCollector.named_modules(types) == [Inner, Outer]
     end
   end
 end
