@@ -8,12 +8,16 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   This module provides a unified approach to type mapping with a single core
   dispatcher (`map_type/3`) that handles both input and output directions.
+
+  An aliased scalar (`AshTypescript.Codegen.ScalarAliases`) renders as its
+  alias name at every position; `expand_scalar/2` gives its TypeScript.
   """
 
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.CustomTypeAliases
   alias AshTypescript.Codegen.Helpers
+  alias AshTypescript.Codegen.ScalarAliases
   alias AshTypescript.CustomTypes.Scalar
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.TypeSystem.Introspection
@@ -283,29 +287,55 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   Options: `:direction` (`:output`, the default, or `:input`) and
   `:custom_fields?` (default `false`).
+
+  This is a scalar's TypeScript, which `map_type/3` renders only when the
+  scalar has no alias name (`AshTypescript.Codegen.ScalarAliases`); with one,
+  it is the alias's body and every use renders the name.
   """
   @spec unknown_module_mapping(Type.t(), keyword()) :: {:ok, String.t()} | :unsupported
-  def unknown_module_mapping(%Type{module: module} = type_info, opts \\ []) do
-    declared = scalar_entry(Custom.declared_custom_type(nil, module))
-    builtin = scalar_entry(Custom.builtin_custom_type(nil, module))
-
-    case declared && typescript_mapping(declared, type_info) do
-      ts when is_binary(ts) -> {:ok, ts}
-      _ -> callback_or_base(module, type_info, declared, builtin, opts)
+  def unknown_module_mapping(%Type{} = type_info, opts \\ []) do
+    case mapping_source(type_info) do
+      {:typescript, ts} -> {:ok, ts}
+      {:base, entry} -> {:ok, base_mapping(entry, type_info, opts)}
+      :unsupported -> :unsupported
     end
   end
 
-  # Steps 2-4: a manifest scalar without `ts_type` replaces the built-in.
-  defp callback_or_base(module, type_info, declared, builtin, opts) do
+  @doc false
+  # The base type a scalar `scalar` entry renders `type_info` with (step 4 of
+  # `unknown_module_mapping/2`: no `ts_type` or `typescript_type/0` applies),
+  # resolved with the entry's constraints; `nil` otherwise. Alias collection
+  # declares the aliases that base type references (`UUID` for a
+  # `scalar X, :uuid`).
+  @spec scalar_base_type(Type.t()) :: Type.t() | nil
+  def scalar_base_type(%Type{module: module} = type_info) do
+    case not primitive_module?(module) && mapping_source(type_info) do
+      {:base, entry} -> AshTypescript.CustomTypes.base_type(entry, type_info.constraints, false)
+      _ -> nil
+    end
+  end
+
+  # `{:typescript, ts}` (steps 1-3), `{:base, entry}` (step 4) or
+  # `:unsupported`. A manifest scalar without `ts_type` replaces the built-in.
+  defp mapping_source(%Type{module: module} = type_info) do
+    declared = scalar_entry(Custom.declared_custom_type(nil, module))
+    builtin = scalar_entry(Custom.builtin_custom_type(nil, module))
+
     cond do
+      is_binary(ts = declared && typescript_mapping(declared, type_info)) ->
+        {:typescript, ts}
+
       Introspection.is_custom_type?(module) ->
-        {:ok, Custom.type_name(type_info) || module.typescript_type()}
+        {:typescript, Custom.type_name(type_info) || module.typescript_type()}
 
       declared ->
-        {:ok, base_mapping(declared, type_info, opts)}
+        {:base, declared}
+
+      is_binary(ts = builtin && typescript_mapping(builtin, type_info)) ->
+        {:typescript, ts}
 
       builtin ->
-        {:ok, typescript_mapping(builtin, type_info) || base_mapping(builtin, type_info, opts)}
+        {:base, builtin}
 
       true ->
         :unsupported
@@ -354,12 +384,21 @@ defmodule AshTypescript.Codegen.TypeMapper do
     """
   end
 
-  # Types whose module isn't a direct Ash primitive: the shared accept-list
-  # (scalar entries, custom types, built-ins), then the kind table.
-  # Genuinely unmappable module types raise. The `VerifyMappableTypes`
-  # manifest verifier reports these at compile time with full context, so the
-  # raise here is a backstop for paths that bypass the manifest.
-  defp map_unclassified(%Type{} = type_info, opts) do
+  # Types whose module isn't a direct Ash primitive: an aliased scalar's
+  # alias name (`AshTypescript.Codegen.ScalarAliases`), else its TypeScript.
+  defp map_unclassified(%Type{} = type_info, opts),
+    do: ScalarAliases.name(type_info, Custom.custom_types(nil)) || expand_scalar(type_info, opts)
+
+  @doc false
+  # The TypeScript of a type `map_type/3` couldn't map by its kind or module,
+  # never its alias: the shared accept-list (scalar entries, custom types,
+  # built-ins), then the kind table. It is the body of an aliased scalar's
+  # alias, and its rendering when it has none. Genuinely unmappable module
+  # types raise. The `VerifyMappableTypes` manifest verifier reports these at
+  # compile time with full context, so the raise here is a backstop for paths
+  # that bypass the manifest. Options as in `unknown_module_mapping/2`.
+  @spec expand_scalar(Type.t(), keyword()) :: String.t()
+  def expand_scalar(%Type{} = type_info, opts) do
     case unknown_module_mapping(type_info, opts) do
       {:ok, ts} ->
         ts

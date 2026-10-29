@@ -32,13 +32,13 @@ defmodule AshTypescript.ScalarCustomTypesTest do
   end
 
   describe "scalar entries in codegen" do
-    test "get_ts_type maps a declared scalar" do
-      assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) == "string"
+    test "get_ts_type maps a declared scalar to its alias" do
+      assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) == "CustomIdentifier"
     end
 
     test "get_ts_type maps an array of a declared scalar" do
       assert Codegen.get_ts_type(%{type: {:array, CustomIdentifier}, constraints: []}) ==
-               "Array<string>"
+               "Array<CustomIdentifier>"
     end
 
     test "an entry takes precedence over the typescript_type/0 callback" do
@@ -57,7 +57,7 @@ defmodule AshTypescript.ScalarCustomTypesTest do
           AshTypescript.Test.Task
         ])
 
-      assert schema =~ "customId: string | null"
+      assert schema =~ "customId: CustomIdentifier | null"
     end
   end
 
@@ -80,7 +80,9 @@ defmodule AshTypescript.ScalarCustomTypesTest do
       another = %Scalar{module: PriorityScore, type: Ash.Type.Integer, ts_type: "Score"}
 
       with_declared(&Map.put(&1, PriorityScore, another), fn ->
-        assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) == "string"
+        assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) ==
+                 "CustomIdentifier"
+
         assert Codegen.get_ts_type(%{type: PriorityScore, constraints: []}) == "Score"
       end)
     end

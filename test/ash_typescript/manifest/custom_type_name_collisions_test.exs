@@ -12,7 +12,8 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
   use ExUnit.Case, async: false
 
   alias Ash.Info.Manifest.Type
-  alias AshTypescript.Codegen.CustomTypeAliases
+  alias AshTypescript.Codegen.{CustomTypeAliases, ScalarAliases}
+  alias AshTypescript.Manifest.{Custom, TypeUses}
   alias AshTypescript.Manifest.CustomTypeNameCollisionsTest, as: T
   alias AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames
   alias AshTypescript.Test.CodegenTestHelper
@@ -556,10 +557,17 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     test "the reserved set covers the fixed generated names" do
       {:ok, files} = CodegenTestHelper.generate_files()
 
+      custom_types = Custom.custom_types(nil)
+
+      scalar_aliases =
+        AshTypescript.manifest()
+        |> TypeUses.nodes()
+        |> Enum.map(&ScalarAliases.name(&1, custom_types))
+
       aliases =
         Enum.flat_map(CustomTypeAliases.definitions(), fn definition ->
           [CustomTypeAliases.plain_name(definition), CustomTypeAliases.input_name(definition)]
-        end)
+        end) ++ scalar_aliases
 
       resource_derived =
         ~r/(ResourceSchema|AttributesOnlySchema|InputSchema|FilterInput|FilterField|SortField)$/
@@ -778,6 +786,44 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert message =~
                "The TypeScript alias `RouteHooks` of the type AshMoney.Types.Money " <>
                  "is an `import_name` in the `:typed_controller_import_into_generated` config"
+    end
+
+    @doc false
+    # A `ts_alias` MFA target: names every use `name`.
+    def fixed_alias(_constraints, name), do: name
+
+    # Codegen with the test manifest's ExternalCode scalar entry naming every
+    # use `name` through an MFA, which the verifier leaves to codegen.
+    defp generate_with_external_code_alias(name) do
+      manifest =
+        update_in(
+          AshTypescript.manifest().custom.ash_typescript.custom_types.declared[
+            AshTypescript.Test.ExternalCode
+          ],
+          &%{&1 | ts_alias: {__MODULE__, :fixed_alias, [name]}}
+        )
+
+      CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
+    end
+
+    test "a scalar alias exported twice names its scalar entry" do
+      assert {:error, message} = generate_with_external_code_alias("TrackerSummaryPayload")
+
+      assert message =~ "Duplicate exported type names in #{AshTypescript.types_output_file()}"
+
+      assert message =~
+               "`TrackerSummaryPayload` is the TypeScript alias of the type " <>
+                 "AshTypescript.Test.ExternalCode: rename it " <>
+                 "#{AshTypescript.CustomTypes.rename_hint(:scalar)}."
+    end
+
+    test "a scalar alias equal to an import_name names its scalar entry" do
+      assert {:error, message} = generate_with_external_code_alias("CustomTypes")
+
+      assert message =~
+               "The TypeScript alias `CustomTypes` of the type AshTypescript.Test.ExternalCode " <>
+                 "is an `import_name` in the `:import_into_generated` config: rename it " <>
+                 "#{AshTypescript.CustomTypes.rename_hint(:scalar)}, or change the `import_name`."
     end
 
     test "a schema name equal to a schema import_name" do

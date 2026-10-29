@@ -44,10 +44,11 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
     do: Codegen.get_ts_type(%{type: type, constraints: constraints})
 
   describe "scalar entries" do
-    test "CustomIdentifier's manifest scalar maps it as its base type", %{content: content} do
-      assert content =~ "customId: string | null;"
-      assert ts(CustomIdentifier) == "string"
-      assert ts({:array, CustomIdentifier}) == "Array<string>"
+    test "CustomIdentifier's manifest scalar is aliased as its base type", %{content: content} do
+      assert content =~ "export type CustomIdentifier = string;"
+      assert content =~ "customId: CustomIdentifier | null;"
+      assert ts(CustomIdentifier) == "CustomIdentifier"
+      assert ts({:array, CustomIdentifier}) == "Array<CustomIdentifier>"
     end
 
     test "a ts_type MFA is called with the use's constraints" do
@@ -62,8 +63,9 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
       end)
     end
 
-    test "the test manifest's MFA scalar (ExternalCode)" do
-      assert ts(ExternalCode) == "`code-${string}`"
+    test "the test manifest's MFA scalar (ExternalCode)", %{content: content} do
+      assert content =~ "export type ExternalCode = `code-${string}`;"
+      assert ts(ExternalCode) == "ExternalCode"
     end
 
     test "a ts_type MFA returning a non-string raises, naming the module and MFA" do
@@ -236,8 +238,8 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   end
 
   describe "scalar members keep their own mapping" do
-    @theme_result ~s({color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: `code-${string}`, codes: Array<`code-${string}`> | null, __type: "TypedMap", __primitiveFields: "color" | "accent" | "score" | "code" | "codes"} | null;)
-    @theme_input ~s({color: `#${string}`, accent?: `#${string}` | null, score?: CustomTypes.PriorityScore | null, code: `code-${string}`, codes?: Array<`code-${string}`> | null} | null;)
+    @theme_result ~s({color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: ExternalCode, codes: Array<ExternalCode> | null, __type: "TypedMap", __primitiveFields: "color" | "accent" | "score" | "code" | "codes"} | null;)
+    @theme_input ~s({color: `#${string}`, accent?: `#${string}` | null, score?: CustomTypes.PriorityScore | null, code: ExternalCode, codes?: Array<ExternalCode> | null} | null;)
 
     test "in a declared custom type's result TypedMap", %{content: content} do
       assert content =~ "theme: " <> @theme_result
@@ -260,24 +262,24 @@ defmodule AshTypescript.Codegen.CustomTypeCodegenTest do
   end
 
   describe "built-in types and aliases" do
-    test "no ULID or Ltree alias is generated; Money has one" do
+    test "ULID and Ltree aliases are generated per variant used; Money has one" do
       aliases =
         Codegen.generate_ash_type_aliases([AshTypescript.Test.Task, AshTypescript.Test.Todo])
 
-      refute aliases =~ "export type ULID"
-      refute aliases =~ "AshPostgresLtreeArray"
-      refute aliases =~ "AshPostgresLtreeFlexible"
+      assert aliases =~ "export type AshPostgresLtreeArray = string[];"
+      assert aliases =~ "export type AshPostgresLtreeFlexible = string | string[];"
+      assert aliases =~ "export type ULID = string;"
       assert aliases =~ "export type Money = {currency: string, amount: Decimal};"
     end
 
-    test "Ltree attributes map per escape? through the built-in's MFA", %{content: content} do
-      assert content =~ "  hierarchy: string | string[] | null;"
-      assert content =~ "  strictHierarchy: string[] | null;"
-      refute content =~ "AshPostgresLtree"
+    test "Ltree attributes reference their alias per escape?", %{content: content} do
+      assert content =~ "  hierarchy: AshPostgresLtreeFlexible | null;"
+      assert content =~ "  strictHierarchy: AshPostgresLtreeArray | null;"
+      refute content =~ "string | string[] | null;"
     end
 
-    test "ULID maps as its base type" do
-      assert ts(AshDoubleEntry.ULID) == "string"
+    test "ULID references its alias" do
+      assert ts(AshDoubleEntry.ULID) == "ULID"
     end
   end
 

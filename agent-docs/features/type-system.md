@@ -93,12 +93,16 @@ are resource fields, calculation arguments, action inputs, returns and
 metadata, the `returns` types of the manifest's stored typed channel
 publications (their payload types are appended to `ash_types.ts`), and every
 aliased definition (declared custom types and aliased field-bearing NewTypes,
-`CustomTypeAliases.definitions/0`, so route-only types get their aliases too).
+`CustomTypeAliases.definitions/0`, so route-only types get their aliases too),
+plus typed controller route argument and result types and the fields of
+struct-argument resources (`TypeAliases.roots/4`). A `scalar` entry's base type
+is collected where it renders the use (`scalar X, :uuid` declares `UUID`).
 
 ### Complex Types
 - Embedded resources → Full resource schema with field selection
 - Unions → Union type with selective member fetching
-- Scalar custom types → Type name from `typescript_type/0` callback
+- Scalar custom types → Type name from `typescript_type/0` callback (or the
+  scalar's alias when it has one, see the scalar names below)
 - Declared (map-like) custom types and aliased field-bearing NewTypes → their
   alias (`Money`, `TaskStats`) at input and plain positions, the inline
   `TypedMap` form at schema positions (see
@@ -108,17 +112,16 @@ aliased definition (declared custom types and aliased field-bearing NewTypes,
 
 Four dependency types are built-in `custom_types` entries
 (`AshTypescript.CustomTypes.Builtin`). Money, a declared custom type, gets the
-generated alias every declared type gets; ULID, Ltree and AshUUID get no alias
-in the generated output (ULID's and Ltree's entries carry `ts_alias` names,
-`ULID` and `Builtin.ltree_ts_alias/1`'s `AshPostgresLtreeArray` /
-`AshPostgresLtreeFlexible` by `escape?`, which `ScalarAliases.name/2` resolves
-but codegen doesn't reference yet):
+generated alias every declared type gets; ULID and Ltree are aliased scalars
+(their entries' `ts_alias`: `ULID`, and `Builtin.ltree_ts_alias/1`'s
+`AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` by `escape?`, each variant
+declared only when used); AshUUID renders the fixed `UUID` alias:
 
 | Module | Entry | TypeScript |
 |--------|-------|------------|
 | `AshMoney.Types.Money` | `map` (`currency`, `amount`) | `export type Money = {currency: string, amount: Decimal};`, referenced at plain positions; a `TypedMap` at schema positions |
-| `AshPostgres.Ltree` | `scalar` with MFA `ts_type` | `string[]` when `escape?: true`, else `string \| string[]` |
-| `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
+| `AshPostgres.Ltree` | `scalar` with MFA `ts_type` and `ts_alias` | `AshPostgresLtreeArray = string[]` when `escape?: true`, else `AshPostgresLtreeFlexible = string \| string[]` |
+| `AshDoubleEntry.ULID` | `scalar` over `:string`, `ts_alias "ULID"` | `ULID = string` |
 | `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
 A manifest entry for the same module replaces the built-in. The Zod/Valibot
@@ -285,8 +288,21 @@ an entry with an MFA `ts_type` and no `ts_alias`, nor for kinds that map to
 `any`, `TypeMapper.aliasable_kind?/1`). `typescript_type/0` doesn't stop a scalar
 from being aliased. `check_alias_names/2` rejects an invalid
 `typescript_type_alias/0` result wherever the callback names a scalar
-(`ScalarAliases.source/2` is `:callback`). Codegen doesn't call the resolver
-yet, so scalars still render inline. Codegen reads map-like aliases only
+(`ScalarAliases.source/2` is `:callback`). `TypeMapper.map_unclassified/2`
+renders a named scalar as its name at every position (schema, input, filter,
+plain); `TypeMapper.expand_scalar/2` gives its TypeScript, the alias body.
+`ScalarAliases.aliases/1` walks the alias roots (`TypeAliases.roots/4`: RPC and
+embedded resources' fields, calc args and actions, channel payload types,
+aliased definitions, plus typed route argument/result types and struct-argument
+resources' fields) once per named type, renders each body as output with the
+walked `custom_fields?`, and emits one `export type <Name> = <body>;` per name in
+the sorted primitive block. One name with two bodies throws a codegen error
+naming the bodies and modules. zod/valibot stay inline. Alias collection also
+collects a `scalar` entry's base type when it renders the use
+(`TypeMapper.scalar_base_type/1`), so a `scalar X, :uuid` declares `UUID`. The
+orchestrator's duplicate-export, import-vs-local and `import_name` backstops
+name scalar aliases with `CustomTypes.rename_hint(:scalar)`.
+Codegen reads map-like aliases only
 through `CustomTypeAliases.plain_name/1` (any definition with
 `type_alias_names`), so an aliased NewType renders exactly like a declared
 custom type: its alias and `Input` alias in the declared block, references at

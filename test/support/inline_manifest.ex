@@ -14,7 +14,7 @@ defmodule AshTypescript.Test.InlineManifest do
 
   `body:` is quoted DSL for the module body (a `custom_types` section);
   the other options go to `use AshTypescript.Manifest`. It defaults to the
-  test manifest's `custom_types` entries (`app_custom_types/0`): a manifest
+  test manifest's `custom_types` entries (`app_custom_types/1`): a manifest
   over the test app reaches its custom types (`GeoPoint`, `LineItem`,
   `TodoRef`, `CustomIdentifier`, `ExternalCode`), which decoration and codegen
   can't map without them.
@@ -64,18 +64,23 @@ defmodule AshTypescript.Test.InlineManifest do
     AshTypescript.manifest(module)
   end
 
-  @doc "The test manifest's `custom_types` section (`test/support/manifest.ex`), quoted."
-  @spec app_custom_types() :: Macro.t()
-  def app_custom_types do
+  @doc """
+  The test manifest's `custom_types` section (`test/support/manifest.ex`),
+  quoted, followed by the quoted `extra` entries.
+  """
+  @spec app_custom_types([Macro.t()]) :: Macro.t()
+  def app_custom_types(extra \\ []) do
     quote do
       custom_types do
         scalar AshTypescript.Test.CustomIdentifier, :string do
+          ts_alias "CustomIdentifier"
           zod "CustomZodSchemas.objectId"
           valibot "CustomValibotSchemas.objectId"
         end
 
         scalar AshTypescript.Test.ExternalCode, :string do
           ts_type {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+          ts_alias {AshTypescript.Test.ExternalCodeTs, :ts_alias, []}
           zod {AshTypescript.Test.ExternalCodeTs, :zod, []}
           valibot {AshTypescript.Test.ExternalCodeTs, :valibot, []}
         end
@@ -103,6 +108,8 @@ defmodule AshTypescript.Test.InlineManifest do
 
         # A field-bearing NewType opted in by a field-less entry (joined name).
         map AshTypescript.Test.TodoTimestamp
+
+        unquote_splicing(extra)
       end
     end
   end

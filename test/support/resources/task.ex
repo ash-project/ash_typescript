@@ -368,6 +368,13 @@ defmodule AshTypescript.Test.Task do
       run fn input, _context -> {:ok, input.arguments.line_item} end
     end
 
+    # A built-in aliased scalar (ULID) at an input and a result.
+    action :echo_ulid, AshDoubleEntry.ULID do
+      argument :ulid, AshDoubleEntry.ULID, allow_nil?: false, public?: true
+
+      run fn input, _context -> {:ok, input.arguments.ulid} end
+    end
+
     # A declared custom type as a union input member.
     action :describe_style, :string do
       argument :style, :union,

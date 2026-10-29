@@ -31,7 +31,7 @@ end
 
 defmodule AshTypescript.Test.ExternalCodeTs do
   @moduledoc """
-  The `ts_type`, `zod` and `valibot` MFAs of the test manifest's
+  The `ts_type`, `ts_alias`, `zod` and `valibot` MFAs of the test manifest's
   `AshTypescript.Test.ExternalCode` scalar entry. Each receives the use's
   constraints.
   """
@@ -39,6 +39,10 @@ defmodule AshTypescript.Test.ExternalCodeTs do
   @doc "The TypeScript type of an `ExternalCode` use."
   @spec typescript(Keyword.t()) :: String.t()
   def typescript(constraints) when is_list(constraints), do: "`code-${string}`"
+
+  @doc "The alias name of an `ExternalCode` use."
+  @spec ts_alias(Keyword.t()) :: String.t()
+  def ts_alias(constraints) when is_list(constraints), do: "ExternalCode"
 
   @doc "The zod schema of an `ExternalCode` use."
   @spec zod(Keyword.t()) :: String.t()

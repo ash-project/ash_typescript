@@ -24,15 +24,18 @@ defmodule AshTypescript.Codegen.Orchestrator do
   alias AshTypescript.Codegen.{
     CustomTypeAliases,
     ImportResolver,
+    ScalarAliases,
     SchemaCore,
     SharedSchemaGenerator,
     SharedTypesGenerator,
+    TypeAliases,
     TypeDiscovery,
     ValibotSchemaGenerator,
     ZodSchemaGenerator
   }
 
   alias AshTypescript.CustomTypes
+  alias AshTypescript.Manifest.TypedRoutes
   alias AshTypescript.Rpc.Codegen, as: RpcCodegen
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.TypedChannel.Codegen, as: ChannelCodegen
@@ -87,8 +90,20 @@ defmodule AshTypescript.Codegen.Orchestrator do
     # type doesn't terminate.
     CustomTypeAliases.check_recursive_types!()
 
-    alias_modules = custom_type_alias_modules()
-    validate_alias_import_names!(alias_modules)
+    struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
+    route_types = TypedRoutes.types(AshTypescript.Manifest.Custom.routes(), [])
+    channel_payload_types = ChannelCodegen.payload_return_types(channel_entries)
+
+    alias_owners =
+      rpc_resources
+      |> TypeAliases.roots(AshTypescript.resource_lookup(), channel_payload_types,
+        route_types: route_types,
+        struct_argument_resources: struct_argument_resources
+      )
+      |> ScalarAliases.aliases()
+      |> alias_owners()
+
+    validate_alias_import_names!(alias_owners)
 
     schema_formatters =
       for {formatter, true} <- [
@@ -98,12 +113,11 @@ defmodule AshTypescript.Codegen.Orchestrator do
           do: formatter
 
     Enum.each(schema_formatters, &validate_schema_import_names!/1)
-    name_hints = custom_type_name_hints(alias_modules, schema_formatters)
+    name_hints = custom_type_name_hints(alias_owners, schema_formatters)
 
     emit_unlisted_typed_modules_warning(otp_app)
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
-    struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
 
     controller_resources =
       if routes_config == [] do
@@ -136,7 +150,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             rpc_resources: rpc_resources,
             struct_argument_resources: struct_argument_resources,
             types_output_file: types_output_file,
-            extra_alias_types: ChannelCodegen.payload_return_types(channel_entries)
+            extra_alias_types: channel_payload_types,
+            route_types: route_types
           )
 
         channel_types = generate_channel_types_content(channel_entries)
@@ -572,14 +587,14 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
   # An alias equal to an `import_name` clashes with the `import * as` of the
   # files that config imports into.
-  defp validate_alias_import_names!(alias_modules) do
+  defp validate_alias_import_names!(alias_owners) do
     errors =
       for key <- [:import_into_generated, :typed_controller_import_into_generated],
           name <- import_names(Application.get_env(:ash_typescript, key, [])),
-          module = Map.get(alias_modules, name) do
+          {^name, module, kind} <- alias_owners do
         "The TypeScript alias `#{name}` of the type #{inspect(module)} is an " <>
           "`import_name` in the `#{inspect(key)}` config: rename it " <>
-          "#{CustomTypes.rename_hint(:map)}, or change the `import_name`."
+          "#{CustomTypes.rename_hint(kind)}, or change the `import_name`."
       end
 
     throw_errors!(errors)
@@ -605,27 +620,33 @@ defmodule AshTypescript.Codegen.Orchestrator do
   defp throw_errors!([]), do: :ok
   defp throw_errors!(errors), do: throw({:error, Enum.join(errors, "\n")})
 
-  # Alias name (plain and input) => the aliased type it belongs to.
-  defp custom_type_alias_modules do
-    for definition <- CustomTypeAliases.definitions(),
-        name <- [
-          CustomTypeAliases.plain_name(definition),
-          CustomTypeAliases.input_name(definition)
-        ],
-        name,
-        into: %{},
-        do: {name, definition.module}
+  # `{alias name, aliased type, kind}` for every alias: map-like aliases
+  # (plain and input, `:map`) and the `scalar_aliases` (`:scalar`,
+  # `ScalarAliases.aliases/1`). The kind picks the rename hint.
+  defp alias_owners(scalar_aliases) do
+    map_like =
+      for definition <- CustomTypeAliases.definitions(),
+          name <- [
+            CustomTypeAliases.plain_name(definition),
+            CustomTypeAliases.input_name(definition)
+          ],
+          name,
+          do: {name, definition.module, :map}
+
+    scalars = for {name, _body, module} <- scalar_aliases, do: {name, module, :scalar}
+
+    Enum.uniq(map_like ++ scalars)
   end
 
   # Generated name => the hints naming the type it belongs to and how
   # to rename its alias: aliases, and the named schemas (named after the
   # alias) of the enabled schema libraries.
-  defp custom_type_name_hints(alias_modules, schema_formatters) do
+  defp custom_type_name_hints(alias_owners, schema_formatters) do
     alias_hints =
-      for {name, module} <- alias_modules do
+      for {name, module, kind} <- alias_owners do
         {name,
          "`#{name}` is the TypeScript alias of the type #{inspect(module)}: " <>
-           "rename it #{CustomTypes.rename_hint(:map)}.\n"}
+           "rename it #{CustomTypes.rename_hint(kind)}.\n"}
       end
 
     schema_hints =

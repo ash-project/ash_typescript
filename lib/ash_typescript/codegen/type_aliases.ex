@@ -4,13 +4,15 @@
 
 defmodule AshTypescript.Codegen.TypeAliases do
   @moduledoc """
-  Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.),
-  followed by the aliases of declared custom types and aliased field-bearing
-  NewTypes (`AshTypescript.Codegen.CustomTypeAliases`).
+  Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.)
+  and aliased scalars (`AshTypescript.Codegen.ScalarAliases`), followed by the
+  aliases of declared custom types and aliased field-bearing NewTypes
+  (`AshTypescript.Codegen.CustomTypeAliases`).
   """
 
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.CustomTypeAliases
+  alias AshTypescript.Codegen.ScalarAliases
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.TypeSystem.Introspection
 
@@ -37,16 +39,49 @@ defmodule AshTypescript.Codegen.TypeAliases do
   the same file outside any resource (e.g. typed channel payload types).
   Aliased definitions (`CustomTypeAliases.definitions/0`: declared custom
   types and aliased field-bearing NewTypes, route-only ones included) are
-  roots too, and their aliases follow the primitive aliases.
+  roots too, and their aliases follow the primitive aliases. The primitive
+  block holds the fixed aliases (`UUID`, `Decimal`, …) and the aliases of
+  the scalars used under the roots (`AshTypescript.Codegen.ScalarAliases`),
+  sorted. `opts` add roots, see `roots/4`.
   """
-  def generate_ash_type_aliases(resources, resource_lookup \\ nil, extra_types \\ [])
+  def generate_ash_type_aliases(resources, resource_lookup \\ nil, extra_types \\ [], opts \\ [])
 
-  def generate_ash_type_aliases(resources, nil, extra_types) do
-    generate_ash_type_aliases(resources, AshTypescript.resource_lookup(), extra_types)
+  def generate_ash_type_aliases(resources, nil, extra_types, opts) do
+    generate_ash_type_aliases(resources, AshTypescript.resource_lookup(), extra_types, opts)
   end
 
-  def generate_ash_type_aliases(resources, resource_lookup, extra_types)
+  def generate_ash_type_aliases(resources, resource_lookup, extra_types, opts)
       when is_map(resource_lookup) do
+    roots = roots(resources, resource_lookup, extra_types, opts)
+
+    primitive_aliases =
+      roots
+      |> Enum.reduce(MapSet.new(), &collect_type_module/2)
+      |> generate_aliases()
+      |> Kernel.++(ScalarAliases.alias_lines(roots))
+      |> Enum.sort()
+      |> Enum.join("\n")
+
+    [primitive_aliases, CustomTypeAliases.generate()]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n\n")
+  end
+
+  @doc """
+  The `%Ash.Info.Manifest.Type{}` roots of the alias walk: the fields (and
+  calculation arguments) of `resources` and of the embedded resources in
+  `resource_lookup`, those resources' action inputs, metadata and returns,
+  `extra_types`, and the aliased definitions (`CustomTypeAliases.definitions/0`).
+
+  Options add the types the shared types file renders outside them:
+
+    * `:route_types` - typed controller route argument and result types;
+    * `:struct_argument_resources` - resources used as struct arguments,
+      whose fields (and calculation arguments) the file renders in their
+      `InputSchema`.
+  """
+  @spec roots([module()], map(), [Type.t()], keyword()) :: [Type.t()]
+  def roots(resources, resource_lookup, extra_types, opts \\ []) do
     # Derive embedded resources from resource_lookup instead of re-scanning
     embedded_resources =
       resource_lookup
@@ -57,47 +92,51 @@ defmodule AshTypescript.Codegen.TypeAliases do
     all_resources = Enum.uniq(resources ++ embedded_resources)
     action_lookup = AshTypescript.action_lookup()
 
-    # Collect all types from spec resources (fields + action arguments + returns)
-    types =
-      Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
-        case Map.get(resource_lookup, resource) do
-          %Ash.Info.Manifest.Resource{} = api_resource ->
-            types = collect_types_from_api_resource(api_resource, types)
-            collect_types_from_action_lookup(resource, action_lookup, types)
+    struct_argument_resources =
+      Keyword.get(opts, :struct_argument_resources, []) -- all_resources
 
-          nil ->
-            raise "TypeAliases: resource #{inspect(resource)} not found in resource_lookup"
-        end
+    resource_roots =
+      Enum.flat_map(all_resources, fn resource ->
+        field_types(fetch_resource!(resource_lookup, resource)) ++
+          action_types(resource, action_lookup)
       end)
 
-    custom_type_aliases = CustomTypeAliases.generate()
+    struct_argument_roots =
+      Enum.flat_map(struct_argument_resources, fn resource ->
+        field_types(fetch_resource!(resource_lookup, resource))
+      end)
 
-    primitive_aliases =
-      (extra_types ++ CustomTypeAliases.definitions())
-      |> Enum.reduce(types, &collect_type_module/2)
-      |> generate_aliases()
-
-    [primitive_aliases, custom_type_aliases]
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n\n")
+    resource_roots ++
+      struct_argument_roots ++
+      extra_types ++ Keyword.get(opts, :route_types, []) ++ CustomTypeAliases.definitions()
   end
 
-  defp collect_types_from_api_resource(api_resource, types) do
+  defp fetch_resource!(resource_lookup, resource) do
+    case Map.get(resource_lookup, resource) do
+      %Ash.Info.Manifest.Resource{} = api_resource -> api_resource
+      nil -> raise "TypeAliases: resource #{inspect(resource)} not found in resource_lookup"
+    end
+  end
+
+  # A resource's field types, and calculation argument types.
+  defp field_types(api_resource) do
     api_resource.fields
     |> Map.values()
-    |> Enum.reduce(types, fn field, types ->
-      # Collect the field's type module
-      types = collect_type_module(field.type, types)
-
-      # For calculations with arguments, collect argument types
-      if field.kind == :calculation && is_list(field.arguments) do
-        Enum.reduce(field.arguments, types, fn arg, types ->
-          collect_type_module(arg.type, types)
-        end)
-      else
-        types
-      end
+    |> Enum.flat_map(fn field ->
+      if field.kind == :calculation && is_list(field.arguments),
+        do: [field.type | Enum.map(field.arguments, & &1.type)],
+        else: [field.type]
     end)
+  end
+
+  # A resource's action input, metadata and (generic action) return types.
+  defp action_types(resource_module, action_lookup) do
+    for {{^resource_module, _action_name}, action} <- action_lookup,
+        type <-
+          Enum.map(action.inputs, & &1.type) ++
+            Enum.map(action.metadata || [], & &1.type) ++ List.wrap(action.returns),
+        match?(%Type{}, type),
+        do: type
   end
 
   # Collects every type module whose alias the type mapper may reference when
@@ -143,6 +182,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     type
     |> put_type_module(types)
     |> put_kind_alias_module(type)
+    |> put_scalar_base_type(type)
   end
 
   defp collect_type_module(_, types), do: types
@@ -169,29 +209,13 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   defp put_kind_alias_module(types, _type), do: types
 
-  # Collects type modules from action_lookup entries for a given resource
-  defp collect_types_from_action_lookup(resource_module, action_lookup, types) do
-    action_lookup
-    |> Enum.filter(fn {{res, _action_name}, _action} -> res == resource_module end)
-    |> Enum.reduce(types, fn {_key, action}, types ->
-      # Collect from action inputs (unified arguments + accepted attributes)
-      types =
-        Enum.reduce(action.inputs, types, fn input, types ->
-          collect_type_module(input.type, types)
-        end)
-
-      # Collect from action metadata (rendered in the action's metadata type)
-      types =
-        Enum.reduce(action.metadata || [], types, fn metadata, types ->
-          collect_type_module(metadata.type, types)
-        end)
-
-      # Collect from action returns (for generic actions)
-      case action.returns do
-        %Type{} = return_type -> collect_type_module(return_type, types)
-        _ -> types
-      end
-    end)
+  # A scalar rendered from its `scalar` entry's base type references that
+  # type's alias (a `scalar X, :uuid` renders `UUID`), so it is collected too.
+  defp put_scalar_base_type(types, %Type{} = type) do
+    case TypeMapper.scalar_base_type(type) do
+      nil -> types
+      base_type -> collect_type_module(base_type, types)
+    end
   end
 
   defp generate_aliases(types) do
@@ -205,8 +229,6 @@ defmodule AshTypescript.Codegen.TypeAliases do
     |> Enum.uniq()
     |> Enum.map(&generate_ash_type_alias/1)
     |> Enum.reject(&(&1 == ""))
-    |> Enum.sort()
-    |> Enum.join("\n")
   end
 
   # Primitive types with a declared alias: {module, alias name, TypeScript type}.

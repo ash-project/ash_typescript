@@ -568,8 +568,8 @@ These are built-in declarations now:
   `{currency: string, amount: Decimal}`, was `{ amount: string; currency: string }`.
   `Decimal` is `string`, so values stay assignable both ways.
 - The `ULID`, `AshPostgresLtreeArray` and `AshPostgresLtreeFlexible` aliases
-  are removed. Fields of those types are typed `string`, `string[]` and
-  `string | string[]` directly. Their zod/valibot schemas are unchanged.
+  stay, each now exported only when a field uses it (both Ltree aliases were
+  exported whenever Ltree was used). Their zod/valibot schemas are unchanged.
 - A `custom_types` entry for one of these modules replaces the built-in.
 
 ### Declared custom types are exported

@@ -28,12 +28,14 @@ defmodule AshTypescript.Test.Manifest do
     # Schemas authored in TypeScript, imported through `zod_import_into_generated`
     # / `valibot_import_into_generated` (config/config.exs).
     scalar AshTypescript.Test.CustomIdentifier, :string do
+      ts_alias "CustomIdentifier"
       zod "CustomZodSchemas.objectId"
       valibot "CustomValibotSchemas.objectId"
     end
 
     scalar AshTypescript.Test.ExternalCode, :string do
       ts_type {AshTypescript.Test.ExternalCodeTs, :typescript, []}
+      ts_alias {AshTypescript.Test.ExternalCodeTs, :ts_alias, []}
       zod {AshTypescript.Test.ExternalCodeTs, :zod, []}
       valibot {AshTypescript.Test.ExternalCodeTs, :valibot, []}
     end

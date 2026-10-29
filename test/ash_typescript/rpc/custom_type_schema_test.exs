@@ -399,6 +399,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
             quote do
               custom_types do
                 scalar AshTypescript.Test.CustomIdentifier, :string do
+                  ts_alias "CustomIdentifier"
                   zod "CustomZodSchemas.objectId"
                   valibot "CustomValibotSchemas.objectId"
                 end

@@ -52,11 +52,11 @@ defmodule AshTypescript.Manifest.LegacyTypeConfigWarningTest do
       {AshTypescript.Test.CustomIdentifier, "Overridden"}
     ])
 
-    # The test manifest's `scalar` entry maps it.
+    # The test manifest's `scalar` entry maps and names it.
     assert AshTypescript.Codegen.get_ts_type(%{
              type: AshTypescript.Test.CustomIdentifier,
              constraints: []
-           }) == "string"
+           }) == "CustomIdentifier"
   end
 
   for {key, option} <- [zod_mapping_overrides: "zod", valibot_mapping_overrides: "valibot"] do

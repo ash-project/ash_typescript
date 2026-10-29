@@ -5,14 +5,21 @@
 // Type Aliases Tests - shouldPass
 // Field-bearing NewTypes that opt into an alias: TaskStats (named by
 // typescript_type_alias/0) and TodoTimestamp (a field-less map entry, joined
-// name) are exported and referenced at input and plain positions.
+// name) are exported and referenced at input and plain positions. Aliased
+// scalars (CustomIdentifier, ExternalCode, Ltree's two variants, ULID) are
+// referenced at every position.
 
-import { listTasks, updateTask } from "../generated";
+import { createTodo, echoUlid, listTasks, updateTask } from "../generated";
 import type {
   TaskStats,
   TaskStatsInput,
   AshTypescriptTestTodoTimestamp,
   AshTypescriptTestTodoTimestampInput,
+  AshPostgresLtreeArray,
+  AshPostgresLtreeFlexible,
+  CustomIdentifier,
+  ExternalCode,
+  ULID,
 } from "../generated";
 
 // A full selection of a NewType result is assignable to its alias
@@ -68,3 +75,39 @@ const timestamp: AshTypescriptTestTodoTimestamp = {
 };
 
 console.log(timestampInput, timestamp);
+
+// Ltree's flexible variant takes a path or its labels, the escaped one labels
+const flexPath: AshPostgresLtreeFlexible = "a.b";
+const flexLabels: AshPostgresLtreeFlexible = ["a", "b"];
+const strict: AshPostgresLtreeArray = ["a"];
+
+export const ltreeTest = await createTodo({
+  input: {
+    title: "t",
+    userId: "00000000-0000-0000-0000-000000000001",
+    hierarchy: flexPath,
+    strictHierarchy: strict,
+  },
+  fields: ["id"],
+});
+
+console.log(flexLabels);
+
+// ULID at an input and a result
+const someUlid = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+
+export const ulidTest = await echoUlid({ input: { ulid: someUlid as ULID } });
+
+if (ulidTest.success) {
+  const ulid: ULID = ulidTest.data;
+  console.log(ulid);
+}
+
+// A scalar alias as a filter value
+export const customIdFilterTest = await listTasks({
+  fields: ["id"],
+  filter: { customId: { eq: "x" as CustomIdentifier } },
+});
+
+const code: ExternalCode = "code-1";
+console.log(code);

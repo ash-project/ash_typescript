@@ -572,13 +572,15 @@ the same shape as `custom_types`:
 | Type module | Entry | Generated TypeScript |
 |-------------|-------|---------------------|
 | `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | the alias `Money = {currency: string, amount: Decimal}` and the schemas `MoneyZodSchema` / `MoneyValibotSchema`; results select `{ price: ["currency", "amount"] }` |
-| `AshDoubleEntry.ULID` | `scalar` over `:string` | `string` |
-| `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | `string[]` (`escape?: true`) or `string \| string[]` |
+| `AshDoubleEntry.ULID` | `scalar` over `:string` | the alias `ULID = string` |
+| `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | the alias `AshPostgresLtreeArray = string[]` (`escape?: true`) or `AshPostgresLtreeFlexible = string \| string[]` |
 | `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
-ULID, Ltree and AshUUID get no alias: their fields are typed directly. To rename
-Money's alias or schemas, declare it with a `map` entry that restates its
-fields:
+ULID's and Ltree's aliases are exported once per variant used and referenced
+at every use (their zod/valibot schemas stay inline); AshUUID renders the
+`UUID` alias. A `scalar` entry for ULID or Ltree without `ts_alias` replaces
+the built-in, so its uses are typed directly. To rename Money's alias or
+schemas, declare it with a `map` entry that restates its fields:
 
 ```elixir
 custom_types do

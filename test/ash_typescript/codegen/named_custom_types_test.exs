@@ -16,8 +16,8 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
   alias AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder
   alias AshTypescript.Test.Task
 
-  @theme_plain ~s({color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: `code-${string}`, codes: Array<`code-${string}`> | null})
-  @theme_input ~s({color: `#${string}`, accent?: `#${string}` | null, score?: CustomTypes.PriorityScore | null, code: `code-${string}`, codes?: Array<`code-${string}`> | null})
+  @theme_plain ~s({color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: ExternalCode, codes: Array<ExternalCode> | null})
+  @theme_input ~s({color: `#${string}`, accent?: `#${string}` | null, score?: CustomTypes.PriorityScore | null, code: ExternalCode, codes?: Array<ExternalCode> | null})
 
   setup_all do
     {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
@@ -234,7 +234,7 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
                ~s(  price: {currency: string, amount: Decimal, __type: "TypedMap", __primitiveFields: "currency" | "amount"} | null;)
 
       assert types =~
-               ~s(  theme: {color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: `code-${string}`, codes: Array<`code-${string}`> | null, __type: "TypedMap", __primitiveFields: "color" | "accent" | "score" | "code" | "codes"} | null;)
+               ~s(  theme: {color: `#${string}`, accent: `#${string}` | null, score: CustomTypes.PriorityScore | null, code: ExternalCode, codes: Array<ExternalCode> | null, __type: "TypedMap", __primitiveFields: "color" | "accent" | "score" | "code" | "codes"} | null;)
     end
 
     test "a generic action's result and field selection", %{rpc: rpc} do

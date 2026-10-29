@@ -227,6 +227,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_suggestion, :get_suggestion
       rpc_action :list_suggestions, :list_suggestions
       rpc_action :echo_line_item, :echo_line_item
+      rpc_action :echo_ulid, :echo_ulid
       rpc_action :get_todo_ref, :get_todo_ref
       rpc_action :describe_style, :describe_style
 

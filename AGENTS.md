@@ -325,7 +325,7 @@ runtime.entrypoints["list_todos"]
 | **Declared custom type aliases (`Money`, `ThemeInput`)** | `lib/ash_typescript/codegen/custom_type_aliases.ex` (names read through `AshTypescript.Manifest.Custom.type_alias_names/1`; `reaches_resource?/1`, `check_recursive_types!/0`) |
 | **Custom type alias collision verifier** | `lib/ash_typescript/manifest/verifiers/verify_custom_type_names.ex` |
 | **Type nodes the manifest reaches (compile-time checks, renamed-callback check)** | `lib/ash_typescript/manifest/type_uses.ex` (`TypeUses.nodes/1`; used by `CustomTypes.check_renamed_callbacks/1`, `check_alias_names/2`, `compile_dependencies/3` and `VerifyCustomTypeNames`) |
-| **Scalar alias names** | `lib/ash_typescript/codegen/scalar_aliases.ex` (`ScalarAliases.name/2`; not yet used by codegen) |
+| **Scalar aliases (`CustomIdentifier`, `ULID`, Ltree's variants)** | `lib/ash_typescript/codegen/scalar_aliases.ex` (`ScalarAliases.name/2`, rendered by `TypeMapper` at every use; `aliases/1` walks `TypeAliases.roots/4` for the primitive alias block, one alias per name, two bodies under one name is a codegen error) |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
 | **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
