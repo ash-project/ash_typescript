@@ -22,9 +22,6 @@ defmodule AshTypescript.Codegen.ScalarAliases do
        (`AshTypescript.CustomTypes.Builtin`: ULID, Ltree), with the same rule,
        when the manifest has no `scalar` entry for the module (a manifest
        entry replaces the built-in whole);
-    4. the joined module name under `alias_all_types?`, except for an entry
-       with an MFA `ts_type` and no `ts_alias` (its TypeScript varies by use),
-       and for a NewType over a kind that maps to `any` (`:term`, `:any`);
 
   else `nil`. A scalar's alias body is its TypeScript by the existing
   precedence (entry `ts_type`, `typescript_type/0`, built-in, base type), so
@@ -38,7 +35,7 @@ defmodule AshTypescript.Codegen.ScalarAliases do
   """
 
   alias Ash.Info.Manifest.Type
-  alias AshTypescript.Codegen.{Helpers, TypeMapper}
+  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.CustomTypes
   alias AshTypescript.CustomTypes.Scalar
   alias AshTypescript.Manifest.Custom
@@ -166,20 +163,16 @@ defmodule AshTypescript.Codegen.ScalarAliases do
           {:ok, name} -> name
           {:error, message} -> raise ArgumentError, message
         end
-
-      :joined ->
-        Helpers.module_type_name(module)
     end
   end
 
   @doc false
   # What names the scalar `node`: `{:entry, entry}` (its `ts_alias`),
-  # `:callback`, `:joined`, or `nil` when it isn't aliased (or isn't a
-  # scalar). Lets compile-time checks tell the sources apart without calling
-  # an MFA.
+  # `:callback`, or `nil` when it isn't aliased (or isn't a scalar). Lets
+  # compile-time checks tell the sources apart without calling an MFA.
   @spec source(Type.t(), CustomTypes.custom_types()) ::
-          {:entry, Scalar.t()} | :callback | :joined | nil
-  def source(%Type{module: module} = node, %{declared: declared, builtin: builtin} = custom_types) do
+          {:entry, Scalar.t()} | :callback | nil
+  def source(%Type{module: module} = node, %{declared: declared, builtin: builtin}) do
     if scalar_node?(node) do
       declared = scalar_entry(Map.get(declared, module))
       builtin = scalar_entry(Map.get(builtin, module))
@@ -187,19 +180,11 @@ defmodule AshTypescript.Codegen.ScalarAliases do
       cond do
         declared && declared.ts_alias -> {:entry, declared}
         exports?(module, :typescript_type_alias, 0) -> :callback
-        declared -> joined(node, declared, custom_types)
+        # A manifest entry replaces the built-in whole.
+        declared -> nil
         builtin && builtin.ts_alias -> {:entry, builtin}
-        true -> joined(node, builtin, custom_types)
+        true -> nil
       end
-    end
-  end
-
-  defp joined(%Type{kind: kind}, entry, custom_types) do
-    cond do
-      not Map.get(custom_types, :alias_all_types?, false) -> nil
-      match?(%Scalar{ts_type: {_m, _f, _a}}, entry) -> nil
-      kind != :unknown and not TypeMapper.aliasable_kind?(kind) -> nil
-      true -> :joined
     end
   end
 

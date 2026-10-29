@@ -23,10 +23,9 @@ defmodule AshTypescript.Manifest.Decorator do
       which get their `type_alias_names` instead
       (`AshTypescript.CustomTypes.names/2`, read through
       `AshTypescript.Manifest.Custom.type_alias_names/1`). A field-bearing
-      NewType that opts into an alias (a field-less `map` entry,
-      `typescript_type_alias/0` or `alias_all_types?`;
-      `AshTypescript.CustomTypes.alias_name/3`) gets `type_alias_names` too,
-      beside its `type_name` when it has one.
+      NewType that opts into an alias (a field-less `map` entry or
+      `typescript_type_alias/0`; `AshTypescript.CustomTypes.alias_name/3`)
+      gets `type_alias_names` too, beside its `type_name` when it has one.
 
     * `manifest.entrypoints[i].custom.ash_typescript` — mirrors the
       `config.ash_typescript` payload that `RpcConfigCollector` passed into
@@ -62,8 +61,7 @@ defmodule AshTypescript.Manifest.Decorator do
       `AshRpc.Manifest.Decorator.check_untyped_structs!/4`;
     * `custom_types:`, the persisted `custom_types`
       (`t:AshTypescript.CustomTypes.custom_types/0`) the names of declared
-      custom types come from (default: no declarations, the built-ins,
-      `alias_all_types?` off).
+      custom types come from (default: no declarations, the built-ins).
   """
   @spec decorate(Manifest.t(),
           hint: AshRpc.Manifest.UntypedStructError.hint(),

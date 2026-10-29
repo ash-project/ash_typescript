@@ -35,8 +35,8 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   names of the aliases and schemas of declared custom types and of the
   field-bearing NewTypes that opt into an alias. A `typescript_type_alias/0`
   that returns no valid alias, and an aliased field-bearing NewType that
-  exports `typescript_type/0` (named by `typescript_type_alias/0` or
-  under `alias_all_types?`), are a `Spark.Error.DslError`
+  exports `typescript_type/0` (named by `typescript_type_alias/0`), are a
+  `Spark.Error.DslError`
   (`AshTypescript.CustomTypes.check_alias_names/2`). So is, checked first, a
   reached type module exporting `typescript_type_name/0` or
   `typescript_alias_name/0`, the callbacks' former names: the error names

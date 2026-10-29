@@ -553,8 +553,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
   @declared_entry %MapType{module: T.Declared, fields: [%Field{name: :lat, type: :float}]}
 
-  defp custom_types(declared, alias_all? \\ false),
-    do: %{declared: declared, builtin: Builtin.by_module(), alias_all_types?: alias_all?}
+  defp custom_types(declared), do: %{declared: declared, builtin: Builtin.by_module()}
 
   defp field_less(module, ts_alias \\ nil),
     do: %{module => %MapType{module: module, fields: [], ts_alias: ts_alias}}
@@ -603,18 +602,8 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
                {:ok, "AliasedStruct"}
     end
 
-    test "field-bearing NewType: alias_all_types? opts in under the joined name" do
-      assert CustomTypes.alias_name(T.Plain, custom_types(%{}, true), false) ==
-               {:ok, joined(T.Plain)}
-
-      assert CustomTypes.alias_name(T.Plain, custom_types(%{}, false), false) == {:ok, nil}
-
-      # A map without the option counts as off.
-      assert CustomTypes.alias_name(
-               T.Plain,
-               %{declared: %{}, builtin: Builtin.by_module()},
-               false
-             ) == {:ok, nil}
+    test "field-bearing NewType: no opt-in, no alias" do
+      assert CustomTypes.alias_name(T.Plain, custom_types(%{}), false) == {:ok, nil}
     end
 
     test "an invalid callback result is an error for every kind" do
@@ -648,7 +637,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       ts_alias: {T.MfaNames, :ts_alias, []}
     ]
 
-    test "no entry, no callback, no alias_all_types? → nil" do
+    test "no entry, no callback → nil" do
       assert ScalarAliases.name(use_of(T.Opaque), custom_types(scalar(T.Opaque))) == nil
       assert ScalarAliases.name(definition_of(T.Email), custom_types(%{})) == nil
 
@@ -674,9 +663,6 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert ScalarAliases.name(use_of(T.Mfa, max_length: 5), types) == "Short"
       assert ScalarAliases.name(use_of(T.Mfa, max_length: 50), types) == "Long"
       assert ScalarAliases.name(use_of(T.Mfa), types) == nil
-
-      assert ScalarAliases.name(use_of(T.Mfa), custom_types(scalar(T.Mfa, @mfa_entry), true)) ==
-               nil
 
       bad =
         scalar(T.Mfa, ts_type: {T.MfaNames, :ts_type, []}, ts_alias: {T.MfaNames, :bad_alias, []})
@@ -708,8 +694,6 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
                hex,
                custom_types(scalar(AshTypescript.Test.HexColor, ts_alias: "Hex"))
              ) == "Hex"
-
-      assert ScalarAliases.name(hex, custom_types(%{}, true)) == "AshTypescriptTestHexColor"
     end
 
     test "a built-in ts_alias applies without a manifest entry" do
@@ -730,36 +714,28 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
                nil
     end
 
-    test "alias_all_types? uses the joined name, except where it can't apply" do
-      all = custom_types(%{}, true)
+    # A `scalar` entry's `ts_alias` names NewTypes over primitives (`:term` included)
+    # and `use Ash.Type` modules, `typescript_type/0` ones included; nothing else.
+    test "an entry's ts_alias names only scalars" do
+      named = fn module -> custom_types(scalar(module, ts_alias: "Named")) end
 
-      assert ScalarAliases.name(definition_of(T.Email), all) == joined(T.Email)
-      assert ScalarAliases.name(definition_of(T.AtomNew), all) == joined(T.AtomNew)
+      assert ScalarAliases.name(definition_of(T.AtomNew), named.(T.AtomNew)) == "Named"
+      assert ScalarAliases.name(definition_of(T.TermNew), named.(T.TermNew)) == "Named"
 
-      assert ScalarAliases.name(use_of(T.Opaque), custom_types(scalar(T.Opaque), true)) ==
-               joined(T.Opaque)
+      percentage = AshTypescript.Test.Todo.Percentage
+      assert ScalarAliases.name(definition_of(percentage), named.(percentage)) == "Named"
 
-      assert ScalarAliases.name(definition_of(AshTypescript.Test.Todo.Percentage), all) ==
-               "AshTypescriptTestTodoPercentage"
-
-      assert ScalarAliases.name(use_of(AshTypescript.Test.Todo.PriorityScore), all) ==
-               "AshTypescriptTestTodoPriorityScore"
-
-      # Kinds that map to `any` stay inline.
-      assert ScalarAliases.name(definition_of(T.TermNew), all) == nil
-
-      # An MFA ts_type without a ts_alias: its TypeScript varies by use.
-      mfa_type = scalar(T.Mfa, ts_type: {T.MfaNames, :ts_type, []})
-      assert ScalarAliases.name(use_of(T.Mfa), custom_types(mfa_type, true)) == nil
+      priority = AshTypescript.Test.Todo.PriorityScore
+      assert ScalarAliases.name(use_of(priority), named.(priority)) == "Named"
 
       # A NewType over a scalar custom type, an enum, a primitive and a
       # type reference.
-      assert ScalarAliases.name(definition_of(T.OverOpaque), all) == nil
-      assert ScalarAliases.name(definition_of(T.Status), all) == nil
-      assert ScalarAliases.name(use_of(:string), all) == nil
-      assert ScalarAliases.name(use_of(:atom), all) == nil
-      assert ScalarAliases.name(use_of(:utc_datetime), all) == nil
-      assert ScalarAliases.name(use_of(T.Email), all) == nil
+      assert ScalarAliases.name(definition_of(T.OverOpaque), named.(T.OverOpaque)) == nil
+      assert ScalarAliases.name(definition_of(T.Status), named.(T.Status)) == nil
+      assert ScalarAliases.name(use_of(:string), named.(Ash.Type.String)) == nil
+      assert ScalarAliases.name(use_of(:atom), named.(Ash.Type.Atom)) == nil
+      assert ScalarAliases.name(use_of(:utc_datetime), named.(Ash.Type.UtcDatetime)) == nil
+      assert ScalarAliases.name(use_of(T.Email), named.(T.Email)) == nil
     end
   end
 
@@ -778,35 +754,18 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
 
     test "no opt-in, no names" do
-      assert names_in(holder_manifest(), T.Untouched) == nil
+      manifest = holder_manifest()
+
+      for module <- [T.Untouched, T.Status, T.StringNew] do
+        assert definition(manifest, module), "#{inspect(module)} is in the manifest"
+        assert names_in(manifest, module) == nil
+      end
 
       app = AshTypescript.manifest()
 
       for module <- [AshTypescript.Test.TodoStatistics, AshTypescript.Test.ThemeMap] do
         assert definition(app, module), "#{inspect(module)} is in the app manifest"
         assert names_in(app, module) == nil
-      end
-    end
-
-    test "alias_all_types? names every field-bearing NewType" do
-      manifest =
-        AliasAllHolderManifest
-        |> compile_manifest!(
-          quote do
-            custom_types do
-              alias_all_types? true
-            end
-          end
-        )
-        |> AshTypescript.manifest()
-
-      assert names_in(manifest, T.Untouched) == derived(joined(T.Untouched))
-      assert names_in(manifest, T.Plain) == derived(joined(T.Plain))
-      assert names_in(manifest, T.Aliased) == derived("AliasedStruct")
-
-      for module <- [T.Status, T.StringNew] do
-        assert definition(manifest, module), "#{inspect(module)} is in the manifest"
-        assert names_in(manifest, module) == nil
       end
     end
 
@@ -828,21 +787,6 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
       assert message =~ "#{inspect(T.BothCallbacks)} #{@type_name_message}"
       assert message =~ "custom_types"
-    end
-
-    test "under alias_all_types?, a field-bearing NewType exporting typescript_type/0" do
-      message =
-        compile_error!(
-          AliasAllTypedNamedManifest,
-          quote do
-            custom_types do
-              alias_all_types? true
-            end
-          end,
-          [T.TypedNamedHolderDomain]
-        )
-
-      assert message =~ "#{inspect(T.TypedNamed)} #{@type_name_message}"
     end
 
     test "without any opt-in, typescript_type/0 on a field-bearing NewType is unchanged" do

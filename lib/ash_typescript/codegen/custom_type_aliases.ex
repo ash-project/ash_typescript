@@ -7,8 +7,8 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   TypeScript aliases for declared custom types (`manifest.types` definitions
   with `AshRpc.Manifest.Custom.custom_type?/1`) and aliased field-bearing
   NewTypes (TypedStructs and NewTypes over `:map`, `:keyword`, `:tuple` or
-  `:struct` that opt in: a field-less `map` entry, `typescript_type_alias/0`
-  or `alias_all_types?`).
+  `:struct` that opt in: a field-less `map` entry or
+  `typescript_type_alias/0`).
 
   Every definition with a decorated name gets an exported alias in the shared
   types file, named by its `typescript` name

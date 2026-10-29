@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Manifest.TypeAliasDslTest do
-  # The alias opt-ins of the `custom_types` section: the `alias_all_types?`
-  # option, `scalar` `ts_alias`, and field-less `map` entries for
-  # field-bearing NewTypes. Their validation and persistence only; nothing
+  # The alias opt-ins of the `custom_types` section: `scalar` `ts_alias`
+  # and field-less `map` entries for field-bearing NewTypes. Their validation and persistence only; nothing
   # here reads them for codegen. Manifests are compiled with `Module.create/3`
   # under fixed names.
   use ExUnit.Case, async: false
@@ -122,74 +121,12 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
 
   defp persisted(module), do: Spark.Dsl.Extension.get_persisted(module, :custom_types)
 
-  describe "alias_all_types?" do
-    test "defaults to false" do
-      module = compile_manifest!(AliasAllDefault, nil)
-
-      assert persisted(module).alias_all_types? == false
-      assert Custom.alias_all_types?(AshTypescript.manifest(module)) == false
-
-      # A section without the option takes the schema default.
-      module =
-        compile_manifest!(
-          AliasAllSectionDefault,
-          quote do
-            custom_types do
-              scalar SomeLib.Email, :string
-            end
-          end
-        )
-
-      assert persisted(module).alias_all_types? == false
-    end
-
-    test "is persisted with the entries and reaches the manifest" do
-      module =
-        compile_manifest!(
-          AliasAllOn,
-          quote do
-            custom_types do
-              alias_all_types? true
-            end
-          end
-        )
-
-      assert %{declared: declared, builtin: _, alias_all_types?: true} = persisted(module)
-      assert declared == %{}
-
-      manifest = AshTypescript.manifest(module)
-      assert Custom.alias_all_types?(manifest) == true
-      assert Custom.custom_types(manifest).alias_all_types? == true
-    end
-
-    test "a non-boolean is rejected by Spark" do
-      message =
-        compile_error!(
-          AliasAllString,
-          quote do
-            custom_types do
-              alias_all_types? "yes"
-            end
-          end
-        )
-
-      assert message =~ "alias_all_types?"
-      assert message =~ "expected boolean"
-    end
-
-    test "the app manifest has it off" do
-      assert Custom.alias_all_types?(nil) == false
-      assert Custom.custom_types(nil).alias_all_types? == false
-    end
-
-    test "custom_types/1 of an undecorated manifest is the built-ins, off" do
+  describe "custom_types section" do
+    test "custom_types/1 of an undecorated manifest is the built-ins" do
       assert Custom.custom_types(%Ash.Info.Manifest{}) == %{
                declared: %{},
-               builtin: AshTypescript.CustomTypes.Builtin.by_module(),
-               alias_all_types?: false
+               builtin: AshTypescript.CustomTypes.Builtin.by_module()
              }
-
-      assert Custom.alias_all_types?(%Ash.Info.Manifest{}) == false
     end
   end
 

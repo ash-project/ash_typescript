@@ -53,12 +53,12 @@ end
 
 defmodule AshTypescript.Codegen.ScalarAliasesTest do
   # Scalars that opt into an alias (a `scalar` entry's `ts_alias`,
-  # `typescript_type_alias/0`, a built-in `ts_alias`, `alias_all_types?`)
-  # are declared once per name in the primitive alias block and referenced
-  # at every position that renders them; zod and valibot stay inline. The
-  # app fixtures are `CustomIdentifier` (a string name), `ExternalCode` (an
-  # MFA name, inside the declared `Theme`), Ltree's two built-in variants
-  # and the ULID stub; the other cases use the fixtures below.
+  # `typescript_type_alias/0`, a built-in `ts_alias`) are declared once per
+  # name in the primitive alias block and referenced at every position that
+  # renders them; zod and valibot stay inline. The app fixtures are
+  # `CustomIdentifier` (a string name), `ExternalCode` (an MFA name, inside
+  # the declared `Theme`), Ltree's two built-in variants and the ULID stub;
+  # the other cases use the fixtures below.
   use ExUnit.Case, async: false
 
   import AshTypescript.Test.CodegenTestHelper,
@@ -523,28 +523,24 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
       assert message =~ inspect(T.TwoBodies)
     end
 
-    test "alias_all_types? aliases a NewType over :string, zod unchanged" do
+    test "a NewType over :string with a ts_alias is aliased, zod unchanged" do
       aliased =
-        InlineManifest.build!(
-          domains: [T.EmailDomain],
-          body:
-            quote do
-              custom_types do
-                alias_all_types? true
-              end
-            end
+        manifest(
+          T.EmailDomain,
+          quote do
+            scalar AshTypescript.Codegen.ScalarAliasesTest.Email, :string, ts_alias: "Email"
+          end
         )
 
       plain = InlineManifest.build!(domains: [T.EmailDomain], body: nil)
-      name = "AshTypescriptCodegenScalarAliasesTestEmail"
 
-      assert aliases(aliased, T.EmailHolder) =~ "export type #{name} = string;"
-      assert attribute_ts(aliased, T.EmailHolder, :email) == name
-      refute aliases(plain, T.EmailHolder) =~ name
+      assert aliases(aliased, T.EmailHolder) =~ "export type Email = string;"
+      assert attribute_ts(aliased, T.EmailHolder, :email) == "Email"
+      refute aliases(plain, T.EmailHolder) =~ "Email"
 
       zod = attribute_zod(aliased, T.EmailHolder, :email)
       assert zod == attribute_zod(plain, T.EmailHolder, :email)
-      refute zod =~ name
+      refute zod =~ "Email"
     end
 
     test "a scalar X, :uuid declares UUID with no other UUID use" do

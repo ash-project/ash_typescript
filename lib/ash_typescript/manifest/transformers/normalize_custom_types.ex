@@ -5,9 +5,8 @@
 defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   @moduledoc """
   Validates the manifest module's `custom_types` section and persists it,
-  with the built-in entries and the `alias_all_types?` option, as
-  `:custom_types`:
-  `%{declared: %{module => entry}, builtin: %{module => entry}, alias_all_types?: boolean}`.
+  with the built-in entries, as `:custom_types`:
+  `%{declared: %{module => entry}, builtin: %{module => entry}}`.
 
   Runs before `BuildManifest`. It rejects, with a `Spark.Error.DslError`:
 
@@ -59,9 +58,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
       {:ok,
        Transformer.persist(dsl_state, :custom_types, %{
          declared: Map.new(normalized, &{&1.module, &1}),
-         builtin: builtin,
-         alias_all_types?:
-           Transformer.get_option(dsl_state, [:custom_types], :alias_all_types?, false)
+         builtin: builtin
        })}
     else
       {:error, {entry, path, message}} ->
@@ -178,8 +175,8 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
   # A field-less `map` entry (an explicit alias opt-in) on a field-bearing
   # NewType that names its own TypeScript type. The callback opt-in
-  # (`typescript_type_alias/0`) and `alias_all_types?` are checked by
-  # `DecorateManifest` (`CustomTypes.check_alias_names/2`). A scalar combines
+  # (`typescript_type_alias/0`) is checked by `DecorateManifest`
+  # (`CustomTypes.check_alias_names/2`). A scalar combines
   # `typescript_type/0` with any opt-in: it is the alias body.
   defp check_no_type_callback(%MapType{} = map) do
     if exports_type?(map.module),

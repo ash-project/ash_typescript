@@ -185,8 +185,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     def typescript_type_alias, do: "Tint"
   end
 
-  # NewTypes over a primitive named by their callback, or (under
-  # `alias_all_types?`) by the joined module name.
+  # NewTypes over a primitive named by their callback.
   defmodule NamedA do
     @moduledoc false
     use Ash.Type.NewType, subtype_of: :string
@@ -199,13 +198,6 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     use Ash.Type.NewType, subtype_of: :string
 
     def typescript_type_alias, do: "SameName"
-  end
-
-  defmodule TypedJoined do
-    @moduledoc false
-    use Ash.Type.NewType, subtype_of: :string
-
-    def typescript_type, do: "string"
   end
 
   defmodule ScalarHolder do
@@ -282,43 +274,6 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
 
     resources do
       resource T.CallbackHolder
-    end
-  end
-
-  defmodule JoinedHolder do
-    @moduledoc false
-    use Ash.Resource,
-      domain: nil,
-      data_layer: Ash.DataLayer.Ets,
-      extensions: [AshTypescript.Resource]
-
-    typescript do
-      type_name "CollisionJoinedHolder"
-    end
-
-    attributes do
-      uuid_primary_key :id
-      attribute :typed_joined, T.TypedJoined, public?: true
-      attribute :scalar_a, T.ScalarA, public?: true
-    end
-
-    actions do
-      defaults [:read]
-    end
-  end
-
-  defmodule JoinedHolderDomain do
-    @moduledoc false
-    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
-
-    typescript_rpc do
-      resource T.JoinedHolder do
-        rpc_action :list_collision_joined_holders, :read
-      end
-    end
-
-    resources do
-      resource T.JoinedHolder
     end
   end
 
@@ -644,35 +599,13 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
                  "#{inspect(T.ScalarA)} #{@scalar_rename}, or #{inspect(T.Tint)} #{@rename}."
     end
 
-    test "callback names and joined names under alias_all_types? are checked" do
+    test "callback names are checked" do
       assert {:error, message} =
                verify(scalar_manifest!(ScalarCallbacks, T.CallbackHolderDomain, nil))
 
       assert message =~
                "`SameName` is the TypeScript alias of both #{inspect(T.NamedA)} and " <>
                  "#{inspect(T.NamedB)}: rename one of them #{@scalar_rename}."
-
-      joined = AshTypescript.Codegen.Helpers.module_type_name(T.TypedJoined)
-
-      module =
-        scalar_manifest!(
-          ScalarJoined,
-          T.JoinedHolderDomain,
-          quote do
-            custom_types do
-              alias_all_types? true
-
-              scalar AshTypescript.Manifest.CustomTypeNameCollisionsTest.ScalarA, :string,
-                ts_alias: unquote(joined)
-            end
-          end
-        )
-
-      assert {:error, message} = verify(module)
-
-      assert message =~
-               "`#{joined}` is the TypeScript alias of both #{inspect(T.ScalarA)} and " <>
-                 "#{inspect(T.TypedJoined)}: rename one of them #{@scalar_rename}."
     end
 
     test "MFA names aren't checked at compile time" do

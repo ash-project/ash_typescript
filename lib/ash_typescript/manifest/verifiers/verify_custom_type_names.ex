@@ -8,9 +8,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   aliased field-bearing NewTypes (`AshTypescript.Codegen.CustomTypeAliases`),
   and the string alias names of the scalars the manifest reaches
   (`AshTypescript.Codegen.ScalarAliases`: a string `ts_alias`, the
-  `typescript_type_alias/0` callback, the joined name under
-  `alias_all_types?`), don't collide with each other or with names
-  ash_typescript generates in the shared types file:
+  `typescript_type_alias/0` callback), don't collide with each other or with
+  names ash_typescript generates in the shared types file:
 
     * two types with the same alias (`Billing.Money` and
       `Shop.Money` both given `ts_alias "Money"`), whatever their kinds;

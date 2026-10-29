@@ -60,13 +60,9 @@ defmodule AshTypescript.CustomTypes do
 
   @typedoc """
   The persisted `custom_types` (`NormalizeCustomTypes`): the manifest's
-  entries, the built-ins, and the `alias_all_types?` section option.
+  entries and the built-ins.
   """
-  @type custom_types :: %{
-          required(:declared) => entries(),
-          required(:builtin) => entries(),
-          optional(:alias_all_types?) => boolean()
-        }
+  @type custom_types :: %{declared: entries(), builtin: entries()}
 
   @identifier ~r/\A[A-Za-z_$][A-Za-z0-9_$]*\z/
   # Names TypeScript doesn't accept for an exported type or const: type
@@ -112,9 +108,9 @@ defmodule AshTypescript.CustomTypes do
 
   @doc false
   # The persisted `custom_types` of a manifest without declarations: the
-  # built-ins, `alias_all_types?` off.
+  # built-ins.
   @spec builtin_only() :: custom_types()
-  def builtin_only, do: %{declared: %{}, builtin: Builtin.by_module(), alias_all_types?: false}
+  def builtin_only, do: %{declared: %{}, builtin: Builtin.by_module()}
 
   @doc false
   # The type modules whose `typescript_fields/0` or `composite_types/1`
@@ -219,8 +215,8 @@ defmodule AshTypescript.CustomTypes do
     3. a built-in `map` entry's `ts_alias` (`Money`);
     4. the joined module name (`SomeLib.Coordinates` → `SomeLibCoordinates`),
        when the type is aliased at all: `aliased_by_default?` (declared custom
-       types), a manifest `map` entry for it (a field-less one opts a
-       field-bearing NewType in), or `alias_all_types?`.
+       types) or a manifest `map` entry for it (a field-less one opts a
+       field-bearing NewType in).
 
   `{:ok, nil}` when none applies. Like fields, the built-ins rank below the
   type's own callback. None of these is inherited, so a NewType over a
@@ -234,7 +230,7 @@ defmodule AshTypescript.CustomTypes do
           {:ok, String.t() | nil} | {:error, String.t()}
   def alias_name(
         module,
-        %{declared: declared, builtin: builtin} = custom_types,
+        %{declared: declared, builtin: builtin},
         aliased_by_default?
       ) do
     entry = Map.get(declared, module)
@@ -249,8 +245,7 @@ defmodule AshTypescript.CustomTypes do
       match?(%MapType{ts_alias: name} when is_binary(name), builtin[module]) ->
         {:ok, builtin[module].ts_alias}
 
-      aliased_by_default? or match?(%MapType{}, entry) or
-          Map.get(custom_types, :alias_all_types?, false) ->
+      aliased_by_default? or match?(%MapType{}, entry) ->
         {:ok, Codegen.Helpers.module_type_name(module)}
 
       true ->
@@ -282,9 +277,9 @@ defmodule AshTypescript.CustomTypes do
   # custom types and field-bearing NewTypes), then among the scalars it
   # reaches, as `{:error, message}`; `:ok` when there is none. A map-like
   # error is an invalid `alias_name/3` result, or an aliased field-bearing
-  # NewType that exports `typescript_type/0` (through `typescript_type_alias/0`
-  # or `alias_all_types?`; a field-less `map` entry on such a type is rejected
-  # by `NormalizeCustomTypes`). A scalar error is an invalid
+  # NewType that exports `typescript_type/0` (through `typescript_type_alias/0`;
+  # a field-less `map` entry on such a type is rejected by
+  # `NormalizeCustomTypes`). A scalar error is an invalid
   # `typescript_type_alias/0` result where the callback names the scalar
   # (`AshTypescript.Codegen.ScalarAliases`); a scalar may export
   # `typescript_type/0` beside it.

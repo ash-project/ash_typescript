@@ -13,10 +13,6 @@ once. A declaration replaces the type's own callbacks
 if any. Built-in entries cover `AshMoney.Types.Money`,
 `AshDoubleEntry.ULID`, `AshPostgres.Ltree` and `AshUUID.UUID`.
 
-`alias_all_types?` exports a TypeScript alias for every field-bearing
-NewType and aliasable scalar the manifest reaches, without an entry
-for each.
-
 
 ### Nested DSLs
  * [scalar](#custom_types-scalar)
@@ -36,21 +32,6 @@ end
 
 ```
 
-```
-custom_types do
-  alias_all_types? true
-end
-
-```
-
-
-
-
-### Options
-
-| Name | Type | Default | Docs |
-|------|------|---------|------|
-| [`alias_all_types?`](#custom_types-alias_all_types?){: #custom_types-alias_all_types? } | `boolean` | `false` | Alias every field-bearing NewType and aliasable scalar the manifest reaches, named by its joined module name unless it has an explicit name (a `ts_alias`, `typescript_type_alias/0`, a built-in name). Declared custom types are always aliased. |
 
 
 

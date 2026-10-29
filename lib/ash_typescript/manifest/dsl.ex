@@ -161,10 +161,6 @@ defmodule AshTypescript.Manifest.Dsl do
     (`typescript_type/0`, `typescript_fields/0`) and its built-in entry,
     if any. Built-in entries cover `AshMoney.Types.Money`,
     `AshDoubleEntry.ULID`, `AshPostgres.Ltree` and `AshUUID.UUID`.
-
-    `alias_all_types?` exports a TypeScript alias for every field-bearing
-    NewType and aliasable scalar the manifest reaches, without an entry
-    for each.
     """,
     examples: [
       """
@@ -175,22 +171,7 @@ defmodule AshTypescript.Manifest.Dsl do
           field :primary, SomeLib.HexColor, allow_nil?: false
         end
       end
-      """,
       """
-      custom_types do
-        alias_all_types? true
-      end
-      """
-    ],
-    schema: [
-      alias_all_types?: [
-        type: :boolean,
-        default: false,
-        doc:
-          "Alias every field-bearing NewType and aliasable scalar the manifest reaches, " <>
-            "named by its joined module name unless it has an explicit name (a `ts_alias`, " <>
-            "`typescript_type_alias/0`, a built-in name). Declared custom types are always aliased."
-      ]
     ],
     entities: [@scalar, @map]
   }

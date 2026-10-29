@@ -272,9 +272,8 @@ node `TypeUses.nodes/1` returns is a compile dependency of the manifest
 `with_manifest/2` doesn't change them.
 
 A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
-(a field-less `map` entry, `typescript_type_alias/0`, or `alias_all_types?`)
-gets `type_alias_names` too, by the same precedence, beside its `type_name`
-when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
+(a field-less `map` entry or `typescript_type_alias/0`) gets `type_alias_names`
+too, by the same precedence, beside its `type_name` when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
 when it exports `typescript_type/0`.
 
 Scalar names (`AshTypescript.Codegen.ScalarAliases.name/2`, over the node
@@ -283,9 +282,8 @@ NewType definition with a kind of the kind table; modules of the primitive table
 never): the entry's `ts_alias` (string, or an MFA with the node's constraints
 whose `nil` means inline with no fallback) > `typescript_type_alias/0` > the
 built-in entry's `ts_alias` (only without a manifest `scalar` entry, which
-replaces the built-in whole) > the joined name under `alias_all_types?` (not for
-an entry with an MFA `ts_type` and no `ts_alias`, nor for kinds that map to
-`any`, `TypeMapper.aliasable_kind?/1`). `typescript_type/0` doesn't stop a scalar
+replaces the built-in whole); a scalar has no default name, so without one of
+these it stays inline. `typescript_type/0` doesn't stop a scalar
 from being aliased. `check_alias_names/2` rejects an invalid
 `typescript_type_alias/0` result wherever the callback names a scalar
 (`ScalarAliases.source/2` is `:callback`). `TypeMapper.map_unclassified/2`
@@ -353,8 +351,7 @@ colliding TypeScript names found", one aggregated `DslError`
 at `[:custom_types]`; Spark turns a verifier error into a compile warning, so it
 fails `--warnings-as-errors`, and codegen re-runs it and fails) an alias shared
 by two types (map-like aliases and scalar string names: a string `ts_alias`,
-the callback, the joined name under `alias_all_types?`; MFA names are left to
-codegen),
+the callback; MFA names are left to codegen),
 an alias equal to a map-like alias plus `Input` (every `<alias>Input` is reserved:
 whether it is emitted needs rendering), a resource-derived name
 (`X` + `ResourceSchema`, `AttributesOnlySchema`, `InputSchema`, `FilterInput`,
