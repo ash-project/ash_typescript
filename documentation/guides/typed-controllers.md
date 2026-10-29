@@ -1102,7 +1102,7 @@ AshTypescript validates typed controllers at compile time:
 - **Handlers present** — every route must have a `run` handler
 - **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
 - **Plain-data arguments and `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
-- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters
+- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters, and a route's function name (the route name under the output formatter) can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, … whatever the method or mode; `:delete_item` is fine)
 - **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
 
 Like other Spark verifiers, these checks are reported as warnings when the module

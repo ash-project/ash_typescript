@@ -10,7 +10,10 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
   1. Route names are unique
   2. Each route has a `run` handler
   3. Argument types are valid Ash types
-  4. Route and argument names are valid for TypeScript generation (no `_1`, `?` patterns)
+  4. Route and argument names are valid for TypeScript generation (no `_1`, `?`
+     patterns), and no route's function name (the route name under the output
+     formatter) is a JavaScript reserved word (`delete`, `new`, `import`, …),
+     whatever the method, mode or mounting
   5. Field names inside `returns` and argument types (typed maps, keywords,
      tuples, structs — at any depth) are valid for TypeScript generation too.
      Handlers send and receive these as-is, so an invalid name would produce a
@@ -31,7 +34,8 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
     with :ok <- verify_unique_route_names(routes),
          :ok <- verify_routes_have_handlers(routes),
          :ok <- verify_argument_types(routes),
-         :ok <- verify_names_for_typescript(routes) do
+         :ok <-
+           verify_names_for_typescript(routes, Spark.Dsl.Verifier.get_persisted(dsl, :module)) do
       verify_field_names_for_typescript(routes)
     end
   end
@@ -102,10 +106,14 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
   defp resolve_type({type, _constraints}), do: type
   defp resolve_type(type), do: type
 
-  defp verify_names_for_typescript(routes) do
+  defp verify_names_for_typescript(routes, module) do
+    formatter = AshTypescript.RpcMappingSource.output_formatter()
+
     invalid =
       Enum.flat_map(routes, fn route ->
-        route_error = name_error("route #{inspect(route.name)}", route.name)
+        route_error =
+          name_error("route #{inspect(route.name)}", route.name) ++
+            reserved_route_error(route.name, module, formatter)
 
         argument_errors =
           Enum.flat_map(route.arguments, fn arg ->
@@ -123,12 +131,27 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
          message: """
          Invalid names for TypeScript generation found.
          Names containing question marks or numbers preceded by underscores produce \
-         awkward camelCase identifiers, and names that aren't valid identifiers can't \
-         be generated at all.
+         awkward camelCase identifiers, and names that aren't valid identifiers or \
+         generate a reserved word can't be generated at all.
 
          #{Enum.join(invalid, "\n")}
          """
        )}
+    end
+  end
+
+  # The fetch function is named like this (`RouteRenderer`); its path helper,
+  # types and schemas carry suffixes.
+  defp reserved_route_error(name, module, formatter) do
+    function_name = AshTypescript.FieldFormatter.format_field_name(name, formatter)
+
+    if NameValidation.reserved_word?(function_name) do
+      [
+        "  - route #{inspect(name)} of #{inspect(module)} " <>
+          NameValidation.reserved_function_message(name, function_name)
+      ]
+    else
+      []
     end
   end
 

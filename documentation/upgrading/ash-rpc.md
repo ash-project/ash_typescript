@@ -390,6 +390,18 @@ at the top level.
 compiling the manifest warns while it is still set. `AshTypescript.warn_on_missing_channel_returns?/0`
 is removed.
 
+## Reserved route and RPC action names are rejected
+
+A typed controller route or an `rpc_action` whose generated function name is a
+JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, …) is a
+compile error naming the route or action: "generates the function `delete`, a
+JavaScript reserved word". Before, an RPC action generated
+`export async function delete(`, which TypeScript rejects; a route did the same
+when it had a fetch function (a mutation, or a GET with `returns`), and was
+accepted as a bare path helper (`deletePath`) otherwise. Rename it
+(`delete :delete_item`); the client then calls `deleteItem` / `deleteItemPath`.
+Names that only contain a reserved word (`:import_users`) are unaffected.
+
 ## Custom types are declared on the manifest
 
 ### `typescript_type_name/0` is now `typescript_type/0`

@@ -66,16 +66,9 @@ defmodule AshTypescript.CustomTypes do
 
   @identifier ~r/\A[A-Za-z_$][A-Za-z0-9_$]*\z/
   # Names TypeScript doesn't accept for an exported type or const: type
-  # keywords, the JavaScript reserved words (strict mode included) and the
-  # names a module can't bind (`await`, `eval`, `arguments`).
-  @reserved_words ~w(
-    any unknown never object string number boolean bigint symbol undefined
-    break case catch class const continue debugger default delete do else enum
-    export extends false finally for function if import in instanceof new null
-    return super switch this throw true try typeof var void while with
-    implements interface let package private protected public static yield
-    await eval arguments
-  )
+  # keywords and the JavaScript reserved words (`NameValidation`).
+  @reserved_words ~w(any unknown never object string number boolean bigint symbol undefined) ++
+                    AshTypescript.NameValidation.js_reserved_words()
 
   @base_hint "Declare its fields with a `map` entry in your manifest module's `custom_types` " <>
                "section, a `typescript_fields/0` callback on the type, or " <>

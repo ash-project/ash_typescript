@@ -102,7 +102,7 @@ valid resource attributes. Returns a single result or null.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typescript_rpc-resource-rpc_action-name){: #typescript_rpc-resource-rpc_action-name } | `atom` |  | The name of the RPC-action |
+| [`name`](#typescript_rpc-resource-rpc_action-name){: #typescript_rpc-resource-rpc_action-name } | `atom` |  | The name of the RPC-action. Its formatted name is the generated function's, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 | [`action`](#typescript_rpc-resource-rpc_action-action){: #typescript_rpc-resource-rpc_action-action } | `atom` |  | The resource action to expose |
 ### Options
 

@@ -129,6 +129,12 @@ defmodule MyApp.Types.CustomMap do
 end
 ```
 
+#### Error: "generates the function `delete`, a JavaScript reserved word"
+
+**Cause:** A typed controller route or an `rpc_action` is named after a JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, `:class`, …, strict-mode words such as `:let` and `:static` included). Its generated function would be `export async function delete(`, which TypeScript rejects in an ES module. Routes are checked whatever their method or mode; the message names the controller or domain.
+
+**Solution:** Rename the route or action, for example `:delete_item` (the client calls `deleteItem`). Names that only contain a reserved word (`:import_users`) and TypeScript type keywords (`:string`) are accepted.
+
 ### Metadata Field Errors
 
 #### Error: "Invalid metadata field name"

@@ -16,7 +16,20 @@ defmodule AshTypescript.NameValidation do
 
   `make_name_better/1` returns the suggestion shown in the error message —
   drop the spurious underscore, drop the question mark.
+
+  `reserved_word?/1` flags names TypeScript can't bind as a function or
+  const in a generated ES module.
   """
+
+  # The JavaScript reserved words, strict mode included (generated files are
+  # ES modules), and the names strict mode can't bind (`eval`, `arguments`).
+  @js_reserved_words ~w(
+    break case catch class const continue debugger default delete do else enum
+    export extends false finally for function if import in instanceof new null
+    return super switch this throw true try typeof var void while with
+    implements interface let package private protected public static yield
+    await eval arguments
+  )
 
   @doc """
   Returns `true` when `name` (atom or string) would produce an awkward
@@ -49,4 +62,24 @@ defmodule AshTypescript.NameValidation do
     |> String.replace(~r/_+\d/, fn v -> String.trim_leading(v, "_") end)
     |> String.replace("?", "")
   end
+
+  @doc """
+  Returns `true` when `name` (atom or string) is a JavaScript reserved word,
+  which a generated ES module can't use as a function or const name.
+  TypeScript type keywords (`string`, `number`, …) are not reserved here.
+  """
+  def reserved_word?(name), do: to_string(name) in @js_reserved_words
+
+  @doc false
+  # The words `reserved_word?/1` rejects, for checks that extend the set.
+  def js_reserved_words, do: @js_reserved_words
+
+  @doc false
+  # The verifiers' error text for `name`, whose generated function is
+  # `function_name`, a reserved word.
+  @spec reserved_function_message(atom(), String.t()) :: String.t()
+  def reserved_function_message(name, function_name),
+    do:
+      "generates the function `#{function_name}`, a JavaScript reserved word → rename it, " <>
+        "for example :#{name}_item"
 end

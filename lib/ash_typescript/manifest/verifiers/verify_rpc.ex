@@ -24,7 +24,15 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   without rpc_actions still get their typed_queries validated.
   """
   use Spark.Dsl.Verifier
-  import AshTypescript.NameValidation, only: [invalid_name?: 1, make_name_better: 1]
+
+  import AshTypescript.NameValidation,
+    only: [
+      invalid_name?: 1,
+      make_name_better: 1,
+      reserved_function_message: 2,
+      reserved_word?: 1
+    ]
+
   alias Spark.Dsl.Verifier
 
   @impl true
@@ -37,13 +45,14 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
 
   defp do_verify(nil, _resource_lookup, _rpc_configs), do: :ok
 
-  defp do_verify(%Ash.Info.Manifest{} = _manifest, _resource_lookup, rpc_configs) do
+  defp do_verify(%Ash.Info.Manifest{} = manifest, _resource_lookup, rpc_configs) do
     with :ok <- verify_unique_names_across_domains(rpc_configs),
          :ok <- verify_typescript_resources(rpc_configs),
          :ok <- verify_rpc_actions(rpc_configs),
          :ok <- verify_typed_queries(rpc_configs),
-         :ok <- verify_relationship_read_actions(rpc_configs) do
-      verify_names(rpc_configs)
+         :ok <- verify_relationship_read_actions(rpc_configs),
+         :ok <- verify_names(rpc_configs) do
+      verify_reserved_rpc_action_names(rpc_configs, AshRpc.Manifest.output_formatter(manifest))
     end
   end
 
@@ -510,6 +519,35 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     case errors do
       [] -> :ok
       _ -> format_name_validation_errors(Enum.reverse(errors))
+    end
+  end
+
+  # An RPC action's execution function is its formatted name
+  # (`FunctionNames.execution/1`); its other functions carry prefixes or
+  # suffixes.
+  defp verify_reserved_rpc_action_names(rpc_configs, formatter) do
+    errors =
+      for {domain, resource_config} <- rpc_configs,
+          rpc_action <- resource_config.rpc_actions,
+          function_name =
+            AshTypescript.FieldFormatter.format_field_name(rpc_action.name, formatter),
+          reserved_word?(function_name) do
+        "  - rpc_action #{inspect(rpc_action.name)} in #{inspect(domain)} " <>
+          reserved_function_message(rpc_action.name, function_name)
+      end
+
+    if errors == [] do
+      :ok
+    else
+      {:error,
+       Spark.Error.DslError.exception(
+         message: """
+         RPC action names that generate a reserved word found.
+         Generated files are ES modules, which can't declare these function names.
+
+         #{Enum.join(errors, "\n")}
+         """
+       )}
     end
   end
 

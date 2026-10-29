@@ -127,7 +127,8 @@ defmodule AshTypescript.TypedController.Dsl do
     name: [
       type: :atom,
       required: true,
-      doc: "The controller action name (e.g. :login, :auth)"
+      doc:
+        "The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …)"
     ],
     run: [
       type: {:or, [{:fun, 2}, :atom]},

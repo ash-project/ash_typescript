@@ -100,7 +100,7 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-route-name){: #typed_controller-route-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-route-name){: #typed_controller-route-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 | [`method`](#typed_controller-route-method){: #typed_controller-route-method } | `:get \| :post \| :patch \| :put \| :delete` | `:get` | The HTTP method. Defaults to :get. |
 ### Options
 
@@ -176,7 +176,7 @@ Define a GET route. Shorthand for `route :name, :get`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-get-name){: #typed_controller-get-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-get-name){: #typed_controller-get-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -251,7 +251,7 @@ Define a POST route. Shorthand for `route :name, :post`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-post-name){: #typed_controller-post-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-post-name){: #typed_controller-post-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -326,7 +326,7 @@ Define a PATCH route. Shorthand for `route :name, :patch`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-patch-name){: #typed_controller-patch-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-patch-name){: #typed_controller-patch-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -401,7 +401,7 @@ Define a PUT route. Shorthand for `route :name, :put`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-put-name){: #typed_controller-put-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-put-name){: #typed_controller-put-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 ### Options
 
 | Name | Type | Default | Docs |
@@ -476,7 +476,7 @@ Define a DELETE route. Shorthand for `route :name, :delete`.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`name`](#typed_controller-delete-name){: #typed_controller-delete-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`name`](#typed_controller-delete-name){: #typed_controller-delete-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth). It names the generated function, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …) |
 ### Options
 
 | Name | Type | Default | Docs |

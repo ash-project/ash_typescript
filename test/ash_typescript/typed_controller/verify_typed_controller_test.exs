@@ -517,4 +517,75 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
       assert :ok = result
     end
   end
+
+  describe "reserved route names" do
+    alias AshTypescript.TypedController.Verifiers.VerifyTypedController
+
+    # The fixture below intentionally fails verification, so it is defined
+    # inside the capture closure to keep the `@after_verify` DslError that
+    # Elixir's parallel checker echoes out of `mix test` output.
+
+    test "rejects a route whose function name is a reserved word" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithReservedRoutes do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name AshTypescript.Test.ReservedRoutesController
+
+              delete :delete do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+
+              get :new do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+
+              route :import, :post do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithReservedRoutes.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+
+      controller = inspect(__MODULE__.ControllerWithReservedRoutes)
+
+      for route <- [:delete, :new, :import] do
+        assert message =~
+                 "route #{inspect(route)} of #{controller} generates " <>
+                   "the function `#{route}`, a JavaScript reserved word → rename it, " <>
+                   "for example :#{route}_item"
+      end
+    end
+
+    test "accepts names that contain a reserved word or are TypeScript type keywords" do
+      defmodule ControllerWithNearReservedRoutes do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.NearReservedRoutesController
+
+          post :import_users do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+
+          delete :delete_item do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+
+          get :string do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+        end
+      end
+
+      assert :ok =
+               VerifyTypedController.verify(ControllerWithNearReservedRoutes.spark_dsl_config())
+    end
+  end
 end

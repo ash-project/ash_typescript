@@ -119,7 +119,8 @@ defmodule AshTypescript.Rpc do
     schema: [
       name: [
         type: :atom,
-        doc: "The name of the RPC-action"
+        doc:
+          "The name of the RPC-action. Its formatted name is the generated function's, so it can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, …)"
       ],
       action: [
         type: :atom,

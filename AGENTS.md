@@ -513,6 +513,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | "show_metadata contains unknown metadata fields" | `show_metadata` names a field the action's `metadata` doesn't define | Only list declared metadata fields |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?`, or that aren't valid identifiers (`:"foo-bar"`) | Rename to avoid patterns that produce awkward camelCase |
+| "generates the function `delete`, a JavaScript reserved word" | A typed controller route or `rpc_action` named after a JS reserved word (`:delete`, `:new`, `:import`, …; `NameValidation.reserved_word?/1`), whatever the method or mode | Rename it, for example `:delete_item` |
 | "Invalid field names found in typed controller route types" | A `fields` constraint (in `returns` or an argument type, at any depth) has a name with `_1` or `?`, or one that isn't a valid identifier — or a type's `typescript_field_names/0` maps a field to such a name | Rename the field (or fix the mapping) — route bodies are sent as-is, so there is no route-level name mapping. Spark only warns at compile time; codegen fails |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |

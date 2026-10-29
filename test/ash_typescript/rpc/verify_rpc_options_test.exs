@@ -82,7 +82,8 @@ end
 defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
   @moduledoc """
   Integration tests for the `show_metadata` and `allowed_loads`/`denied_loads`
-  existence checks in `AshTypescript.Manifest.Verifiers.VerifyRpc`.
+  existence checks and the reserved-name check in
+  `AshTypescript.Manifest.Verifiers.VerifyRpc`.
   """
   use ExUnit.Case, async: false
 
@@ -228,6 +229,50 @@ defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
       end
 
       assert :ok = silent_verify_for_domains([GoodLoadsDomain])
+    end
+  end
+
+  describe "reserved RPC action names" do
+    test "rejects an rpc_action whose function name is a reserved word" do
+      defmodule ReservedNameDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource Source do
+            rpc_action :delete, :read
+          end
+        end
+
+        resources do
+          resource Source
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([ReservedNameDomain])
+
+      assert message =~
+               "rpc_action :delete in #{inspect(ReservedNameDomain)} generates the function " <>
+                 "`delete`, a JavaScript reserved word → rename it, for example :delete_item"
+    end
+
+    test "accepts names that contain a reserved word or are TypeScript type keywords" do
+      defmodule NearReservedNameDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource Source do
+            rpc_action :delete_item, :read
+            rpc_action :import_users, :read
+            rpc_action :string, :read
+          end
+        end
+
+        resources do
+          resource Source
+        end
+      end
+
+      assert :ok = silent_verify_for_domains([NearReservedNameDomain])
     end
   end
 
