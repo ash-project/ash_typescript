@@ -13,6 +13,30 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.CustomTypesDslTest, as: T
 
+  defmodule Status do
+    @moduledoc false
+    use Ash.Type.Enum, values: [:open, :closed]
+  end
+
+  defmodule Typed do
+    @moduledoc false
+    use Ash.TypedStruct
+
+    typed_struct do
+      field :a, :string
+    end
+  end
+
+  defmodule MapNew do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :map, constraints: [fields: [a: [type: :string]]]
+  end
+
+  defmodule StringNew do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :string
+  end
+
   # The scoped manifest prints the RPC resource warnings; they're captured.
   defp compile_manifest!(name, body) do
     module = Module.concat(T, name)
@@ -298,6 +322,145 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
 
       assert %MapType{fields: [%Field{type: SomeLib.Inner}, _, _]} =
                persisted(module).declared[SomeLib.Outer]
+    end
+  end
+
+  describe "scalar entries must be scalars" do
+    test "a scalar entry for a module codegen types as something else is rejected" do
+      cases = [
+        {ScalarForEnum, T.Status, "is an `Ash.Type.Enum`, rendered as the union of its values"},
+        {ScalarForTypedStruct, T.Typed, "is a NewType with fields, rendered from its fields"},
+        {ScalarForMapNewType, T.MapNew, "is a NewType with fields, rendered from its fields"},
+        {ScalarForPrimitive, Ash.Type.String, "is a type ash_typescript maps itself"}
+      ]
+
+      for {name, module, reason} <- cases do
+        message =
+          compile_error!(
+            name,
+            quote do
+              custom_types do
+                scalar unquote(module), :string
+              end
+            end
+          )
+
+        assert message =~ "#{inspect(module)} #{reason}: a `scalar` entry never applies to it."
+        assert message =~ "custom_types -> scalar -> #{module}"
+
+        if module in [T.Typed, T.MapNew] do
+          assert message =~
+                   "Use a field-less `map` entry (`map #{inspect(module)}`) to alias it."
+        else
+          assert message =~ "Remove the entry."
+        end
+      end
+    end
+
+    test "a base type that isn't a scalar is rejected" do
+      cases = [
+        {ScalarOverTypedMap, quote(do: :map), [fields: [a: [type: :string]]], Ash.Type.Map},
+        {ScalarOverMap, quote(do: :map), [], Ash.Type.Map},
+        {ScalarOverKeyword, quote(do: :keyword), [fields: [a: [type: :string]]],
+         Ash.Type.Keyword},
+        {ScalarOverTuple, quote(do: :tuple), [fields: [a: [type: :string]]], Ash.Type.Tuple},
+        {ScalarOverStruct, quote(do: :struct), [], Ash.Type.Struct},
+        {ScalarOverUnion, quote(do: :union), [types: [a: [type: :string]]], Ash.Type.Union},
+        {ScalarOverResourceStruct, quote(do: :struct), [instance_of: AshTypescript.Test.Todo],
+         Ash.Type.Struct},
+        {ScalarOverEmbedded, quote(do: AshTypescript.Test.TodoMetadata), [],
+         AshTypescript.Test.TodoMetadata},
+        {ScalarOverTypedStruct, quote(do: T.Typed), [], T.Typed},
+        {ScalarOverMapArray, quote(do: {:array, :map}), [], {:array, Ash.Type.Map}}
+      ]
+
+      for {name, base, constraints, shown} <- cases do
+        message =
+          compile_error!(
+            name,
+            quote do
+              custom_types do
+                scalar SomeLib.NotScalar, unquote(base), constraints: unquote(constraints)
+              end
+            end
+          )
+
+        assert message =~
+                 "The base type #{inspect(shown)} of SomeLib.NotScalar is not a scalar " <>
+                   "(a map, keyword, tuple, struct, union or resource)"
+
+        assert message =~ "declare a map-like type with a `map` entry"
+        assert message =~ "custom_types -> scalar -> Elixir.SomeLib.NotScalar"
+      end
+
+      # A resource isn't an Ash type: rejected before the kind is looked at.
+      message =
+        compile_error!(
+          ScalarOverResource,
+          quote do
+            custom_types do
+              scalar SomeLib.NotScalar, AshTypescript.Test.Todo
+            end
+          end
+        )
+
+      assert message =~
+               "The base type AshTypescript.Test.Todo of SomeLib.NotScalar is not an Ash type."
+    end
+
+    test "scalar modules over scalar bases are accepted" do
+      module =
+        compile_manifest!(
+          ScalarGuards,
+          quote do
+            custom_types do
+              scalar SomeLib.Path, {:array, :string}
+              scalar SomeLib.Code, :string
+              scalar SomeLib.Id, :uuid
+              scalar T.StringNew, :string, ts_alias: "StringNew"
+            end
+          end
+        )
+
+      assert %{
+               SomeLib.Path => %Scalar{type: {:array, Ash.Type.String}},
+               SomeLib.Code => %Scalar{type: Ash.Type.String},
+               SomeLib.Id => %Scalar{type: Ash.Type.UUID},
+               T.StringNew => %Scalar{ts_alias: "StringNew"}
+             } = persisted(module).declared
+    end
+
+    test "a string ts_alias equal to its string ts_type is rejected" do
+      message =
+        compile_error!(
+          ScalarSelfAlias,
+          quote do
+            custom_types do
+              scalar SomeLib.Code, :string, ts_type: "Code", ts_alias: "Code"
+            end
+          end
+        )
+
+      assert message =~
+               ~s(The ts_alias "Code" of SomeLib.Code is its ts_type, so the alias would ) <>
+                 ~s(alias itself \(`export type Code = Code;`\): remove the ts_alias or ) <>
+                 "give it another name."
+
+      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Code -> ts_alias"
+    end
+
+    test "a string ts_alias with another ts_type is accepted" do
+      module =
+        compile_manifest!(
+          ScalarOtherAlias,
+          quote do
+            custom_types do
+              scalar SomeLib.Code, :string, ts_type: "`code-${string}`", ts_alias: "Code"
+            end
+          end
+        )
+
+      assert persisted(module).declared[SomeLib.Code].ts_alias == "Code"
     end
   end
 

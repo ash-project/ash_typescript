@@ -21,13 +21,22 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
       (a field-bearing NewType's TypeScript comes from its fields);
     * a `scalar` whose base type isn't an Ash type, or a `field` whose type is
       neither an Ash type nor a module with an entry (declared or built-in);
+    * a `scalar` for a module codegen types without it: an `Ash.Type.Enum`,
+      a field-bearing NewType (point to a field-less `map` entry) or a module
+      of `TypeMapper`'s primitive table (`Ash.Type.String`, …);
+    * a `scalar` whose base type isn't a scalar: a `:map`, `:keyword`,
+      `:tuple` or `:struct` (with or without fields), a `:union`, an embedded
+      resource, a NewType over one of these, or an array of any of them;
     * constraints the type rejects (`Ash.Type.init/2`). A field typed by a
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
       field winning per key). A field typed by a `map` entry isn't checked;
     * a `ts_alias` string (`map` or `scalar`) that isn't a TypeScript
       identifier, or is a reserved word (`string`, `object`, `default`, …;
-      `AshTypescript.CustomTypes.check_name/2`);
+      `AshTypescript.CustomTypes.check_name/2`), or is a global TypeScript
+      name the generated code uses (`Array`, `Promise`, …);
+    * a `scalar` string `ts_alias` equal to its string `ts_type` (the alias
+      would alias itself);
     * a `scalar` with an MFA `ts_alias` and a `ts_type` that isn't an MFA
       (or none).
 
@@ -38,6 +47,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
 
   use Spark.Dsl.Transformer
 
+  alias Ash.Info.Manifest.Generator.TypeResolver
+  alias Ash.Info.Manifest.Type
+  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.CustomTypes
   alias AshTypescript.CustomTypes.{Builtin, Field, MapType, Scalar}
   alias Spark.Dsl.Transformer
@@ -93,7 +105,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     path = [:scalar, scalar.module]
 
     if Ash.Type.ash_type?(scalar.type) do
-      with :ok <- init(scalar, path, scalar.type, scalar.constraints, inspect(scalar.module)),
+      with :ok <- check_scalar_module(scalar),
+           :ok <- init(scalar, path, scalar.type, scalar.constraints, inspect(scalar.module)),
+           :ok <- check_scalar_base(scalar),
            :ok <- check_scalar_ts_alias(scalar) do
         {:ok, scalar}
       end
@@ -129,7 +143,76 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     end
   end
 
+  # A module codegen types without its `scalar` entry: an enum (the union of
+  # its values), a field-bearing NewType (its fields) or a module of the
+  # primitive table.
+  defp check_scalar_module(%Scalar{module: module} = scalar) do
+    case scalar_module_error(module) do
+      nil ->
+        :ok
+
+      {reason, fix} ->
+        {:error,
+         {scalar, [:scalar, module],
+          "#{inspect(module)} #{reason}: a `scalar` entry never applies to it. #{fix}"}}
+    end
+  end
+
+  defp scalar_module_error(module) do
+    cond do
+      TypeMapper.primitive_module?(module) ->
+        {"is a type ash_typescript maps itself", "Remove the entry."}
+
+      not match?({:module, _}, Code.ensure_compiled(module)) ->
+        nil
+
+      Spark.implements_behaviour?(module, Ash.Type.Enum) ->
+        {"is an `Ash.Type.Enum`, rendered as the union of its values", "Remove the entry."}
+
+      CustomTypes.field_bearing_new_type_module?(module) ->
+        {"is a NewType with fields, rendered from its fields",
+         "Use a field-less `map` entry (`map #{inspect(module)}`) to alias it."}
+
+      true ->
+        nil
+    end
+  end
+
+  @non_scalar_kinds [:map, :keyword, :tuple, :struct, :union, :resource, :embedded_resource]
+
+  # A base type that maps to an object type (with or without fields), a union
+  # or a resource, also as array items: a `scalar` maps to one TypeScript
+  # type, and those don't (or not the same one at input and output).
+  defp check_scalar_base(%Scalar{} = scalar) do
+    if non_scalar?(TypeResolver.resolve(scalar.type, scalar.constraints)) do
+      {:error,
+       {scalar, [:scalar, scalar.module],
+        "The base type #{inspect(scalar.type)} of #{inspect(scalar.module)} is not a scalar " <>
+          "(a map, keyword, tuple, struct, union or resource): declare a map-like type with " <>
+          "a `map` entry and its fields, or with a field-less `map` entry for a NewType " <>
+          "with fields."}}
+    else
+      :ok
+    end
+  end
+
+  defp non_scalar?(%Type{kind: :array, item_type: item_type}), do: non_scalar?(item_type)
+
+  defp non_scalar?(%Type{kind: :type_ref, module: module}),
+    do: non_scalar?(TypeResolver.resolve_definition(module))
+
+  defp non_scalar?(%Type{kind: kind}), do: kind in @non_scalar_kinds
+
   defp check_scalar_ts_alias(%Scalar{ts_alias: nil}), do: :ok
+
+  defp check_scalar_ts_alias(%Scalar{ts_alias: name, ts_type: name} = scalar)
+       when is_binary(name) do
+    {:error,
+     {scalar, [:scalar, scalar.module, :ts_alias],
+      "The ts_alias #{inspect(name)} of #{inspect(scalar.module)} is its ts_type, so the " <>
+        "alias would alias itself (`export type #{name} = #{name};`): remove the ts_alias " <>
+        "or give it another name."}}
+  end
 
   defp check_scalar_ts_alias(%Scalar{ts_alias: name} = scalar) when is_binary(name) do
     subject = "The ts_alias #{inspect(name)} of #{inspect(scalar.module)}"
