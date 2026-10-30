@@ -260,6 +260,12 @@ which a manifest over the whole test app needs: decoration rejects `GeoPoint`
 without its `map` entry, and codegen can't map the `scalar` ones without theirs.
 Pass `body: nil` for a module without a `custom_types` section.
 
+Codegen reruns the manifest verifiers on the configured `:manifest` module, not on the
+`with_manifest/2` override: to get a verifier error from codegen, also set `:manifest`
+to the inline module (`AshTypescript.Test.InlineManifest.module_for/1`) and restore it
+on exit. Test-local custom types `use AshTypescript.Test.PassThroughType` (a
+pass-through `use Ash.Type`; options `storage:`, default `:map`, and `constraints:`).
+
 ## Asserting on Generated TypeScript in Elixir Tests
 
 **CRITICAL: Never read from `test/ts/generated.ts` in tests.** This file may be stale or out of sync with the current codebase. Instead, generate the TypeScript programmatically and assert on the resulting string.

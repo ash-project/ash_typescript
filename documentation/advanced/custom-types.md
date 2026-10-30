@@ -664,10 +664,9 @@ found", listing every collision, when an alias equals:
 
 Like the other manifest verifiers, it is a warning when the manifest compiles,
 which fails `mix compile --warnings-as-errors`, and an error that fails
-`mix ash_typescript.codegen` before any file is written (in a project without
-RPC output, codegen doesn't rerun the manifest verifiers; the checks below
-still apply). It checks the names known at compile time: a scalar name from an
-MFA `ts_alias` depends on each use, so only codegen checks it.
+`mix ash_typescript.codegen` before any file is written, with or without RPC
+output. It checks the names known at compile time: a scalar name from an MFA
+`ts_alias` depends on each use, so only codegen checks it.
 
 Codegen checks what the manifest can't see, and fails before writing any file:
 

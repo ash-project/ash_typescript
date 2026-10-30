@@ -83,7 +83,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
       rpc_modules ++ typed_controller_modules ++ Enum.map(channel_entries, &elem(&1, 0))
 
     with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(verifier_modules),
-         :ok <- run_manifest_verifiers(rpc_output_file) do
+         :ok <- run_manifest_verifiers() do
       :ok
     else
       {:error, error_message} -> throw({:error, error_message})
@@ -714,10 +714,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
   # etc.) against the configured manifest module's persisted Spark DSL state.
   # These run `VerifyRpcWarnings`, which already emits the RPC-configuration
   # warnings (gated by the same config flags), so they aren't emitted again here.
-  # Only relevant when RPC output is configured.
-  defp run_manifest_verifiers(nil), do: :ok
-
-  defp run_manifest_verifiers(_rpc_output_file) do
+  # Run without RPC output too: the types file's aliases are checked here.
+  defp run_manifest_verifiers do
     AshTypescript.Manifest.run_verifiers(AshTypescript.manifest_module())
   end
 end

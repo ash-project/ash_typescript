@@ -27,7 +27,8 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
     :typed_channels_output_file,
     :enable_namespace_files,
     :enable_controller_namespace_files,
-    :router
+    :router,
+    :manifest
   ]
 
   @types_file "./test/ts/ash_types.ts"
@@ -59,6 +60,26 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
         run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "") end
         argument :name, :string
         argument :count, :integer
+      end
+    end
+  end
+
+  # A scalar whose alias takes a fixed generated name.
+  defmodule ShortCode do
+    @moduledoc false
+    use AshTypescript.Test.PassThroughType, storage: :string
+  end
+
+  defmodule ShortCodeController do
+    @moduledoc false
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.Codegen.NoRpcTypesFileTest.ShortCodeControllerImpl
+
+      post :redeem do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "") end
+        argument :code, AshTypescript.Codegen.NoRpcTypesFileTest.ShortCode
       end
     end
   end
@@ -165,6 +186,43 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
       assert routes =~ "ping"
       refute routes =~ "ash_types"
     end
+  end
+
+  describe "an alias colliding with a generated name" do
+    setup do
+      without_rpc_output()
+      without_router()
+
+      opts = [
+        typed_controllers: [T.ShortCodeController],
+        body:
+          InlineManifest.app_custom_types([
+            quote do
+              scalar AshTypescript.Codegen.NoRpcTypesFileTest.ShortCode, :string do
+                ts_alias "UUID"
+              end
+            end
+          ])
+      ]
+
+      manifest = InlineManifest.build!(opts)
+      # Codegen verifies the configured manifest module.
+      Application.put_env(:ash_typescript, :manifest, InlineManifest.module_for(opts))
+      %{manifest: manifest}
+    end
+
+    test "fails codegen with the manifest verifier's error", %{manifest: manifest} do
+      assert {:error, message} = generate_files(:ash_typescript, manifest: manifest)
+      assert message =~ "Types with colliding TypeScript names found"
+      assert message =~ "`UUID`"
+    end
+  end
+
+  # Codegen runs every manifest verifier, the RPC ones included.
+  test "a manifest without RPC configuration passes the verifiers" do
+    opts = [domains: [], typed_controllers: [T.PlainController], body: nil]
+    InlineManifest.build!(opts)
+    assert AshTypescript.Manifest.run_verifiers(InlineManifest.module_for(opts)) == :ok
   end
 
   test "RPC projects keep the full types file" do
