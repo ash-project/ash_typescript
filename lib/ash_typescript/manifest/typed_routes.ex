@@ -81,8 +81,9 @@ defmodule AshTypescript.Manifest.TypedRoutes do
   end
 
   @doc false
-  # The undecorated route argument, route `returns` and publication `returns`
-  # types, for ash_rpc's `extra_types:`.
+  # The route argument, route `returns` and publication `returns` types:
+  # undecorated for ash_rpc's `extra_types:`, decorated (the manifest's
+  # routes) for codegen's alias roots.
   @spec types([Route.t()], [Publication.t()]) :: [Manifest.Type.t()]
   def types(routes, publications) do
     Enum.flat_map(routes, &[&1.returns | Enum.map(&1.inputs, fn input -> input.type end)])

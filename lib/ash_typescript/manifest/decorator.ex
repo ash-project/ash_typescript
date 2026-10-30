@@ -60,8 +60,8 @@ defmodule AshTypescript.Manifest.Decorator do
       reaches (`t:AshRpc.Manifest.UntypedStructError.hint/0`), passed to
       `AshRpc.Manifest.Decorator.check_untyped_structs!/4`;
     * `custom_types:`, the persisted `custom_types`
-      (`t:AshTypescript.CustomTypes.custom_types/0`) the names of declared
-      custom types come from (default: no declarations, the built-ins).
+      (`t:AshTypescript.CustomTypes.custom_types/0`) the alias and schema
+      names come from (default: no declarations, the built-ins).
   """
   @spec decorate(Manifest.t(),
           hint: AshRpc.Manifest.UntypedStructError.hint(),
