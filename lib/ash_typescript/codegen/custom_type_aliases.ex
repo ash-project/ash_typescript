@@ -102,7 +102,7 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
     recursive =
       for %Type{} = definition <- AshTypescript.manifest().types,
           plain_name(definition),
-          contains?(children(definition), definition.module, %{}),
+          contains_itself?(definition),
           do: definition.module
 
     case recursive do
@@ -131,17 +131,11 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
     """
   end
 
-  defp contains?([], _module, _walked), do: false
-  defp contains?([%Type{kind: :type_ref, module: module} | _rest], module, _walked), do: true
-
-  defp contains?([%Type{kind: :type_ref, module: ref} = type | rest], module, walked) do
-    if Map.has_key?(walked, ref),
-      do: contains?(rest, module, walked),
-      else: contains?(children(type) ++ rest, module, Map.put(walked, ref, true))
+  defp contains_itself?(%Type{module: module} = definition) do
+    [definition]
+    |> Introspection.reachable_nodes()
+    |> Enum.any?(&match?(%Type{kind: :type_ref, module: ^module}, &1))
   end
-
-  defp contains?([type | rest], module, walked),
-    do: contains?(children(type) ++ rest, module, walked)
 
   @doc """
   True when a definition's fields reach a non-embedded resource, through
@@ -155,34 +149,11 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   reference, so its input and schema uses render inline.
   """
   @spec reaches_resource?(Type.t()) :: boolean()
-  def reaches_resource?(%Type{} = definition),
-    do: reaches_resource?(children(definition), %{definition.module => true})
-
-  defp reaches_resource?([], _walked), do: false
-  defp reaches_resource?([%Type{kind: :resource} | _rest], _walked), do: true
-
-  defp reaches_resource?([%Type{kind: :type_ref, module: module} = ref | rest], walked) do
-    if Map.has_key?(walked, module),
-      do: reaches_resource?(rest, walked),
-      else: reaches_resource?(children(ref) ++ rest, Map.put(walked, module, true))
+  def reaches_resource?(%Type{} = definition) do
+    [definition]
+    |> Introspection.reachable_nodes()
+    |> Enum.any?(&match?(%Type{kind: :resource}, &1))
   end
-
-  defp reaches_resource?([type | rest], walked),
-    do: reaches_resource?(children(type) ++ rest, walked)
-
-  # The types directly inside a type, as the alias and schema renderings
-  # descend: array items, union members, typed container fields and a named
-  # type's definition. Resources, embedded ones included, are leaves.
-  defp children(%Type{kind: :array, item_type: item}), do: List.wrap(item)
-  defp children(%Type{kind: :union, members: members}), do: Enum.map(members || [], & &1.type)
-
-  defp children(%Type{kind: :type_ref, module: module}),
-    do: [Introspection.named_type_definition(module)]
-
-  defp children(%Type{kind: kind} = container) when kind in [:map, :keyword, :tuple, :struct],
-    do: Enum.map(Type.get_fields(container), & &1.type)
-
-  defp children(_type), do: []
 
   @doc """
   The aliased definitions (`plain_name/1`) that `roots`
@@ -192,26 +163,15 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   """
   @spec reachable([Type.t()]) :: [Type.t()]
   def reachable(roots) do
-    roots
-    |> reach(%{})
-    |> Map.values()
-    |> Enum.filter(&plain_name/1)
-    |> Enum.sort_by(&plain_name/1)
+    definitions =
+      for %Type{kind: :type_ref, module: module} <- Introspection.reachable_nodes(roots),
+          definition = Introspection.named_type_definition(module),
+          plain_name(definition),
+          uniq: true,
+          do: definition
+
+    Enum.sort_by(definitions, &plain_name/1)
   end
-
-  # Named type module => its definition, for every named type reached.
-  defp reach([], walked), do: walked
-
-  defp reach([%Type{kind: :type_ref, module: module} = ref | rest], walked) do
-    if Map.has_key?(walked, module) do
-      reach(rest, walked)
-    else
-      [definition] = children(ref)
-      reach([definition | rest], Map.put(walked, module, definition))
-    end
-  end
-
-  defp reach([type | rest], walked), do: reach(children(type) ++ rest, walked)
 
   @doc """
   The `export type` block of the aliases of `definitions` (by default every

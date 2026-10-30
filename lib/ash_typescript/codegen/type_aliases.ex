@@ -70,7 +70,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
     primitive_aliases =
       roots
-      |> Enum.reduce(MapSet.new(), &collect_type_module/2)
+      |> collect_type_modules(MapSet.new())
       |> generate_aliases()
       |> Kernel.++(ScalarAliases.alias_lines(roots))
       |> Enum.sort()
@@ -154,43 +154,21 @@ defmodule AshTypescript.Codegen.TypeAliases do
   end
 
   # Collects every type module whose alias the type mapper may reference when
-  # rendering `type`, walking nested positions the mapper also renders inline:
-  # array items, union members, typed map/keyword/struct fields, tuple
-  # elements and the definitions of named types (NewTypes). Resources and
-  # embedded resources are leaves — their fields are collected per resource.
-  defp collect_type_module(%Type{kind: :array, item_type: item_type}, types) do
-    collect_type_module(item_type, types)
+  # rendering `roots`, at every nested position the mapper also renders inline
+  # (`Introspection.reachable_nodes/1`: array items, union members, typed
+  # container fields, named types' definitions). Resources and embedded
+  # resources are leaves: their fields are collected per resource.
+  defp collect_type_modules(roots, types) do
+    roots
+    |> Introspection.reachable_nodes()
+    |> Enum.reduce(types, &collect_type_module/2)
   end
 
-  defp collect_type_module(%Type{kind: :union, members: members} = type, types) do
-    Enum.reduce(members || [], put_type_module(type, types), fn member, types ->
-      collect_type_module(member.type, types)
-    end)
-  end
+  defp collect_type_module(%Type{kind: :array}, types), do: types
 
   defp collect_type_module(%Type{kind: kind} = type, types)
-       when kind in [:map, :keyword, :struct, :tuple] do
-    type
-    |> Type.get_fields()
-    |> Enum.reduce(put_type_module(type, types), fn field, types ->
-      collect_type_module(field.type, types)
-    end)
-  end
-
-  # Named types render as their full definition, so walk it once. The module
-  # is recorded before recursing, which also stops self-referential types.
-  defp collect_type_module(%Type{kind: :type_ref, module: module} = type, types)
-       when is_atom(module) and not is_nil(module) do
-    if MapSet.member?(types, module) do
-      types
-    else
-      types = put_type_module(type, types)
-
-      module
-      |> Introspection.named_type_definition()
-      |> collect_type_module(types)
-    end
-  end
+       when kind in [:union, :map, :keyword, :struct, :tuple, :type_ref],
+       do: put_type_module(type, types)
 
   defp collect_type_module(%Type{} = type, types) do
     type
@@ -198,8 +176,6 @@ defmodule AshTypescript.Codegen.TypeAliases do
     |> put_kind_alias_module(type)
     |> put_scalar_base_type(type)
   end
-
-  defp collect_type_module(_, types), do: types
 
   defp put_type_module(%Type{module: module}, types)
        when is_atom(module) and not is_nil(module) do
@@ -228,7 +204,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   defp put_scalar_base_type(types, %Type{} = type) do
     case TypeMapper.scalar_base_type(type) do
       nil -> types
-      base_type -> collect_type_module(base_type, types)
+      base_type -> collect_type_modules([base_type], types)
     end
   end
 
