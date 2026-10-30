@@ -117,6 +117,16 @@ called as `apply(m, f, [constraints | a])` with the constraints where the type
 is used, for mappings that depend on constraints. The section's entities are
 listed in the [Manifest DSL reference](../dsls/DSL-AshTypescript.Manifest.md).
 
+A `scalar` is for a module whose values are a single value, over a scalar base
+type. The manifest fails to compile ("a `scalar` entry never applies to it")
+for a module codegen types without the entry: an `Ash.Type.Enum` (the union of
+its values), an `Ash.Type.NewType` with fields (use a field-less `map` entry,
+see [NewTypes With Fields](#newtypes-with-fields)) or a type ash_typescript
+maps itself (`Ash.Type.String`, …); and ("is not a scalar") for a base type
+that is a `:map`, `:keyword`, `:tuple` or `:struct` (with or without fields),
+a `:union`, an embedded resource, a type with fields, or an array of one of
+these: declare a map-like type with a `map` entry.
+
 For a scalar, the TypeScript type comes from the first of:
 
 1. the `ts_type` of a `scalar` declaration in the manifest's `custom_types`
@@ -181,9 +191,31 @@ the field-spec format of a typed map's `fields` constraint
 (`name: [type:, constraints:, allow_nil?:, description:]`), and default to
 nullable, as typed-map fields do.
 
-### Declaring Fields on a Type You Own
+### Declaring Fields in the Manifest
 
-Add a `typescript_fields/0` function to the type:
+Declare a `map` in the manifest module's `custom_types` section. Each `field`
+takes the field's name and type, plus `constraints`, `allow_nil?` (default
+`true`), `client_name` and `description`. `zod` and `valibot` replace the
+generated schemas:
+
+```elixir
+custom_types do
+  map SomeLib.ColorPalette do
+    field :primary, :string, allow_nil?: false
+    field :secondary, :string, allow_nil?: false
+    field :accent_color, :string, client_name: "accent"
+  end
+end
+```
+
+A field's type can be any Ash type, a type with its own `scalar` or `map`
+entry, or a built-in. When it is a declared `scalar`, the field's
+`constraints` are merged over the scalar's, the field winning per key.
+
+### Declaring Fields With Callbacks
+
+A type can declare its fields itself instead, with a `typescript_fields/0`
+function:
 
 ```elixir
 defmodule MyApp.ColorPalette do
@@ -208,27 +240,6 @@ end
 A composite type (`composite?/1` returns `true`) needs nothing more: its
 `composite_types/1` entries are its fields, and they are non-null. A
 `typescript_fields/0` on a composite type replaces them.
-
-### Declaring Fields on a Type You Don't Own
-
-Declare a `map` in the manifest module's `custom_types` section. Each `field`
-takes the field's name and type, plus `constraints`, `allow_nil?` (default
-`true`), `client_name` and `description`. `zod` and `valibot` replace the
-generated schemas:
-
-```elixir
-custom_types do
-  map SomeLib.ColorPalette do
-    field :primary, :string, allow_nil?: false
-    field :secondary, :string, allow_nil?: false
-    field :accent_color, :string, client_name: "accent"
-  end
-end
-```
-
-A field's type can be any Ash type, a type with its own `scalar` or `map`
-entry, or a built-in. When it is a declared `scalar`, the field's
-`constraints` are merged over the scalar's, the field winning per key.
 
 ### Where Fields Come From
 
@@ -587,7 +598,7 @@ custom_types do
 end
 ```
 
-A type you own names itself with the optional callback:
+A type can also name itself with the optional callback:
 
 ```elixir
 defmodule MyApp.Theme do
@@ -599,10 +610,18 @@ end
 ```
 
 A name must be a TypeScript identifier that isn't a reserved word (`string`,
-`object`, `default`, `class`, `await`, `eval`, …), or the manifest fails to
-compile; for the callback the error names the module, and a result that isn't
-a string fails the same way. The callback isn't read when the type's entry has
-a `ts_alias`.
+`object`, `default`, `class`, `await`, `eval`, …) or a global the generated
+code uses (`Array`, `ReadonlyArray`, `Record`, `Promise`, `Partial`,
+`Required`, `Readonly`, `Pick`, `Omit`, `Exclude`, `Extract`, `NonNullable`,
+`ReturnType`, `Parameters`, `Awaited`, `Date`, `Error`, `Map`, `Set`,
+`Object`, `String`, `Number`, `Boolean`, `Function`, `JSON`, `RequestInit`,
+`RequestInfo`, `Response`, `Headers`, `URL`, `URLSearchParams`), which an
+alias would shadow, or the manifest fails to compile; for the callback the
+error names the module, and a result that isn't a string fails the same way.
+A `scalar`'s string `ts_alias` can't equal its string `ts_type` (the alias
+would alias itself). The callback isn't read when the type's entry has a
+`ts_alias`. Names ash_typescript generates (`UUID`, `InferResult`, …) are
+reported as collisions (see [Name Collisions](#name-collisions)).
 
 The named zod and valibot schemas of a map-like type are its alias followed by
 the schema suffix (see [Named Schemas](#named-schemas)), so renaming the alias
@@ -645,7 +664,12 @@ per constraint set only works when the TypeScript varies with them too
 (`ts_alias` MFA with a string `ts_type` fails compilation with "an MFA
 `ts_alias` needs an MFA `ts_type`"). A name used for two different TypeScript
 types fails codegen with "The TypeScript alias `X` of a scalar has more than
-one body", listing both and their modules: give each its own name.
+one body", listing both and their modules: give each its own name. The MFA's
+names follow the rules above, and can't be a name ash_typescript generates
+(`UUID`, `Decimal`, `InferResult`, …) or the use's own `ts_type`; since they
+depend on each use, codegen checks them and fails with "The result … of the
+`ts_alias` MFA … of the custom type …", naming the module, the MFA and the
+result.
 
 ### Name Collisions
 
@@ -704,21 +728,22 @@ must never read the manifest at compile time.
 
 ## Built-In Types
 
-Some common third-party Ash types are declared out of the box, as entries of
-the same shape as `custom_types`:
+The types of official Ash packages in frequent use are declared out of the
+box, as entries of the same shape as `custom_types` (the core types, such as
+`Ash.Type.UUID`, need none, and another library's type takes a `scalar` or
+`map` entry in your manifest):
 
 | Type module | Entry | Generated TypeScript |
 |-------------|-------|---------------------|
 | `AshMoney.Types.Money` | `map` of `currency` (string) and `amount` (decimal), both non-null | the alias `Money = {currency: string, amount: Decimal}` and the schemas `MoneyZodSchema` / `MoneyValibotSchema`; results select `{ price: ["currency", "amount"] }` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | the alias `ULID = string` |
 | `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | the alias `AshPostgresLtreeArray = string[]` (`escape?: true`) or `AshPostgresLtreeFlexible = string \| string[]` |
-| `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
 ULID's and Ltree's aliases are exported once per variant used and referenced
-at every use (their zod/valibot schemas stay inline); AshUUID renders the
-`UUID` alias. A `scalar` entry for ULID or Ltree without `ts_alias` replaces
-the built-in, so its uses are typed directly. To rename Money's alias or
-schemas, declare it with a `map` entry that restates its fields:
+at every use (their zod/valibot schemas stay inline). A `scalar` entry for
+ULID or Ltree without `ts_alias` replaces the built-in, so its uses are typed
+directly. To rename Money's alias or schemas, declare it with a `map` entry
+that restates its fields:
 
 ```elixir
 custom_types do

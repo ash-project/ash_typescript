@@ -422,8 +422,12 @@ def typescript_type, do: "`#${string}`"
 
 Compiling the manifest fails while a type module it reaches still exports
 `typescript_type_name/0`, with "MyApp.HexColor exports `typescript_type_name/0`,
-which is now `typescript_type/0`: rename it." A map-like type that still has
-it and declares no fields reports the undeclared custom type error first (see
+which is now `typescript_type/0`: rename it." A map-like type whose TypeScript
+comes from its fields (one with declared fields, or an `Ash.Type.NewType` with
+fields that has an alias) is told to remove it instead: "MyApp.Palette exports
+`typescript_type_name/0`: remove it; its TypeScript is generated from its
+fields." A map-like type that still has it and declares no fields reports the
+undeclared custom type error first (see
 [Map-like custom types declare fields](#map-like-custom-types-declare-fields)).
 The callback that names a declared custom type's alias, new in this release,
 is `typescript_type_alias/0`.
@@ -599,7 +603,7 @@ client-side only: on the server the value is cast by `ColorPalette`'s own
 `MyApp.HexColor` (the [Custom Types](../advanced/custom-types.md#precise-member-types)
 guide shows one).
 
-### Money, ULID, Ltree and AshUUID
+### Money, ULID and Ltree
 
 These are built-in declarations now:
 
@@ -612,8 +616,10 @@ These are built-in declarations now:
 - The `ULID`, `AshPostgresLtreeArray` and `AshPostgresLtreeFlexible` aliases
   stay, each now exported only when a field uses it (both Ltree aliases were
   exported whenever Ltree was used). Their zod/valibot schemas are unchanged.
-- `AshUUID.UUID` maps to the `UUID` alias, so its `type_mapping_overrides`
-  entry needs no `custom_types` replacement.
+- `AshUUID.UUID` is not built in. Its values are encoded and prefixed by
+  default (`encoded?: true`, `prefixed?: true`), so they aren't RFC UUIDs:
+  replace its `type_mapping_overrides` entry with `scalar AshUUID.UUID, :string`,
+  not `:uuid` (whose zod and valibot schemas would reject them).
 - A `custom_types` entry for one of these modules replaces the built-in.
 
 ### Declared custom types are exported
@@ -637,8 +643,8 @@ unless you opt them into an alias the same way (a field-less `map` entry, a
 - Hand-written aliases for these types can be replaced by imports of the
   generated ones. A `Money` (or other alias) of your own that your code
   imports next to the generated names needs one of them renamed: set
-  `ts_alias "…"` on a `map` entry, or `typescript_type_alias/0` on a type
-  without one.
+  `ts_alias "…"` on its `map` entry (or `typescript_type_alias/0` on the type,
+  when no entry sets `ts_alias`).
 - An alias that collides with a generated name is a warning when the manifest
   compiles (an error under `--warnings-as-errors`) and fails codegen, naming
   both (see
@@ -766,7 +772,8 @@ work as before.
 - A project with typed controllers or typed channels and no `output_file` now
   gets the shared types file (`types_output_file`, by default
   `assets/js/ash_types.ts`), holding the aliases and channel types the routes
-  and channels files use; before, those files imported names from a types
-  file that was never generated. When they use no shared name, no types file
+  and channels files use; before, those files re-exported a types file that
+  was never generated and referenced shared names (`UUID`, `Decimal`, …) that
+  nothing declared. When they use no shared name, no types file
   is written and they no longer re-export one. See
   [Multi-File Output](../reference/configuration.md#multi-file-output).

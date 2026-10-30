@@ -110,25 +110,26 @@ is collected where it renders the use (`scalar X, :uuid` declares `UUID`).
 
 ### Third-Party Types
 
-Four dependency types are built-in `custom_types` entries
+Three dependency types are built-in `custom_types` entries
 (`AshTypescript.CustomTypes.Builtin`). Money, a declared custom type, gets the
 generated alias every declared type gets; ULID and Ltree are aliased scalars
 (their entries' `ts_alias`: `ULID`, and `Builtin.ltree_ts_alias/1`'s
 `AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` by `escape?`, each variant
-declared only when used); AshUUID renders the fixed `UUID` alias:
+declared only when used):
 
 | Module | Entry | TypeScript |
 |--------|-------|------------|
 | `AshMoney.Types.Money` | `map` (`currency`, `amount`) | `export type Money = {currency: string, amount: Decimal};`, referenced at plain positions; a `TypedMap` at schema positions |
 | `AshPostgres.Ltree` | `scalar` with MFA `ts_type` and `ts_alias` | `AshPostgresLtreeArray = string[]` when `escape?: true`, else `AshPostgresLtreeFlexible = string \| string[]` |
 | `AshDoubleEntry.ULID` | `scalar` over `:string`, `ts_alias "ULID"` | `ULID = string` |
-| `AshUUID.UUID` | `scalar` over `:uuid` | `UUID` |
 
 A manifest entry for the same module replaces the built-in. The Zod/Valibot
 schemas come from the same entries (`SchemaCore`, see
 [validation-schemas.md](validation-schemas.md)): Money is an object of its
 fields (the named `MoneyZodSchema` / `MoneyValibotSchema`), Ltree uses the
-built-in's `zod`/`valibot` MFAs, ULID and AshUUID their base types.
+built-in's `zod`/`valibot` MFAs, ULID its base type. Built-ins are limited to
+official Ash packages in frequent use (the core types, `Ash.Type.UUID` and
+the like, are mapped directly); other libraries' types take a manifest entry.
 
 ## Architecture Benefits
 
@@ -263,9 +264,17 @@ suffix at codegen (`SchemaCore.custom_type_schema_name/2`); there is no
 per-type schema name or inline opt-out. `CustomTypes.check_name/2` (used by
 `NormalizeCustomTypes` for `ts_alias`, and by `DecorateManifest` through
 `CustomTypes.check_alias_names/2` for the callback, which also rejects a
-non-string) rejects non-identifiers (anchored with `\A`/`\z`) and
-TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`); both
-are compile errors (`DslError`), not verifier warnings. A type whose callback
+non-string) rejects non-identifiers (anchored with `\A`/`\z`),
+TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`) and
+the TS/DOM globals the generated code uses (`@generated_code_globals`: `Array`,
+`Record`, `Promise`, `Partial`, `Date`, `Response`, `URL`, …; in `check_name/2`
+rather than `reserved_names/0` so every name check, MFA results included, gets
+them as a hard error); both are compile errors (`DslError`), not verifier
+warnings. `NormalizeCustomTypes` also rejects a `scalar` string `ts_alias`
+equal to its string `ts_type`, and `scalar` entries that can't apply (an enum,
+a field-bearing NewType or a primitive-table module) or have a non-scalar base
+(map/keyword/tuple/struct/union/(embedded) resource kinds, through type refs and
+arrays). A type whose callback
 names it, every NewType definition, and every loaded module of an `:unknown`
 node `TypeUses.nodes/1` returns is a compile dependency of the manifest
 (`CustomTypes.compile_dependencies/3`). Names are fixed at decoration:
@@ -280,7 +289,9 @@ Scalar names (`AshTypescript.Codegen.ScalarAliases.name/2`, over the node
 `TypeMapper` maps a scalar from: an `:unknown` use of a non-NewType module, or a
 NewType definition with a kind of the kind table; modules of the primitive table
 never): the entry's `ts_alias` (string, or an MFA with the node's constraints
-whose `nil` means inline with no fallback) > `typescript_type_alias/0` > the
+whose `nil` means inline with no fallback; `name/2` throws `{:error, message}`
+for an MFA result that fails `check_name/2`, is in `reserved_names/0` or equals
+the entry's `ts_type` at that use) > `typescript_type_alias/0` > the
 built-in entry's `ts_alias` (only without a manifest `scalar` entry, which
 replaces the built-in whole); a scalar has no default name, so without one of
 these it stays inline. `typescript_type/0` doesn't stop a scalar
@@ -315,8 +326,10 @@ A type module the manifest reaches (a `manifest.types` definition, or an
 returns) that still exports `typescript_type_name/0` or
 `typescript_alias_name/0`, the names before the ash-rpc release, is a
 `DslError` naming `typescript_type/0` / `typescript_type_alias/0`
-(`CustomTypes.check_renamed_callbacks/1`, from `DecorateManifest` before
-`check_alias_names/2`). A map-like `:unknown` type with the old callback and no
+(`CustomTypes.check_renamed_callbacks/2`, from `DecorateManifest` before
+`check_alias_names/2`); a declared custom type or an aliased field-bearing
+NewType exporting `typescript_type_name/0` is told to remove it instead (its
+TypeScript comes from its fields). A map-like `:unknown` type with the old callback and no
 fields fails ash_rpc's undeclared-type check first.
 
 Without RPC output (no `output_file`), the orchestrator writes the types file
@@ -327,8 +340,11 @@ aliases included; `CustomTypeAliases.reachable/1`), then the channel types. No
 resource schemas, filter or utility types: route arguments and results are plain
 data (`AshTypescript.Manifest.PlainData`), so nothing reaches a resource. When
 that content is empty no file is written, and the routes and channels files get
-`import_paths: %{types: nil}` (no import, no `export type *`). The RPC branch is
-unchanged (`no_rpc_types_file_test.exs`).
+`import_paths: %{types: nil}` (no import, no `export type *`). The codegen alias
+checks (`ScalarAliases.aliases/1`'s two-bodies check, the `import_name` check,
+the name hints) run over the same roots and `reachable/1` definitions, so they
+see what the standalone file emits and never the app's RPC resources. The RPC
+branch is unchanged (`no_rpc_types_file_test.exs`).
 
 `AshTypescript.Codegen.CustomTypeAliases` renders the block appended to the
 type aliases (`// Declared custom types`, sorted by name): the plain alias
@@ -421,7 +437,7 @@ manifest `scalar` with only `zod`/`valibot` keeps `typescript_type/0`. The
 base type maps with the entry's constraints, or with the node's own when it is a
 field of a declared custom type (`custom_fields?: true`).
 
-**Decision rule**: Can you edit the type module? Use `typescript_type/0` callback. Can't edit it? Use a `scalar` entry.
+**Decision rule**: A `scalar` entry in the manifest is the normal path, for any type module; `typescript_type/0` on the type is the alternative when the type should carry its own TypeScript (an entry's `ts_type` wins over it). A `scalar` entry must name a scalar module over a scalar base type (`NormalizeCustomTypes` rejects enums, NewTypes with fields, primitive-table modules and map/keyword/tuple/struct/union/resource bases).
 
 ### Unmappable Types (0.18)
 

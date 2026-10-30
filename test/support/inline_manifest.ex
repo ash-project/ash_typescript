@@ -16,8 +16,8 @@ defmodule AshTypescript.Test.InlineManifest do
   the other options go to `use AshTypescript.Manifest`. It defaults to the
   test manifest's `custom_types` entries (`app_custom_types/1`): a manifest
   over the test app reaches its custom types (`GeoPoint`, `LineItem`,
-  `TodoRef`, `CustomIdentifier`, `ExternalCode`), which decoration and codegen
-  can't map without them.
+  `TodoRef`, `CustomIdentifier`, `ExternalCode`, and `TodoTimestamp`'s alias),
+  which decoration and codegen can't map without them.
   Pass `body: nil` for a manifest without a `custom_types` section.
   """
 

@@ -13,9 +13,12 @@ by itself, yours or a dependency's: a `scalar` for a single-value type, a
 A declaration replaces the type's built-in entry, if any; a `scalar`'s
 `ts_type` wins over the type's `typescript_type/0`, a `map`'s fields
 over its `typescript_fields/0`, and an entry's `ts_alias` over its
-`typescript_type_alias/0`. Built-in entries cover
-`AshMoney.Types.Money`, `AshDoubleEntry.ULID`, `AshPostgres.Ltree` and
-`AshUUID.UUID`.
+`typescript_type_alias/0`, which wins over a built-in name (`Money`,
+kept by a `map` entry without `ts_alias`). Built-in entries cover
+`AshMoney.Types.Money`, `AshDoubleEntry.ULID` and `AshPostgres.Ltree`.
+A `scalar` is for a scalar module over a scalar base type: not an enum,
+a NewType with fields or a type ash_typescript maps itself, and not over
+a map, keyword, tuple, struct, union or resource.
 
 
 ### Nested DSLs
@@ -87,7 +90,7 @@ scalar SomeLib.Email, :string, ts_alias: "Email"
 | [`ts_type`](#custom_types-scalar-ts_type){: #custom_types-scalar-ts_type } | `String.t \| mfa` |  | The TypeScript type. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`zod`](#custom_types-scalar-zod){: #custom_types-scalar-zod } | `String.t \| mfa` |  | The zod schema. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`valibot`](#custom_types-scalar-valibot){: #custom_types-scalar-valibot } | `String.t \| mfa` |  | The valibot schema. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
-| [`ts_alias`](#custom_types-scalar-ts_alias){: #custom_types-scalar-ts_alias } | `String.t \| mfa` |  | The name of the exported TypeScript alias (`export type Email = string;`), referenced at every use. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a name, or `nil` to keep that use inline. An MFA `ts_alias` needs an MFA `ts_type`. |
+| [`ts_alias`](#custom_types-scalar-ts_alias){: #custom_types-scalar-ts_alias } | `String.t \| mfa` |  | The name of the exported TypeScript alias (`export type Email = string;`), referenced at every use. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a name, or `nil` to keep that use inline. An MFA `ts_alias` needs an MFA `ts_type`. The name must be a TypeScript identifier, not a reserved word, a TypeScript global the generated code uses (`Array`, `Promise`, …), a name ash_typescript generates (`UUID`, …) or its own `ts_type`; an MFA's results are checked at codegen. |
 
 
 
@@ -156,7 +159,7 @@ map MyApp.Types.Label, ts_alias: "Label"
 |------|------|---------|------|
 | [`zod`](#custom_types-map-zod){: #custom_types-map-zod } | `String.t \| mfa` |  | A zod schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
 | [`valibot`](#custom_types-map-valibot){: #custom_types-map-valibot } | `String.t \| mfa` |  | A valibot schema in place of the generated one. A string, or an MFA `{m, f, a}` called as `apply(m, f, [constraints \| a])` with the use's constraints, returning a string. |
-| [`ts_alias`](#custom_types-map-ts_alias){: #custom_types-map-ts_alias } | `String.t` |  | The name of the generated TypeScript alias (default: the type's `typescript_type_alias/0`, else the module name joined, `SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`. |
+| [`ts_alias`](#custom_types-map-ts_alias){: #custom_types-map-ts_alias } | `String.t` |  | The name of the generated TypeScript alias (default: the type's `typescript_type_alias/0`, else a built-in name (`Money` for `AshMoney.Types.Money`), else the module name joined, `SomeLib.Coordinates` → `SomeLibCoordinates`). The named zod and valibot schemas are this name followed by `zod_schema_suffix` / `valibot_schema_suffix`. |
 
 
 ### custom_types.map.field
