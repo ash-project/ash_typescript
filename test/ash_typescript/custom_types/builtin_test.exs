@@ -9,14 +9,9 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
 
   defp entry(module), do: Enum.find(Builtin.entries(), &(&1.module == module))
 
-  test "entries/0 lists Money, ULID, Ltree and AshUUID, one entry each" do
+  test "entries/0 lists Money, ULID and Ltree, one entry each" do
     assert Builtin.entries() |> Enum.map(& &1.module) |> Enum.sort() ==
-             Enum.sort([
-               AshMoney.Types.Money,
-               AshDoubleEntry.ULID,
-               AshPostgres.Ltree,
-               AshUUID.UUID
-             ])
+             Enum.sort([AshMoney.Types.Money, AshDoubleEntry.ULID, AshPostgres.Ltree])
   end
 
   test "Money is a map of a non-null currency string and a non-null decimal amount" do
@@ -52,18 +47,6 @@ defmodule AshTypescript.CustomTypes.BuiltinTest do
              valibot: {Builtin, :ltree_valibot, []},
              ts_alias: {Builtin, :ltree_ts_alias, []}
            } = entry(AshPostgres.Ltree)
-  end
-
-  test "AshUUID is a scalar over a UUID, without an alias" do
-    assert %Scalar{
-             module: AshUUID.UUID,
-             type: Ash.Type.UUID,
-             constraints: [],
-             ts_type: nil,
-             zod: nil,
-             valibot: nil,
-             ts_alias: nil
-           } = entry(AshUUID.UUID)
   end
 
   test "the Ltree names depend on escape?" do

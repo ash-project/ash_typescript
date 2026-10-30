@@ -13,9 +13,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
     * `AshPostgres.Ltree`: a scalar over `{:array, :string}` whose
       `ts_type`, `zod`, `valibot` and `ts_alias` depend on the `escape?`
       constraint (`AshPostgresLtreeArray` with `escape?: true`, else
-      `AshPostgresLtreeFlexible`);
-    * `AshUUID.UUID`: a scalar over `:uuid`, rendered as `UUID` (no alias of
-      its own).
+      `AshPostgresLtreeFlexible`).
 
   A manifest entry for one of these modules replaces the built-in whole.
   The modules belong to optional dependencies, so the entries hold only
@@ -44,8 +42,7 @@ defmodule AshTypescript.CustomTypes.Builtin do
         zod: {__MODULE__, :ltree_zod, []},
         valibot: {__MODULE__, :ltree_valibot, []},
         ts_alias: {__MODULE__, :ltree_ts_alias, []}
-      },
-      %Scalar{module: AshUUID.UUID, type: Ash.Type.UUID}
+      }
     ]
   end
 
