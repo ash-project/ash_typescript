@@ -97,14 +97,25 @@ defmodule AshTypescript.Codegen.Orchestrator do
     route_types = TypedRoutes.types(AshTypescript.Manifest.Custom.routes(), [])
     channel_payload_types = ChannelCodegen.payload_return_types(channel_entries)
 
-    alias_owners =
-      rpc_resources
-      |> TypeAliases.roots(AshTypescript.resource_lookup(), channel_payload_types,
-        route_types: route_types,
-        struct_argument_resources: struct_argument_resources
-      )
-      |> ScalarAliases.aliases()
-      |> alias_owners()
+    # The aliases the types file emits: over the RPC roots with RPC output,
+    # else over the standalone file's roots (what the routes and channels
+    # files reach, `SharedTypesGenerator.generate_standalone/1`).
+    {alias_roots, alias_definitions} =
+      if rpc_output_file do
+        roots =
+          TypeAliases.roots(rpc_resources, AshTypescript.resource_lookup(), channel_payload_types,
+            route_types: route_types,
+            struct_argument_resources: struct_argument_resources
+          )
+
+        {roots, CustomTypeAliases.definitions()}
+      else
+        roots = route_types ++ channel_payload_types
+        definitions = CustomTypeAliases.reachable(roots)
+        {Enum.uniq(roots ++ definitions), definitions}
+      end
+
+    alias_owners = alias_owners(ScalarAliases.aliases(alias_roots), alias_definitions)
 
     validate_alias_import_names!(alias_owners)
 
@@ -632,12 +643,12 @@ defmodule AshTypescript.Codegen.Orchestrator do
   defp throw_errors!([]), do: :ok
   defp throw_errors!(errors), do: throw({:error, Enum.join(errors, "\n")})
 
-  # `{alias name, aliased type, kind}` for every alias: map-like aliases
-  # (plain and input, `:map`) and the `scalar_aliases` (`:scalar`,
-  # `ScalarAliases.aliases/1`). The kind picks the rename hint.
-  defp alias_owners(scalar_aliases) do
+  # `{alias name, aliased type, kind}` for every alias: the map-like aliases
+  # of `definitions` (plain and input, `:map`) and the `scalar_aliases`
+  # (`:scalar`, `ScalarAliases.aliases/1`). The kind picks the rename hint.
+  defp alias_owners(scalar_aliases, definitions) do
     map_like =
-      for definition <- CustomTypeAliases.definitions(),
+      for definition <- definitions,
           name <- [
             CustomTypeAliases.plain_name(definition),
             CustomTypeAliases.input_name(definition)

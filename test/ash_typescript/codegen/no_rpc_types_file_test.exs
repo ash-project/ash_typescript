@@ -28,7 +28,10 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
     :enable_namespace_files,
     :enable_controller_namespace_files,
     :router,
-    :manifest
+    :manifest,
+    :import_into_generated,
+    :generate_zod_schemas,
+    :generate_valibot_schemas
   ]
 
   @types_file "./test/ts/ash_types.ts"
@@ -169,6 +172,43 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
 
       assert routes =~
                ~r/^import type \{ [^}]*\bCustomIdentifier\b[^}]*\} from "\.\/ash_types";$/m
+    end
+  end
+
+  describe "alias checks without RPC output" do
+    setup do
+      without_rpc_output()
+      without_router()
+      :ok
+    end
+
+    test "a manifest without domains generates the route's aliases" do
+      # The zod and valibot files render the app's embedded resources, which
+      # a manifest without domains lacks.
+      Application.put_env(:ash_typescript, :generate_zod_schemas, false)
+      Application.put_env(:ash_typescript, :generate_valibot_schemas, false)
+      opts = [domains: [], typed_controllers: [T.AliasController]]
+      manifest = InlineManifest.build!(opts)
+      # Codegen verifies the configured manifest module.
+      Application.put_env(:ash_typescript, :manifest, InlineManifest.module_for(opts))
+
+      assert {:ok, files} = generate_files(:ash_typescript, manifest: manifest)
+      assert types_content(files) =~ "export type CustomIdentifier = string;\n"
+    end
+
+    test "only the aliases the types file emits are checked against import names" do
+      imports = Application.get_env(:ash_typescript, :import_into_generated, [])
+
+      Application.put_env(
+        :ash_typescript,
+        :import_into_generated,
+        imports ++ [%{import_name: "GeoPoint", file: "./test/ts/customTypes.ts"}]
+      )
+
+      manifest = InlineManifest.build!(typed_controllers: [T.AliasController])
+
+      assert {:ok, files} = generate_files(:ash_typescript, manifest: manifest)
+      refute exported?(types_content(files), "GeoPoint")
     end
   end
 
