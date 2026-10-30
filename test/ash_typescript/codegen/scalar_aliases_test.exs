@@ -100,6 +100,12 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
     use PassThroughType, storage: :string
   end
 
+  # A NewType over a scalar custom type: typed by its own `scalar` entry.
+  defmodule OverOpaque do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshTypescript.Codegen.ScalarAliasesTest.Opaque
+  end
+
   defmodule CallbackScalar do
     @moduledoc false
     use PassThroughType, storage: :string
@@ -203,6 +209,10 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
     attribute(:opaque, T.Opaque, public?: true)
   ])
 
+  holder(OverOpaqueHolder, "ScalarAliasesOverOpaqueHolder", [
+    attribute(:code, T.OverOpaque, public?: true)
+  ])
+
   holder(UnionHolder, "ScalarAliasesUnionHolder", [
     attribute(:pick, :union,
       public?: true,
@@ -226,6 +236,7 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
   domain(CallbackDomain, T.CallbackHolder)
   domain(ReportDomain, T.ReportHolder)
   domain(UnionDomain, T.UnionHolder)
+  domain(OverOpaqueDomain, T.OverOpaqueHolder)
 
   defmodule RouteController do
     @moduledoc false
@@ -587,6 +598,21 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
 
       assert attribute_ts(manifest, T.UuidHolder, :opaque) == "UUID"
       assert aliases(manifest, T.UuidHolder) =~ "export type UUID = string;"
+    end
+
+    test "a NewType over a scalar custom type is aliased by its own scalar entry" do
+      manifest =
+        manifest(
+          T.OverOpaqueDomain,
+          quote do
+            scalar AshTypescript.Codegen.ScalarAliasesTest.OverOpaque, :string,
+              ts_type: "`op-${string}`",
+              ts_alias: "OverOpaque"
+          end
+        )
+
+      assert attribute_ts(manifest, T.OverOpaqueHolder, :code) == "OverOpaque"
+      assert aliases(manifest, T.OverOpaqueHolder) =~ "export type OverOpaque = `op-${string}`;"
     end
 
     test "a scalar's alias body is its typescript_type/0" do

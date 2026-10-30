@@ -679,7 +679,8 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
 
     # A `scalar` entry's `ts_alias` names NewTypes over primitives (`:term` included)
-    # and `use Ash.Type` modules, `typescript_type/0` ones included; nothing else.
+    # or over a scalar custom type, and `use Ash.Type` modules, `typescript_type/0`
+    # ones included; nothing else.
     test "an entry's ts_alias names only scalars" do
       named = fn module -> custom_types(scalar(module, ts_alias: "Named")) end
 
@@ -692,9 +693,9 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       priority = AshTypescript.Test.Todo.PriorityScore
       assert ScalarAliases.name(use_of(priority), named.(priority)) == "Named"
 
-      # A NewType over a scalar custom type, an enum, a primitive and a
-      # type reference.
-      assert ScalarAliases.name(definition_of(T.OverOpaque), named.(T.OverOpaque)) == nil
+      assert ScalarAliases.name(definition_of(T.OverOpaque), named.(T.OverOpaque)) == "Named"
+
+      # An enum, a primitive and a type reference.
       assert ScalarAliases.name(definition_of(T.Status), named.(T.Status)) == nil
       assert ScalarAliases.name(use_of(:string), named.(Ash.Type.String)) == nil
       assert ScalarAliases.name(use_of(:atom), named.(Ash.Type.Atom)) == nil

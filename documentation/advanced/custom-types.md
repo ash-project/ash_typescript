@@ -569,10 +569,9 @@ and every use references it. Which types get one:
 |------|---------------|
 | Map-like custom type (declared fields) | always |
 | `Ash.Type.NewType` with fields (above) | with a field-less `map` entry or `typescript_type_alias/0` |
-| Scalar custom type, or a NewType over a primitive (`:string`, `:integer`, …) | with a `ts_alias` on its `scalar` entry, `typescript_type_alias/0`, or a built-in name (`ULID`, Ltree) |
+| Scalar custom type, a NewType over one (typed by its own `scalar` entry), or a NewType over a primitive (`:string`, `:integer`, …) | with a `ts_alias` on its `scalar` entry, `typescript_type_alias/0`, or a built-in name (`ULID`, Ltree) |
 
-Enums, arrays, unions and NewTypes over a scalar custom type are never aliased
-themselves (their members can be).
+Enums, arrays and unions are never aliased themselves (their members can be).
 
 The alias is the first of:
 

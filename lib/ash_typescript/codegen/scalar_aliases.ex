@@ -6,10 +6,10 @@ defmodule AshTypescript.Codegen.ScalarAliases do
   @moduledoc """
   The TypeScript alias names of scalars: scalar custom types (a `kind:
   :unknown` use of a `use Ash.Type` module, with a `scalar` entry or
-  `typescript_type/0`) and NewTypes over primitives (a definition whose kind
-  the kind table maps, such as `:string` or `:integer`; not enums, arrays,
-  unions, containers or resources, and not a NewType over a scalar custom
-  type).
+  `typescript_type/0`, or of a NewType over one, typed by its own `scalar`
+  entry) and NewTypes over primitives (a definition whose kind the kind table
+  maps, such as `:string` or `:integer`; not enums, arrays, unions,
+  containers or resources).
 
   `name/2` takes the node `TypeMapper` maps the scalar from (the `:unknown`
   use, or the NewType's definition) and returns the first of:
@@ -240,14 +240,15 @@ defmodule AshTypescript.Codegen.ScalarAliases do
     end
   end
 
-  # A `kind: :unknown` node of a module that isn't a NewType, or a NewType's
-  # definition with a primitive kind. Modules of the primitive table
-  # (`Ash.Type.UtcDatetime`, …) map before any entry and are never aliased.
+  # A `kind: :unknown` node (a `use Ash.Type` module, or a NewType over one),
+  # or a NewType's definition with a primitive kind. Modules of the primitive
+  # table (`Ash.Type.UtcDatetime`, …) map before any entry and are never
+  # aliased.
   defp scalar_node?(%Type{module: module, kind: kind})
        when is_atom(module) and not is_nil(module) do
     cond do
       TypeMapper.primitive_module?(module) -> false
-      kind == :unknown -> not new_type?(module)
+      kind == :unknown -> true
       TypeMapper.primitive_kind?(kind) -> new_type?(module)
       true -> false
     end
