@@ -177,6 +177,9 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
     end
 
     def same(_constraints), do: "Same"
+
+    # `{Names, :fixed, [name]}` returns `name` at every use.
+    def fixed(_constraints, name), do: name
   end
 
   import AshTypescript.Codegen.ScalarAliasesTest.Fixtures
@@ -504,6 +507,55 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
       assert message =~ inspect(T.TwoBodies)
     end
 
+    test "an MFA ts_alias result that can't be exported fails, at the use and in the alias block" do
+      cases = [
+        {"my-code", "string", "is not a TypeScript identifier."},
+        {"string", "number", "is a TypeScript reserved word."},
+        {"Array", "string", "is a global TypeScript name the generated code uses."},
+        {"Promise", "string", "is a global TypeScript name the generated code uses."},
+        {"Decimal", "string", "is a type ash_typescript generates: return another name."},
+        {"InferResult", "string", "is a type ash_typescript generates: return another name."},
+        {"Code", "Code",
+         "is its ts_type at that use, so the alias would alias itself " <>
+           "(`export type Code = Code;`): return another name, or nil to keep the use inline."}
+      ]
+
+      for {name, ts_type, reason} <- cases do
+        manifest =
+          manifest(
+            T.MfaDomain,
+            quote do
+              scalar AshTypescript.Codegen.ScalarAliasesTest.Mfa, :string,
+                ts_type:
+                  {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, [unquote(ts_type)]},
+                ts_alias: {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, [unquote(name)]}
+            end
+          )
+
+        expected =
+          "The result #{inspect(name)} of the `ts_alias` MFA #{inspect(T.Names)}.fixed/2 " <>
+            "of the custom type #{inspect(T.Mfa)} #{reason}"
+
+        assert catch_throw(attribute_ts(manifest, T.MfaHolder, :short)) == {:error, expected}
+        assert catch_throw(aliases(manifest, T.MfaHolder)) == {:error, expected}
+      end
+    end
+
+    test "an MFA ts_alias result that is a valid name is used" do
+      manifest =
+        manifest(
+          T.MfaDomain,
+          quote do
+            scalar AshTypescript.Codegen.ScalarAliasesTest.Mfa, :string,
+              ts_type: {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, ["string"]},
+              ts_alias: {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, ["MfaCode"]}
+          end
+        )
+
+      assert attribute_ts(manifest, T.MfaHolder, :short) == "MfaCode"
+      assert aliases(manifest, T.MfaHolder) =~ "export type MfaCode = string;"
+    end
+
     test "a NewType over :string with a ts_alias is aliased, zod unchanged" do
       aliased =
         manifest(
@@ -590,6 +642,26 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
       assert types =~ "export type PayloadOnlyId = string;\n"
       assert types =~ ~r/code\??: PayloadOnlyId/
     end
+  end
+
+  test "an invalid MFA ts_alias result fails codegen" do
+    manifest =
+      InlineManifest.build!(
+        typed_controllers: [T.RouteController],
+        body:
+          InlineManifest.app_custom_types([
+            quote do
+              scalar AshTypescript.Codegen.ScalarAliasesTest.RouteOnly, :string,
+                ts_type: {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, ["string"]},
+                ts_alias: {AshTypescript.Codegen.ScalarAliasesTest.Names, :fixed, ["my-code"]}
+            end
+          ])
+      )
+
+    assert generate_files(:ash_typescript, manifest: manifest) ==
+             {:error,
+              ~s(The result "my-code" of the `ts_alias` MFA #{inspect(T.Names)}.fixed/2 ) <>
+                "of the custom type #{inspect(T.RouteOnly)} is not a TypeScript identifier."}
   end
 
   test "every scalar alias a generated file mentions is declared in the types file" do

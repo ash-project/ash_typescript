@@ -39,6 +39,7 @@ defmodule AshTypescript.Codegen.ScalarAliases do
   alias AshTypescript.CustomTypes
   alias AshTypescript.CustomTypes.Scalar
   alias AshTypescript.Manifest.Custom
+  alias AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -147,13 +148,24 @@ defmodule AshTypescript.Codegen.ScalarAliases do
   `custom_types` is the persisted `t:AshTypescript.CustomTypes.custom_types/0`.
   Raises `ArgumentError` for an invalid `typescript_type_alias/0` result
   (`AshTypescript.CustomTypes.check_alias_names/2` reports it at compile
-  time) or an MFA `ts_alias` result that isn't a string or `nil`.
+  time) or an MFA `ts_alias` result that isn't a string or `nil`. Throws
+  `{:error, message}`, naming the module, the MFA and the result, for an MFA
+  result that can't be exported: not a TypeScript identifier, a reserved
+  word or a global the generated code uses (`CustomTypes.check_name/2`), a
+  name ash_typescript generates (`UUID`, `InferResult`, …), or the entry's
+  `ts_type` at that use. Every use and the alias block go through here, so
+  they agree.
   """
   @spec name(Type.t(), CustomTypes.custom_types()) :: String.t() | nil
   def name(%Type{module: module} = node, custom_types) do
     case source(node, custom_types) do
       nil ->
         nil
+
+      {:entry, %Scalar{ts_alias: {m, f, a}} = entry} ->
+        entry
+        |> CustomTypes.mapping(:ts_alias, node.constraints)
+        |> check_mfa_name!(entry, node, {m, f, a})
 
       {:entry, entry} ->
         CustomTypes.mapping(entry, :ts_alias, node.constraints)
@@ -163,6 +175,46 @@ defmodule AshTypescript.Codegen.ScalarAliases do
           {:ok, name} -> name
           {:error, message} -> raise ArgumentError, message
         end
+    end
+  end
+
+  # An MFA `ts_alias`'s result for `node` must be exportable (a TypeScript
+  # identifier, not a reserved word or a global the generated code uses,
+  # `CustomTypes.check_name/2`), not a fixed generated name
+  # (`VerifyCustomTypeNames.reserved_names/0`), and not the use's own body
+  # (the entry's `ts_type`, an MFA too, at the use's constraints). The
+  # compile-time checks never see these names, so codegen throws
+  # `{:error, message}`.
+  defp check_mfa_name!(nil, _entry, _node, _mfa), do: nil
+
+  defp check_mfa_name!(name, entry, %Type{module: module} = node, {m, f, a}) do
+    subject =
+      "The result #{inspect(name)} of the `ts_alias` MFA " <>
+        "#{Exception.format_mfa(m, f, length(a) + 1)} of the custom type #{inspect(module)}"
+
+    with :ok <- CustomTypes.check_name(name, subject),
+         :ok <- check_not_reserved(name, subject),
+         :ok <- check_not_own_body(name, entry, node, subject) do
+      name
+    else
+      {:error, message} -> throw({:error, message})
+    end
+  end
+
+  defp check_not_reserved(name, subject) do
+    if name in VerifyCustomTypeNames.reserved_names(),
+      do: {:error, "#{subject} is a type ash_typescript generates: return another name."},
+      else: :ok
+  end
+
+  defp check_not_own_body(name, entry, node, subject) do
+    if CustomTypes.mapping(entry, :ts_type, node.constraints) == name do
+      {:error,
+       "#{subject} is its ts_type at that use, so the alias would alias itself " <>
+         "(`export type #{name} = #{name};`): return another name, or nil to keep the " <>
+         "use inline."}
+    else
+      :ok
     end
   end
 

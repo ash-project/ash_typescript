@@ -70,6 +70,14 @@ defmodule AshTypescript.CustomTypes do
   @reserved_words ~w(any unknown never object string number boolean bigint symbol undefined) ++
                     AshTypescript.NameValidation.js_reserved_words()
 
+  # TypeScript and DOM globals the generated code references by name (an
+  # alias of the same name would shadow them where it is imported).
+  @generated_code_globals ~w(Array ReadonlyArray Record Promise Partial Required Readonly
+                             Pick Omit Exclude Extract NonNullable ReturnType Parameters
+                             Awaited Date Error Map Set Object String Number Boolean
+                             Function JSON RequestInit RequestInfo Response Headers URL
+                             URLSearchParams)
+
   @base_hint "Declare its fields with a `map` entry in your manifest module's `custom_types` " <>
                "section, a `typescript_fields/0` callback on the type, or " <>
                "`composite?/1` + `composite_types/1`."
@@ -328,27 +336,47 @@ defmodule AshTypescript.CustomTypes do
   # that exports a callback under its old name, as `{:error, message}`
   # naming the new one (both, for a module exporting both); `:ok` when there
   # is none. Entries for modules the manifest doesn't reach don't count.
-  @spec check_renamed_callbacks(Manifest.t()) :: :ok | {:error, String.t()}
-  def check_renamed_callbacks(%Manifest{types: types} = manifest) do
+  # A map-like type whose TypeScript comes from its fields (a declared custom
+  # type, or a field-bearing NewType with an alias, `alias_name/3` with the
+  # persisted `custom_types`) is told to remove `typescript_type_name/0`
+  # instead: `typescript_type/0` is an error there.
+  @spec check_renamed_callbacks(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
+  def check_renamed_callbacks(%Manifest{types: types} = manifest, custom_types) do
     unknown_modules =
       for %Manifest.Type{kind: :unknown, module: module} <-
             AshTypescript.Manifest.TypeUses.nodes(manifest),
           do: module
 
+    from_fields =
+      for type <- types, generated_from_fields?(type, custom_types), into: MapSet.new() do
+        type.module
+      end
+
     (Enum.map(types, & &1.module) ++ unknown_modules)
     |> Enum.filter(&(is_atom(&1) and not is_nil(&1)))
     |> Enum.uniq()
     |> Enum.find_value(:ok, fn module ->
-      case renamed_callback_messages(module) do
+      case renamed_callback_messages(module, MapSet.member?(from_fields, module)) do
         [] -> nil
         messages -> {:error, Enum.join(messages, " ")}
       end
     end)
   end
 
-  defp renamed_callback_messages(module) do
+  defp generated_from_fields?(type, custom_types) do
+    AshRpc.Manifest.Custom.custom_type?(type) or
+      (field_bearing_new_type?(type) and
+         match?({:ok, name} when is_binary(name), alias_name(type.module, custom_types, false)))
+  end
+
+  defp renamed_callback_messages(module, from_fields?) do
     for {old, new} <- @renamed_callbacks, exports?(module, old, 0) do
-      "#{inspect(module)} exports `#{old}/0`, which is now `#{new}/0`: rename it."
+      if old == :typescript_type_name and from_fields? do
+        "#{inspect(module)} exports `#{old}/0`: remove it; its TypeScript is generated " <>
+          "from its fields."
+      else
+        "#{inspect(module)} exports `#{old}/0`, which is now `#{new}/0`: rename it."
+      end
     end
   end
 
@@ -362,8 +390,12 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # `:ok` when `name` can be exported as a TypeScript type or const, else
-  # `{:error, message}` starting with `subject` (`The ts_alias "x" of Mod`).
+  # `:ok` when `name` can be exported as a TypeScript alias, else
+  # `{:error, message}` starting with `subject` (`The ts_alias "x" of Mod`):
+  # it must be an identifier, not a reserved word, and not a global the
+  # generated code uses (`Array`, `Promise`, `Record`, …). Every alias name
+  # check goes through here: entry `ts_alias` strings, `typescript_type_alias/0`
+  # results and MFA `ts_alias` results.
   @spec check_name(String.t(), String.t()) :: :ok | {:error, String.t()}
   def check_name(name, subject) do
     cond do
@@ -372,6 +404,9 @@ defmodule AshTypescript.CustomTypes do
 
       name in @reserved_words ->
         {:error, "#{subject} is a TypeScript reserved word."}
+
+      name in @generated_code_globals ->
+        {:error, "#{subject} is a global TypeScript name the generated code uses."}
 
       true ->
         :ok

@@ -28,7 +28,9 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
   alias of the type it names. Names that depend on the rest of codegen
   (an MFA `ts_alias`'s names, channel payload types, per-action types in the
   RPC file, the `import_name`s of the `*import_into_generated` config) are
-  checked by the codegen backstop in `AshTypescript.Codegen.Orchestrator`.
+  checked by the codegen backstop in `AshTypescript.Codegen.Orchestrator`;
+  an MFA `ts_alias`'s names are also checked against `CustomTypes.check_name/2`,
+  these fixed names and their own body by `AshTypescript.Codegen.ScalarAliases.name/2`.
   """
 
   use Spark.Dsl.Verifier

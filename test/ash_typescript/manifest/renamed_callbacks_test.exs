@@ -4,10 +4,11 @@
 
 defmodule AshTypescript.Manifest.RenamedCallbacksTest do
   # A type module the manifest reaches that still exports a callback under
-  # its former name (`typescript_type_name/0`,
-  # `typescript_alias_name/0`) fails compilation, naming the new callback
-  # (`CustomTypes.check_renamed_callbacks/1`). Manifests are compiled with
-  # `Module.create/3` under fixed names.
+  # its former name (`typescript_type_name/0`, `typescript_alias_name/0`)
+  # fails compilation, naming the new callback, or saying to remove
+  # `typescript_type_name/0` from a type whose TypeScript comes from its
+  # fields (`CustomTypes.check_renamed_callbacks/2`). Manifests are compiled
+  # with `Module.create/3` under fixed names.
   use ExUnit.Case, async: false
 
   alias AshTypescript.Manifest.RenamedCallbacksTest, as: T
@@ -72,6 +73,29 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     use AshTypescript.Test.PassThroughType
 
     def typescript_type_name, do: "OldMap"
+  end
+
+  # A v0.19 map-like custom type: `storage_type :map`, `typescript_fields/0`
+  # and the old `typescript_type_name/0`.
+  defmodule OldFieldsMap do
+    @moduledoc false
+    use AshTypescript.Test.PassThroughType
+
+    def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
+    def typescript_type_name, do: "OldFieldsMap"
+  end
+
+  # A field-bearing NewType with the old `typescript_type_name/0`, aliased by a
+  # field-less `map` entry, and the same without the entry.
+  defmodule OldTypedStruct do
+    @moduledoc false
+    use Ash.TypedStruct
+
+    def typescript_type_name, do: "OldTypedStruct"
+
+    typed_struct do
+      field :a, :string
+    end
   end
 
   # An RPC resource with an attribute typed by `OldScalar`.
@@ -146,6 +170,14 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
       action :map, T.OldMap do
         run fn _input, _context -> {:ok, %{}} end
+      end
+
+      action :fields_map, T.OldFieldsMap do
+        run fn _input, _context -> {:ok, %{}} end
+      end
+
+      action :typed_struct, T.OldTypedStruct do
+        run fn _input, _context -> {:ok, nil} end
       end
     end
   end
@@ -225,6 +257,36 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     end
   end
 
+  defmodule FieldsMapDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.Holder do
+        rpc_action :old_fields_map, :fields_map
+      end
+    end
+
+    resources do
+      resource T.Holder
+    end
+  end
+
+  defmodule TypedStructDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.Holder do
+        rpc_action :old_typed_struct, :typed_struct
+      end
+    end
+
+    resources do
+      resource T.Holder
+    end
+  end
+
   # A typed controller whose route argument is the only use of `OldRouteScalar`.
   defmodule OldRouteSession do
     @moduledoc false
@@ -258,8 +320,8 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     module
   end
 
-  defp compile_error!(name, opts) do
-    error = assert_raise Spark.Error.DslError, fn -> compile_manifest!(name, opts) end
+  defp compile_error!(name, opts, body \\ nil) do
+    error = assert_raise Spark.Error.DslError, fn -> compile_manifest!(name, opts, body) end
     message = Exception.message(error)
     assert message =~ "custom_types"
     message
@@ -268,6 +330,11 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
   defp type_message(module),
     do:
       "#{inspect(module)} exports `typescript_type_name/0`, which is now `typescript_type/0`: rename it."
+
+  defp remove_message(module) do
+    "#{inspect(module)} exports `typescript_type_name/0`: remove it; its TypeScript is " <>
+      "generated from its fields."
+  end
 
   defp alias_message(module) do
     "#{inspect(module)} exports `typescript_alias_name/0`, which is now " <>
@@ -296,6 +363,36 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     message = compile_error!(DeclaredManifest, domains: [T.DeclaredDomain])
 
     assert message =~ alias_message(T.OldDeclared)
+  end
+
+  test "a map-like custom type with fields exporting typescript_type_name/0 is told to remove it" do
+    message = compile_error!(FieldsMapManifest, domains: [T.FieldsMapDomain])
+
+    assert message =~ remove_message(T.OldFieldsMap)
+    refute message =~ "rename it"
+    # One error: the rename check runs before the other callback checks.
+    assert length(String.split(message, "typescript_type_name/0")) == 2
+  end
+
+  test "an aliased field-bearing NewType exporting typescript_type_name/0 is told to remove it" do
+    message =
+      compile_error!(
+        AliasedStructManifest,
+        [domains: [T.TypedStructDomain]],
+        quote do
+          custom_types do
+            map AshTypescript.Manifest.RenamedCallbacksTest.OldTypedStruct
+          end
+        end
+      )
+
+    assert message =~ remove_message(T.OldTypedStruct)
+  end
+
+  test "a field-bearing NewType without an alias keeps the rename advice" do
+    message = compile_error!(PlainStructManifest, domains: [T.TypedStructDomain])
+
+    assert message =~ type_message(T.OldTypedStruct)
   end
 
   test "a module exporting both gets both messages" do

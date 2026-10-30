@@ -322,6 +322,27 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
                ~s(The ts_alias "string" of SomeLib.Coordinates is a TypeScript reserved word)
     end
 
+    test "a global TypeScript name the generated code uses is rejected" do
+      for name <- ~w(Array Record Promise Partial Date URLSearchParams) do
+        message =
+          compile_error!(
+            Module.concat(GlobalName, name),
+            quote do
+              custom_types do
+                map SomeLib.Coordinates do
+                  ts_alias unquote(name)
+                  field :lat, :float, allow_nil?: false
+                end
+              end
+            end
+          )
+
+        assert message =~
+                 ~s(The ts_alias "#{name}" of SomeLib.Coordinates is a global TypeScript ) <>
+                   "name the generated code uses."
+      end
+    end
+
     test "a JavaScript reserved word is rejected" do
       message =
         compile_error!(
@@ -427,6 +448,14 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       assert message =~
                ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
                  "is a TypeScript reserved word."
+    end
+
+    test "a global TypeScript name the generated code uses is a DslError" do
+      message = callback_error!(GlobalCallback, "Promise")
+
+      assert message =~
+               ~s[The typescript_type_alias/0 result "Promise" of #{inspect(T.Configurable)} ] <>
+                 "is a global TypeScript name the generated code uses."
     end
 
     test "a result that isn't a string is a DslError" do

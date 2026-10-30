@@ -196,6 +196,24 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
       assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
     end
 
+    test "a global TypeScript name the generated code uses is a DslError" do
+      message =
+        compile_error!(
+          ScalarGlobalTypeName,
+          quote do
+            custom_types do
+              scalar SomeLib.Email, :string, ts_alias: "Record"
+            end
+          end
+        )
+
+      assert message =~
+               ~s(The ts_alias "Record" of SomeLib.Email is a global TypeScript name the ) <>
+                 "generated code uses."
+
+      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
+    end
+
     test "an MFA ts_alias needs an MFA ts_type" do
       for {name, ts_type} <- [{ScalarMfaStringTs, "string"}, {ScalarMfaNoTs, nil}] do
         ts_type_opt = if ts_type, do: [ts_type: ts_type], else: []

@@ -40,8 +40,9 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   (`AshTypescript.CustomTypes.check_alias_names/2`). So is, checked first, a
   reached type module exporting `typescript_type_name/0` or
   `typescript_alias_name/0`, the callbacks' former names: the error names
-  `typescript_type/0` / `typescript_type_alias/0`
-  (`AshTypescript.CustomTypes.check_renamed_callbacks/1`).
+  `typescript_type/0` / `typescript_type_alias/0`, or says to remove
+  `typescript_type_name/0` from a map-like type whose TypeScript comes from
+  its fields (`AshTypescript.CustomTypes.check_renamed_callbacks/2`).
   """
 
   use Spark.Dsl.Transformer
@@ -77,7 +78,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
           )
           |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
 
-        with :ok <- check_renamed_callbacks(dsl_state, rpc_decorated),
+        with :ok <- check_renamed_callbacks(dsl_state, rpc_decorated, custom_types),
              :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
           decorated =
             rpc_decorated
@@ -100,8 +101,9 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
     |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
   end
 
-  defp check_renamed_callbacks(dsl_state, manifest) do
-    with {:error, message} <- AshTypescript.CustomTypes.check_renamed_callbacks(manifest),
+  defp check_renamed_callbacks(dsl_state, manifest, custom_types) do
+    with {:error, message} <-
+           AshTypescript.CustomTypes.check_renamed_callbacks(manifest, custom_types),
          do: dsl_error(dsl_state, message)
   end
 
