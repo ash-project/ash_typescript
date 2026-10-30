@@ -16,28 +16,10 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.TypeAliasNamesTest, as: T
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   # A declared custom type naming itself.
   defmodule Declared do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
     def typescript_type_alias, do: "DeclaredAlias"
@@ -120,24 +102,6 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     use Ash.Type.NewType, subtype_of: :string, constraints: [max_length: 10]
   end
 
-  defmodule StringStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :string
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   # Scalars: NewTypes over primitives and `use Ash.Type` modules.
   defmodule Email do
     @moduledoc false
@@ -171,19 +135,19 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
   defmodule Opaque do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
   end
 
   defmodule OpaqueCb do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type_alias, do: "OpaqueCallback"
   end
 
   defmodule Mfa do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
   end
 
   # A NewType over a scalar custom type: its definition is `:unknown` under
@@ -397,7 +361,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
   # Scalars for the compile checks, all reached through `ScalarHolder`.
   defmodule OpaqueTyped do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type, do: "`op-${string}`"
     def typescript_type_alias, do: "OpaqueTyped"
@@ -405,7 +369,7 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
   defmodule BadScalar do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type, do: "string"
     def typescript_type_alias, do: "bad-name"

@@ -13,27 +13,9 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
   alias AshTypescript.CustomTypes.{Builtin, Field, MapType, Scalar}
   alias AshTypescript.CustomTypes.FieldsForTest, as: T
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule WithCallbacks do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields,
       do: [
@@ -46,14 +28,14 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
 
   defmodule CallbacksOnly do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [label: [type: :string]]
   end
 
   defmodule NamesOnly do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_field_names, do: [first: "firstOne"]
   end
@@ -100,7 +82,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
 
   defmodule TypeNamed do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_type, do: "Custom.TypeNamed"
   end
@@ -144,7 +126,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
 
   defmodule ScalarFields do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields,
       do: [
@@ -183,7 +165,7 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
 
   defmodule NotAList do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: :not_a_list
   end

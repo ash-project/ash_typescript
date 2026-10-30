@@ -18,62 +18,44 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
   alias AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames
   alias AshTypescript.Test.CodegenTestHelper
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule Billing.Money do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Shop.Money do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Decimal do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule InferResult do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule CollisionHolderResourceSchema do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Shade do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule ShadeInput do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule SwatchInputSchema do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   # An embedded resource: in `manifest.types`, not `manifest.resources`.
@@ -136,38 +118,20 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
     end
   end
 
-  defmodule StringStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :string
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   # Scalars named by their `scalar` entries.
   defmodule ScalarA do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
   end
 
   defmodule ScalarB do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
   end
 
   defmodule MfaScalar do
     @moduledoc false
-    use StringStorage
+    use AshTypescript.Test.PassThroughType, storage: :string
   end
 
   defmodule MfaNames do
@@ -179,7 +143,7 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
   # A declared custom type named by its callback, with an `Input` name.
   defmodule Tint do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [hex: [type: :string, allow_nil?: false]]
     def typescript_type_alias, do: "Tint"

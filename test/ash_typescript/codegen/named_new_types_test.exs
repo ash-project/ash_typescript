@@ -25,24 +25,6 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
   @timestamp "{createdBy: string, createdAt: UtcDateTime, updatedBy: string | null, updatedAt: UtcDateTime | null}"
   @timestamp_input "{createdBy: string, createdAt: UtcDateTime, updatedBy?: string | null, updatedAt?: UtcDateTime | null}"
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   # A scalar custom type whose `scalar` entry maps it as an atom with
   # `one_of` constraints, and has no `ts_type`.
   defmodule Choice do
@@ -71,7 +53,7 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
   # A declared custom type with an aliased NewType member.
   defmodule Report do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   # An aliased NewType with a declared custom type member.
@@ -164,7 +146,7 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
   # Branch.
   defmodule Node do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Branch do

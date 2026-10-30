@@ -75,37 +75,18 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
   alias AshTypescript.Codegen.ScalarAliasesTest, as: T
   alias AshTypescript.Manifest.{Custom, TypeUses}
   alias AshTypescript.Test.InlineManifest
+  alias AshTypescript.Test.PassThroughType
 
-  defmodule StringStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def constraints, do: [max_length: [type: :integer]]
-        @impl true
-        def storage_type(_), do: :string
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
-  # Named per use by an MFA `ts_alias`.
+  # Named per use by an MFA `ts_alias`, from the uses' `max_length`.
   defmodule Mfa do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string, constraints: [max_length: [type: :integer]]
   end
 
   # One MFA name for two TypeScript types.
   defmodule TwoBodies do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string, constraints: [max_length: [type: :integer]]
   end
 
   defmodule Email do
@@ -116,12 +97,12 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
   # A `scalar` entry over `:uuid` without a `ts_alias`.
   defmodule Opaque do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string
   end
 
   defmodule CallbackScalar do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string
 
     def typescript_type, do: "`cb-${string}`"
     def typescript_type_alias, do: "CallbackScalar"
@@ -130,18 +111,18 @@ defmodule AshTypescript.Codegen.ScalarAliasesTest do
   # Used only as a route argument, and only in a channel payload.
   defmodule RouteOnly do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string
   end
 
   defmodule PayloadOnly do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string
   end
 
   # Used only as a union member.
   defmodule UnionOnly do
     @moduledoc false
-    use StringStorage
+    use PassThroughType, storage: :string
 
     def typescript_type, do: "string"
     def typescript_type_alias, do: "UnionOnly"

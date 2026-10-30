@@ -649,27 +649,9 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
   end
 
   describe "verify/1 - declared custom types" do
-    defmodule MapStorage do
-      @moduledoc false
-      defmacro __using__(_) do
-        quote do
-          use Ash.Type
-
-          @impl true
-          def storage_type(_), do: :map
-          @impl true
-          def cast_input(value, _), do: {:ok, value}
-          @impl true
-          def cast_stored(value, _), do: {:ok, value}
-          @impl true
-          def dump_to_native(value, _), do: {:ok, value}
-        end
-      end
-    end
-
     defmodule BadlyNamedFields do
       @moduledoc false
-      use MapStorage
+      use AshTypescript.Test.PassThroughType
 
       def typescript_fields, do: [label: [type: :string]]
       def typescript_field_names, do: [label: "label_1"]
@@ -678,7 +660,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
     defmodule EntryDeclared do
       @moduledoc false
       # Declared by a manifest `map` entry.
-      use MapStorage
+      use AshTypescript.Test.PassThroughType
     end
 
     defmodule BadPoint do
@@ -692,7 +674,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
 
     defmodule CompositeWithBadPoint do
       @moduledoc false
-      use MapStorage
+      use AshTypescript.Test.PassThroughType
 
       @impl true
       def composite?(_), do: true

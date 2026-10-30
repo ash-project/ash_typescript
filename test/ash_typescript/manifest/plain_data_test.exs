@@ -89,48 +89,28 @@ defmodule AshTypescript.Manifest.PlainDataTest do
     defstruct [:value]
   end
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(opts) do
-      storage = Keyword.get(opts, :storage, :map)
-
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: unquote(storage)
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule Holder do
     @moduledoc false
     # Declared in `custom_types` with a resource field.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Either do
     @moduledoc false
     # Declared in `custom_types` with a union field.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Tree do
     @moduledoc false
     # Declared in `custom_types` with a field of its own type.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule Opaque do
     @moduledoc false
     # Not map-like and not declared: an opaque custom type.
-    use MapStorage, storage: :string
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type, do: "string"
   end

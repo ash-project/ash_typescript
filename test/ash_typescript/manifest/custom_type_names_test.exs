@@ -34,27 +34,9 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     use Ash.Type.NewType, subtype_of: AshMoney.Types.Money
   end
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule Coordinates do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule NewCoordinates do
@@ -65,7 +47,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
   # Fields and alias from its own callbacks.
   defmodule Aliased do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
     def typescript_type_alias, do: "GeoAliased"
@@ -81,7 +63,7 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
   # (default: a valid name), read when a manifest compiles.
   defmodule Configurable do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
 

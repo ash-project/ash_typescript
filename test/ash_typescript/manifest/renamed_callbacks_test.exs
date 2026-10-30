@@ -12,27 +12,9 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
   alias AshTypescript.Manifest.RenamedCallbacksTest, as: T
 
-  defmodule StringStorage do
-    @moduledoc false
-    defmacro __using__(storage) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: unquote(storage)
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule OldScalar do
     @moduledoc false
-    use StringStorage, :string
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type_name, do: "string"
   end
@@ -57,7 +39,7 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
   defmodule OldDeclared do
     @moduledoc false
-    use StringStorage, :map
+    use AshTypescript.Test.PassThroughType
 
     def typescript_fields, do: [lat: [type: :float, allow_nil?: false]]
     def typescript_alias_name, do: "OldDeclared"
@@ -65,7 +47,7 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
   defmodule OldBoth do
     @moduledoc false
-    use StringStorage, :string
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type_name, do: "string"
     def typescript_alias_name, do: "OldBoth"
@@ -73,21 +55,21 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
   defmodule OldRouteScalar do
     @moduledoc false
-    use StringStorage, :string
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type_name, do: "string"
   end
 
   defmodule Unreached do
     @moduledoc false
-    use StringStorage, :string
+    use AshTypescript.Test.PassThroughType, storage: :string
 
     def typescript_type_name, do: "string"
   end
 
   defmodule OldMap do
     @moduledoc false
-    use StringStorage, :map
+    use AshTypescript.Test.PassThroughType
 
     def typescript_type_name, do: "OldMap"
   end

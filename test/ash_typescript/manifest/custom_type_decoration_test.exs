@@ -14,29 +14,11 @@ defmodule AshTypescript.Manifest.CustomTypeDecorationTest do
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.CustomTypeDecorationTest, as: T
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule Swatch do
     @moduledoc false
     # Declared only by a manifest `map` entry, whose fields' `client_name`s are
     # the only names it takes: `typescript_field_names/0` isn't read.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_field_names, do: [hex: "colour", display_name: "ignored"]
   end
@@ -44,7 +26,7 @@ defmodule AshTypescript.Manifest.CustomTypeDecorationTest do
   defmodule Pair do
     @moduledoc false
     # Declared by `composite_types/1`.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     @impl true
     def composite?(_), do: true

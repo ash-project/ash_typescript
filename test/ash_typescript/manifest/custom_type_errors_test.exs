@@ -14,45 +14,27 @@ defmodule AshTypescript.Manifest.CustomTypeErrorsTest do
   alias AshTypescript.Manifest.CustomTypeErrorsTest, as: T
   alias AshTypescript.Manifest.Verifiers.VerifyMappableTypes
 
-  defmodule MapStorage do
-    @moduledoc false
-    defmacro __using__(_) do
-      quote do
-        use Ash.Type
-
-        @impl true
-        def storage_type(_), do: :map
-        @impl true
-        def cast_input(value, _), do: {:ok, value}
-        @impl true
-        def cast_stored(value, _), do: {:ok, value}
-        @impl true
-        def dump_to_native(value, _), do: {:ok, value}
-      end
-    end
-  end
-
   defmodule UndeclaredBlob do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule NamedBlob do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_type, do: "NamedBlob"
   end
 
   defmodule ScalarBlob do
     @moduledoc false
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
   end
 
   defmodule NamedComposite do
     @moduledoc false
     # Declared by `composite_types/1`, and still naming a TypeScript type.
-    use MapStorage
+    use AshTypescript.Test.PassThroughType
 
     def typescript_type, do: "NamedComposite"
 
