@@ -587,10 +587,10 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert result["success"] == false
       first_error = List.first(result["errors"])
       assert first_error["type"] == "unknown_field"
-      assert first_error["message"] == "Unknown field %{field} for resource %{resource}"
+      assert first_error["message"] == "Unknown field %{field}"
       assert first_error["shortMessage"] == "Unknown field"
       assert first_error["vars"]["field"] == "nonexistentField"
-      assert String.contains?(first_error["vars"]["resource"], "Todo")
+      refute Map.has_key?(first_error["vars"], "resource")
       assert first_error["fields"] == ["nonexistentField"]
     end
 

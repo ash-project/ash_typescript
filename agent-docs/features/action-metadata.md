@@ -256,24 +256,13 @@ Invalid metadata field name mapping in RPC action:
   - Reason: The mapped name still contains question marks or numbers preceded by underscores
 ```
 
-**Metadata field conflicts with resource field** (no mapping applied):
+**Metadata client name collides with a resource field** (read actions only, mapped or not). ash_rpc raises `AshRpc.Manifest.NameCollisionError` while decorating the manifest, so it surfaces as an exception in the `DecorateManifest` transformer, not from `VerifyMetadataFieldNames`:
 
 ```
-Metadata field conflicts with resource field:
-  - RPC action: read_data (action: read_with_metadata)
-  - Field: title
-  - Reason: This metadata field name is already used by a public resource field (attribute, relationship, calculation, or aggregate)
+Client name collision in metadata of entrypoint "read_data": metadata :meta_title and field :title of MyApp.Todo both map to "title"
 ```
 
-**Mapped metadata field conflicts with resource field:**
-
-```
-Mapped metadata field conflicts with resource field:
-  - RPC action: read_data (action: read_with_metadata)
-  - Original field: meta_title
-  - Mapped to: title
-  - Reason: The mapped name conflicts with a public resource field (attribute, relationship, calculation, or aggregate)
-```
+Mutation metadata is returned under its own `metadata` key and isn't checked.
 
 ## Integration Points
 
@@ -593,7 +582,7 @@ Also check the value type: mapped names must be **strings**, not atoms.
 
 ### Metadata Conflicts with Resource Fields
 
-**Problem**: "Metadata field conflicts with resource field" error
+**Problem**: "Client name collision in metadata of entrypoint" error (read actions)
 
 **Solution**:
 1. Rename metadata field in action definition

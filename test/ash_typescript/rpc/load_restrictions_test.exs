@@ -37,7 +37,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert "comments" in disallowed
+      assert [:comments] in disallowed
     end
 
     test "allows nested fields when explicitly allowed" do
@@ -67,7 +67,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(disallowed, &String.contains?(&1, "todos"))
+      assert Enum.any?(disallowed, &(:todos in &1))
     end
 
     test "works with no loads requested" do
@@ -112,7 +112,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_denied, denied}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert "user" in denied
+      assert [:user] in denied
     end
 
     test "rejects loading nested fields when parent is denied" do
@@ -127,7 +127,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_denied, denied}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(denied, &String.contains?(&1, "user"))
+      assert Enum.any?(denied, &(:user in &1))
     end
 
     test "allows parent field but denies nested field" do
@@ -157,7 +157,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_denied, denied}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(denied, &String.contains?(&1, "todo"))
+      assert Enum.any?(denied, &(:todo in &1))
     end
 
     test "works with no loads requested" do
@@ -187,7 +187,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(disallowed, &String.contains?(&1, "is_active?"))
+      assert Enum.any?(disallowed, &(:is_active? in &1))
     end
 
     test "allows a nested calculation that is explicitly allowed" do
@@ -215,7 +215,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_denied, denied}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(denied, &String.contains?(&1, "weighted_score"))
+      assert Enum.any?(denied, &(:weighted_score in &1))
     end
 
     test "allows attributes on a relationship whose calculation is denied" do
@@ -272,8 +272,8 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, envelope_disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), envelope)
 
-      assert Enum.any?(plain_disallowed, &String.contains?(&1, "comment_metadata"))
-      assert Enum.any?(envelope_disallowed, &String.contains?(&1, "comment_metadata"))
+      assert Enum.any?(plain_disallowed, &(:comment_metadata in &1))
+      assert Enum.any?(envelope_disallowed, &(:comment_metadata in &1))
     end
 
     test "rejects a nested union member load inside a query envelope" do
@@ -294,7 +294,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(disallowed, &String.contains?(&1, "author_info"))
+      assert Enum.any?(disallowed, &(:author_info in &1))
     end
 
     test "rejects a nested calculation inside a relationship query envelope" do
@@ -308,7 +308,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert {:error, {:load_not_allowed, disallowed}} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert Enum.any?(disallowed, &String.contains?(&1, "weighted_score"))
+      assert Enum.any?(disallowed, &(:weighted_score in &1))
     end
   end
 
@@ -361,7 +361,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert is_list(paths)
-      assert Enum.all?(paths, &is_binary/1)
+      assert Enum.all?(paths, &is_list/1)
     end
 
     test "load_denied error contains field path" do
@@ -376,7 +376,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert is_list(paths)
-      assert Enum.all?(paths, &is_binary/1)
+      assert Enum.all?(paths, &is_list/1)
     end
   end
 

@@ -95,7 +95,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["vars"]["field"] || "", "unknownField")
-      assert String.contains?(error["vars"]["resource"] || "", "Todo")
+      refute Map.has_key?(error["vars"], "resource")
     end
 
     test "validation-only endpoint works correctly" do

@@ -44,10 +44,10 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "unknown_field"
-      assert response.message == "Unknown field %{field} for resource %{resource}"
+      assert response.message == "Unknown field %{field}"
       assert response.short_message == "Unknown field"
       assert response.vars.field == "nonexistent"
-      assert response.vars.resource == inspect(Todo)
+      refute Map.has_key?(response.vars, :resource)
       assert response.fields == ["nonexistent"]
       assert String.contains?(response.details.suggestion, "public attribute")
     end
@@ -153,11 +153,11 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
       # Should contain helpful template variables
       assert String.contains?(response.message, "%{field}")
-      assert String.contains?(response.message, "%{resource}")
+      refute String.contains?(response.message, "%{resource}")
 
       # Vars should have user-friendly values
       refute String.contains?(response.vars.field, "atom")
-      refute String.contains?(response.vars.resource, "module")
+      refute Map.has_key?(response.vars, :resource)
     end
 
     test "suggestions are actionable" do

@@ -340,7 +340,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
 
       # This should be treated as a regular relationship, which will fail since
       # :self is a calculation not a relationship
-      assert error == {:requires_field_selection, :complex_type, :self, []}
+      assert error == {:requires_field_selection, :calculation_complex, :self, []}
     end
 
     test "rejects calculations with missing args key" do
@@ -445,7 +445,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, :self, []}
+      assert error == {:requires_field_selection, :calculation_complex, :self, []}
     end
 
     test "rejects complex calculation with empty fields" do
@@ -456,7 +456,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, :self, []}
+      assert error == {:requires_field_selection, :calculation_complex, :self, []}
     end
 
     test "processes calculation with basic field selection" do

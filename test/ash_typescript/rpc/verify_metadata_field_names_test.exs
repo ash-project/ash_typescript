@@ -208,12 +208,13 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([TestDomainWithAttributeConflict])
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainWithAttributeConflict])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Metadata field conflicts with resource field/
-      assert error_message =~ ~r/title/
+      assert error.message =~ "Client name collision in metadata of entrypoint"
+      assert error.message =~ ~r/title/
     end
 
     test "detects conflict with calculation name" do
@@ -264,12 +265,13 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([TestDomainWithCalculationConflict])
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainWithCalculationConflict])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Metadata field conflicts with resource field/
-      assert error_message =~ ~r/computed_value/
+      assert error.message =~ "Client name collision in metadata of entrypoint"
+      assert error.message =~ ~r/computed_value/
     end
 
     test "detects conflict with mapped field name" do
@@ -316,12 +318,13 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([TestDomainWithMappedFieldConflict])
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainWithMappedFieldConflict])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Metadata field conflicts with resource field/
-      assert error_message =~ ~r/externalName/
+      assert error.message =~ "Client name collision in metadata of entrypoint"
+      assert error.message =~ ~r/externalName/
     end
   end
 
@@ -608,12 +611,14 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainWithMappedConflict])
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainWithMappedConflict])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Mapped metadata field conflicts with resource field/
-      assert error_message =~ ~r/meta_title/
-      assert error_message =~ ~r/title/
+      assert error.message =~ "Client name collision in metadata of entrypoint"
+      assert error.message =~ ~r/meta_title/
+      assert error.message =~ ~s(both map to "title")
     end
 
     test "detects invalid TypeScript names even after mapping" do

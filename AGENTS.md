@@ -495,7 +495,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Give it a `custom_types` `scalar` entry (base type, or `zod`/`valibot`; without `ts_type` it keeps the type's `typescript_type/0`), or express the type as an `Ash.Type.NewType` with constraints |
 | `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A `custom_types` entry's `zod`/`valibot` references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
-| "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
+| "Client name collision in metadata of entrypoint" (manifest compile, `AshRpc.Manifest.NameCollisionError`) | A read action's metadata client name equals a public resource field's | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
 | Field selection fails | Invalid field format | Use unified field format only |
 | `unknown_field` through a relationship | Destination resource lacks the `AshTypescript.Resource` extension (strict exposure) | Add the extension to the destination resource |

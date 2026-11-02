@@ -129,7 +129,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       assert error["shortMessage"] == "Invalid identity"
     end
 
-    test "update_user_by_email with extra identity fields still matches valid identity", %{
+    test "update_user_by_email with an extra identity field returns invalid_identity", %{
       conn: conn,
       user: user
     } do
@@ -141,8 +141,9 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
           "fields" => ["id", "name"]
         })
 
-      assert %{"success" => true, "data" => data} = result
-      assert data["name"] == "Updated with extra fields"
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "invalid_identity"
+      assert error["details"]["providedKeys"] == ["email", "extraField"]
     end
 
     test "update_user_by_identity with completely wrong fields returns invalid_identity error", %{
@@ -265,7 +266,9 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       assert error["type"] == "invalid_identity"
 
       assert error["vars"]["expectedKeys"] == "userId, isActive"
-      assert error["vars"]["providedKeys"] == "userId, isActiv"
+
+      assert error["vars"]["providedKeys"] |> String.split(", ") |> Enum.sort() ==
+               ["isActiv", "userId"]
 
       assert "userId" in error["details"]["expectedKeys"]
       assert "isActive" in error["details"]["expectedKeys"]

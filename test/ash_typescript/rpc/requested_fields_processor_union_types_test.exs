@@ -683,7 +683,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, :file, [:attachments]}
+      assert error == {:requires_field_selection, :union_member, :file, [:attachments]}
     end
 
     test "rejects image attachment requested as simple atom (requires field selection)" do
@@ -696,7 +696,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, :image, [:attachments]}
+      assert error == {:requires_field_selection, :union_member, :image, [:attachments]}
     end
 
     test "rejects duplicate union field requests" do

@@ -25,7 +25,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
                  params
                )
 
-      assert Enum.any?(denied, &(&1 =~ "todo"))
+      assert Enum.any?(denied, &(:todo in &1))
     end
 
     test "allowed envelope load passes" do
@@ -60,7 +60,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
                  params
                )
 
-      assert "comments" in disallowed
+      assert [:comments] in disallowed
     end
   end
 

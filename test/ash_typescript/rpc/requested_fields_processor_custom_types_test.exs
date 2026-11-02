@@ -143,7 +143,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
         ])
 
       assert error ==
-               {:unsupported_field_combination, :relationship, :color_palette,
+               {:unsupported_field_combination, :field_constrained_type, :color_palette,
                 %{primary: [:invalid]}, []}
     end
   end

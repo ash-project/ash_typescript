@@ -1238,9 +1238,9 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       first_error = List.first(result["errors"])
       assert first_error["type"] == "unknown_field"
 
-      assert first_error["message"] == "Unknown field %{field} for resource %{resource}"
+      assert first_error["message"] == "Unknown field %{field}"
       assert first_error["vars"]["field"] == "nonexistentField"
-      assert String.contains?(first_error["vars"]["resource"], "Todo")
+      refute Map.has_key?(first_error["vars"], "resource")
     end
 
     test "invalid relationship field names return nested error context" do

@@ -184,9 +184,9 @@ rpc_action :list_todos, :read, allowed_loads: [:usr]                        # ‚ù
 rpc_action :list_todos, :read, denied_loads: [comments: [:athor]]           # ‚ùå compile error
 ```
 
-#### Error: "Metadata field conflicts with resource field"
+#### Error: "Client name collision in metadata of entrypoint"
 
-**Cause:** A metadata field has the same name as a resource attribute or calculation.
+**Cause:** On a read action, a metadata field has the same client name as a public resource field (attribute, relationship, calculation or aggregate), so it would overwrite that field in each record. Raised when the manifest compiles (`AshRpc.Manifest.NameCollisionError`), for example: `Client name collision in metadata of entrypoint "read_data": metadata :title and field :title of MyApp.Todo both map to "title"`. Metadata on create, update and destroy actions is returned under its own `metadata` key, so it can't collide.
 
 **Solution:** Either:
 - Rename the metadata field in the action
