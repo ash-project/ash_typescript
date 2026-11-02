@@ -863,12 +863,16 @@ defmodule AshTypescript do
         )
 
       entrypoint ->
+        # ash_rpc reads every top-level key under its output-formatted client name.
+        formatter = AshRpc.Manifest.output_formatter(manifest)
+        wire = &AshRpc.FieldFormatter.format_field_name(&1, formatter)
+
         wire_params =
-          [input: "input", page: "page", filter: "filter", sort: "sort"]
-          |> Enum.reduce(%{"fields" => entrypoint.preset_fields}, fn {key, wire}, acc ->
+          [input: wire.(:input), page: wire.(:page), filter: wire.(:filter), sort: wire.(:sort)]
+          |> Enum.reduce(%{wire.(:fields) => entrypoint.preset_fields}, fn {key, wire_key}, acc ->
             case params[key] do
               nil -> acc
-              value -> Map.put(acc, wire, value)
+              value -> Map.put(acc, wire_key, value)
             end
           end)
 

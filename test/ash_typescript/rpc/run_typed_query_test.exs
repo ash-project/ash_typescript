@@ -116,6 +116,24 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       assert Map.has_key?(pagination_data, "count")
     end
 
+    test "passes fields and page under the manifest's formatted keys", %{todos: _todos} do
+      pascal =
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(),
+          output_formatter: :pascal_case
+        )
+
+      result =
+        AshTypescript.run_typed_query(
+          :list_todos_user_page,
+          %{page: %{"Limit" => 1, "Offset" => 0}},
+          %Plug.Conn{},
+          manifest: pascal
+        )
+
+      assert %{"Success" => true, "Data" => %{"Limit" => 1, "Results" => [todo]}} = result
+      assert Map.has_key?(todo, "Title")
+    end
+
     test "handles empty params correctly", %{todos: _todos} do
       conn = %Plug.Conn{}
 

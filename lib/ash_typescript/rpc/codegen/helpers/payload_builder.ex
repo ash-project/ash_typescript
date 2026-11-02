@@ -19,6 +19,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
   Generates an array of TypeScript object property strings that construct the
   payload object sent to the server. Each field maps a config value to a payload key.
 
+  Every payload key (including `action`) goes through the output field
+  formatter, which is how ash_rpc reads them.
+
   ## Parameters
 
     * `rpc_action_name` - The snake_case name of the RPC action
@@ -50,7 +53,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
     include_filtering_pagination = Keyword.get(opts, :include_filtering_pagination, true)
     include_metadata_fields = Keyword.get(opts, :include_metadata_fields, false)
     rpc_action = Keyword.get(opts, :rpc_action)
-    payload_fields = ["action: \"#{rpc_action_name}\""]
+    payload_fields = ["#{formatted_action_field()}: \"#{rpc_action_name}\""]
 
     payload_fields =
       if context.requires_tenant do
@@ -68,7 +71,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
     payload_fields =
       if context.identities != [] do
         payload_fields ++
-          ["#{format_output_field(:identity)}: config.#{format_output_field(:identity)}"]
+          ["#{formatted_identity_field()}: config.#{formatted_identity_field()}"]
       else
         payload_fields
       end
@@ -91,7 +94,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
 
         _ ->
           payload_fields ++
-            ["#{format_output_field(:input)}: config.#{format_output_field(:input)}"]
+            ["#{formatted_input_field()}: config.#{formatted_input_field()}"]
       end
 
     payload_fields =

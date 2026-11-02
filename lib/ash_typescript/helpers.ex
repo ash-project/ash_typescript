@@ -80,6 +80,11 @@ defmodule AshTypescript.Helpers do
   def formatted_page_field, do: format_output_field(:page)
 
   @doc """
+  Helper function for the RPC payload's action key.
+  """
+  def formatted_action_field, do: format_output_field(:action)
+
+  @doc """
   Helper functions for commonly used config interface field names.
   These ensure consistency across all RPC config-related type generation.
   """

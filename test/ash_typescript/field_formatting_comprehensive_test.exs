@@ -254,7 +254,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       user_params = %{
         "Action" => "create_user",
         "Fields" => ["Id"],
-        "input" => %{
+        "Input" => %{
           "Name" => "Test User",
           "Email" => "test@example.com"
         }
@@ -270,7 +270,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       todo_params = %{
         "Action" => "create_todo",
         "Fields" => ["Id", "Title"],
-        "input" => %{
+        "Input" => %{
           "Title" => "Test Todo",
           "UserId" => user["Id"]
         }
@@ -305,7 +305,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       user_params = %{
         "Action" => "create_user",
         "Fields" => ["Id"],
-        "input" => %{
+        "Input" => %{
           "Name" => "Test User",
           "Email" => "test@example.com"
         }
@@ -321,7 +321,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       todo_params = %{
         "Action" => "create_todo",
         "Fields" => ["Id"],
-        "input" => %{
+        "Input" => %{
           "Title" => "Test Todo",
           "UserId" => user["Id"]
         }

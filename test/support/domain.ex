@@ -254,6 +254,11 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :create_task_metadata_one, :create, show_metadata: [:some_string]
       rpc_action :create_task_metadata_two, :create, show_metadata: [:some_string, :some_number]
 
+      # A mapped metadata name is used as written in mutation responses too
+      rpc_action :create_task_with_snake_mapped_metadata, :create,
+        show_metadata: [:some_string],
+        metadata_field_names: [some_string: "some_string_value"]
+
       rpc_action :update_task_metadata_all, :update, show_metadata: nil
       rpc_action :update_task_metadata_false, :update, show_metadata: false
       rpc_action :update_task_metadata_empty, :update, show_metadata: []

@@ -189,8 +189,8 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
     end
 
     test "uses reference the name", %{zod: zod, valibot: valibot} do
-      assert count(zod, "price: MoneyZodSchema.nullable().optional(),") == 6
-      assert count(valibot, "price: v.optional(v.nullable(MoneyValibotSchema)),") == 6
+      assert count(zod, "price: MoneyZodSchema.nullable().optional(),") == 7
+      assert count(valibot, "price: v.optional(v.nullable(MoneyValibotSchema)),") == 7
       refute zod =~ "price: z.object({ currency"
       refute valibot =~ "price: v.optional(v.nullable(v.object({ currency"
 

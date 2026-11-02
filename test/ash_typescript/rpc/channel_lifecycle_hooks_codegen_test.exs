@@ -60,7 +60,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "if (ChannelHooks.beforeChannelPush)"
 
       assert typescript =~
-               ~r/processedConfig = await ChannelHooks\.beforeChannelPush\(payload\.action, config\);/
+               ~r/processedConfig = await ChannelHooks\.beforeChannelPush\(payload\["action"\], config\);/
     end
 
     test "includes afterChannelResponse hook call for ok response" do
@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "if (ChannelHooks.afterChannelResponse)"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "ok", result, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\["action"\], "ok", result, processedConfig\);/
     end
 
     test "includes afterChannelResponse hook call for error response" do
@@ -92,7 +92,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "executeActionChannelPush"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "error", error, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\["action"\], "error", error, processedConfig\);/
     end
 
     test "includes afterChannelResponse hook call for timeout response" do
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "executeActionChannelPush"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "timeout", undefined, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\["action"\], "timeout", undefined, processedConfig\);/
     end
 
     test "includes timeout parameter in channel push" do
@@ -201,7 +201,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "if (ChannelHooks.beforeValidationChannelPush)"
 
       assert typescript =~
-               ~r/processedConfig = await ChannelHooks\.beforeValidationChannelPush\(payload\.action, config\);/
+               ~r/processedConfig = await ChannelHooks\.beforeValidationChannelPush\(payload\["action"\], config\);/
     end
 
     test "includes afterChannelResponse hook call in channel validation function" do
@@ -217,7 +217,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       assert typescript =~ "if (ChannelHooks.afterValidationChannelResponse)"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterValidationChannelResponse\(payload\.action, "ok", result, processedConfig\);/
+               ~r/await ChannelHooks\.afterValidationChannelResponse\(payload\["action"\], "ok", result, processedConfig\);/
     end
 
     test "uses custom validation channel hook context type when configured" do

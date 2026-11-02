@@ -52,7 +52,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/if \(MyHooks\.beforeAction\)/
-      assert typescript =~ ~r/await MyHooks\.beforeAction\(payload\.action, config\)/
+      assert typescript =~ ~r/await MyHooks\.beforeAction\(payload\["action"\], config\)/
     end
 
     test "includes afterRequest hook call with correct parameters" do
@@ -63,7 +63,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       assert typescript =~ ~r/if \(MyHooks\.afterAction\)/
 
       assert typescript =~
-               ~r/await MyHooks\.afterAction\(payload\.action, response, result, processedConfig\)/
+               ~r/await MyHooks\.afterAction\(payload\["action"\], response, result, processedConfig\)/
     end
 
     test "includes config merging with correct precedence" do
@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/if \(MyHooks\.beforeValidation\)/
-      assert typescript =~ ~r/await MyHooks\.beforeValidation\(payload\.action, config\)/
+      assert typescript =~ ~r/await MyHooks\.beforeValidation\(payload\["action"\], config\)/
     end
 
     test "includes afterValidationRequest hook call in validation function" do
@@ -188,7 +188,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       assert typescript =~ ~r/if \(MyHooks\.afterValidation\)/
 
       assert typescript =~
-               ~r/await MyHooks\.afterValidation\(payload\.action, response, result, processedConfig\)/
+               ~r/await MyHooks\.afterValidation\(payload\["action"\], response, result, processedConfig\)/
     end
 
     test "uses custom validation hook context type when configured" do

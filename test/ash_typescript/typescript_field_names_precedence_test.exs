@@ -121,10 +121,10 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
       } do
         fmt = &AshTypescript.FieldFormatter.format_field_name(&1, unquote(formatter))
 
-        # Top-level request keys (other than input/identity) are formatter names too
+        # Top-level request keys are formatter names too
         params = %{
           fmt.(:action) => "create_input_parsing",
-          "input" => %{
+          fmt.(:input) => %{
             fmt.(:user_name) => "user",
             fmt.(:email_address) => "user@example.com",
             fmt.(:stats) => %{
@@ -154,7 +154,7 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
 
         params = %{
           fmt.(:action) => "get_task_stats",
-          "input" => %{fmt.(:task_id) => Ash.UUID.generate()},
+          fmt.(:input) => %{fmt.(:task_id) => Ash.UUID.generate()},
           fmt.(:fields) => [unquote(total_count), "completed", "isUrgent"]
         }
 

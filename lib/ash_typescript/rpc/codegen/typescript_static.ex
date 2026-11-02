@@ -476,7 +476,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         """
             let processedConfig = config;
             if (#{before_hook}) {
-              processedConfig = await #{before_hook}(payload.action, config);
+              processedConfig = await #{before_hook}(payload["#{formatted_action_field()}"], config);
             }
         """
       else
@@ -489,7 +489,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       if after_hook do
         """
             if (#{after_hook}) {
-              await #{after_hook}(payload.action, response, result, processedConfig);
+              await #{after_hook}(payload["#{formatted_action_field()}"], response, result, processedConfig);
             }
         """
       else
@@ -587,7 +587,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         """
             let processedConfig = config;
             if (#{before_hook}) {
-              processedConfig = await #{before_hook}(payload.action, config);
+              processedConfig = await #{before_hook}(payload["#{formatted_action_field()}"], config);
             }
         """
       else
@@ -600,7 +600,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       if after_hook do
         """
               if (#{after_hook}) {
-                await #{after_hook}(payload.action, "ok", result, processedConfig);
+                await #{after_hook}(payload["#{formatted_action_field()}"], "ok", result, processedConfig);
               }
         """
       else
@@ -611,7 +611,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       if after_hook do
         """
               if (#{after_hook}) {
-                await #{after_hook}(payload.action, "error", error, processedConfig);
+                await #{after_hook}(payload["#{formatted_action_field()}"], "error", error, processedConfig);
               }
         """
       else
@@ -622,7 +622,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       if after_hook do
         """
               if (#{after_hook}) {
-                await #{after_hook}(payload.action, "timeout", undefined, processedConfig);
+                await #{after_hook}(payload["#{formatted_action_field()}"], "timeout", undefined, processedConfig);
               }
         """
       else
@@ -660,7 +660,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
             ? config.#{error_handler_field}
             : (error: any) => {
                 console.error(
-                  \`An error occurred while running action \${payload.action}:\`,
+                  \`An error occurred while running action \${payload["#{formatted_action_field()}"]}:\`,
                   error
                 );
               })(error);
@@ -670,7 +670,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           (config.#{timeout_handler_field}
             ? config.#{timeout_handler_field}
             : () => {
-                console.error(\`Timeout occurred while running action \${payload.action}\`);
+                console.error(\`Timeout occurred while running action \${payload["#{formatted_action_field()}"]}\`);
               })();
         });
     }
