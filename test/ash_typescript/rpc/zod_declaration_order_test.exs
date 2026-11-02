@@ -123,6 +123,36 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
     end
   end
 
+  describe "dependencies through nested types" do
+    test "a resource reached through a union member or typed map field is declared first" do
+      alias AshTypescript.Test.ZodOrder.{ANestedHolder, ZLeaf}
+
+      output = zod_schemas([ANestedHolder, ZLeaf])
+
+      assert declaration_position(output, "ZodOrderZLeafZodSchema") <
+               declaration_position(output, "ZodOrderANestedHolderZodSchema")
+
+      assert output =~ "ZodOrderZLeafZodSchema"
+      assert_all_references_after_declarations(output)
+    end
+
+    test "a struct instance_of a resource references that resource's schema, fields or not" do
+      # Ash's manifest turns a `:struct` whose `instance_of` is a resource into
+      # that resource's node and drops `fields`, so the schema (and the
+      # declaration order) follows the resource.
+      alias AshTypescript.Test.ZodOrder.{AStructHolder, ZLeaf, ZWrapped}
+
+      output = zod_schemas([AStructHolder, ZLeaf, ZWrapped])
+
+      assert output =~ "  wrapped: ZodOrderZWrappedZodSchema.nullable().optional(),"
+
+      assert declaration_position(output, "ZodOrderZWrappedZodSchema") <
+               declaration_position(output, "ZodOrderAStructHolderZodSchema")
+
+      assert_all_references_after_declarations(output)
+    end
+  end
+
   describe "simple dependency (NestedProfile → Profile)" do
     test "dependency is declared first even when passed in reverse order" do
       resources = [

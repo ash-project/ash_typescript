@@ -17,6 +17,8 @@ defmodule AshTypescript.Test.SchemaFixtures.Holder do
   actions do
     action :accept_node, :boolean do
       argument :node, AshTypescript.Test.ZodOrder.NodeA
+      argument :nested_node, AshTypescript.Test.ZodOrder.ANestedHolder
+      argument :struct_node, AshTypescript.Test.ZodOrder.AStructHolder
 
       run fn _input, _context -> {:ok, true} end
     end

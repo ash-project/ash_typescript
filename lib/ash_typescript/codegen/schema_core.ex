@@ -383,7 +383,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
       schemas =
         uniq_resources
-        |> topological_sort(resource_lookup)
+        |> topological_sort(formatter, resource_lookup)
         |> Enum.map_join("\n\n", &generate_schema_for_resource(formatter, &1, resource_lookup))
 
       """
@@ -735,12 +735,12 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — topological sort (Kahn's algorithm)
   # ─────────────────────────────────────────────────────────────────
 
-  defp topological_sort(resources, resource_lookup) do
+  defp topological_sort(resources, formatter, resource_lookup) do
     resource_set = MapSet.new(resources)
 
     deps_map =
       Map.new(resources, fn resource ->
-        {resource, find_resource_dependencies(resource, resource_set, resource_lookup)}
+        {resource, find_resource_dependencies(formatter, resource, resource_set, resource_lookup)}
       end)
 
     {sorted, remaining} = kahns_sort(resources, deps_map, &inspect/1)
@@ -773,46 +773,58 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  defp find_resource_dependencies(resource, resource_set, resource_lookup) do
+  defp find_resource_dependencies(formatter, resource, resource_set, resource_lookup) do
     api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     api_resource
     |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
-    |> Enum.flat_map(fn attr -> extract_resource_deps_from_spec(attr.type, resource_set) end)
+    |> Enum.flat_map(&resource_deps(formatter, &1.type, resource_set, MapSet.new()))
     |> Enum.uniq()
   end
 
-  # Walks a resolved `%Ash.Info.Manifest.Type{}` and returns the embedded/instance_of
-  # resource modules it depends on (those present in `resource_set`).
-  defp extract_resource_deps_from_spec(%SpecType{kind: :array, item_type: item}, resource_set) do
-    extract_resource_deps_from_spec(item, resource_set)
-  end
+  # The resource schemas (those in `resource_set`) a type references eagerly:
+  # through arrays, union members, inline typed containers and inline
+  # (unnamed) named types. A named custom-type schema references resources
+  # lazily, so the walk stops at one. `named` guards recursive named types.
+  defp resource_deps(formatter, %SpecType{kind: :array, item_type: item}, set, named),
+    do: resource_deps(formatter, item, set, named)
 
-  defp extract_resource_deps_from_spec(
-         %SpecType{kind: :embedded_resource, resource_module: mod},
-         resource_set
-       )
-       when not is_nil(mod) do
-    if MapSet.member?(resource_set, mod), do: [mod], else: []
-  end
+  defp resource_deps(_formatter, %SpecType{kind: kind} = type, set, _named)
+       when kind in [:embedded_resource, :resource],
+       do: in_set(SpecType.effective_resource(type), set)
 
-  defp extract_resource_deps_from_spec(
-         %SpecType{kind: :resource, resource_module: mod},
-         resource_set
-       )
-       when not is_nil(mod) do
-    if MapSet.member?(resource_set, mod), do: [mod], else: []
-  end
-
-  defp extract_resource_deps_from_spec(
-         %SpecType{kind: :struct, instance_of: inst},
-         resource_set
-       )
+  defp resource_deps(formatter, %SpecType{kind: :struct, instance_of: inst} = type, set, named)
        when not is_nil(inst) do
-    if Spark.Dsl.is?(inst, Ash.Resource) and MapSet.member?(resource_set, inst),
-      do: [inst],
-      else: []
+    if Spark.Dsl.is?(inst, Ash.Resource),
+      do: in_set(inst, set),
+      else: field_resource_deps(formatter, type, set, named)
   end
 
-  defp extract_resource_deps_from_spec(_type, _resource_set), do: []
+  defp resource_deps(formatter, %SpecType{kind: :union} = union, set, named),
+    do: Enum.flat_map(union.members || [], &resource_deps(formatter, &1.type, set, named))
+
+  defp resource_deps(formatter, %SpecType{kind: kind} = container, set, named)
+       when kind in [:map, :keyword, :tuple, :struct],
+       do: field_resource_deps(formatter, container, set, named)
+
+  defp resource_deps(formatter, %SpecType{kind: :type_ref, module: module} = type, set, named) do
+    definition = Introspection.named_type_definition(module)
+
+    cond do
+      MapSet.member?(named, module) -> []
+      map_entry_schema(formatter, type) != nil -> []
+      custom_type_schema_name(formatter, definition) != nil -> []
+      true -> resource_deps(formatter, definition, set, MapSet.put(named, module))
+    end
+  end
+
+  defp resource_deps(_formatter, _type, _set, _named), do: []
+
+  defp field_resource_deps(formatter, %SpecType{} = container, set, named) do
+    container
+    |> SpecType.get_fields()
+    |> Enum.flat_map(&resource_deps(formatter, &1.type, set, named))
+  end
+
+  defp in_set(module, set), do: if(MapSet.member?(set, module), do: [module], else: [])
 end
