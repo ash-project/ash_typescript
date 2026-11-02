@@ -52,6 +52,49 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
     end
   end
 
+  defmodule MapQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.MapQueryArgumentController
+
+      get :search do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :tags, {:array, :string}
+
+        argument :range, :map,
+          constraints: [fields: [from: [type: :integer], to: [type: :integer]]]
+      end
+
+      post :save_range do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+
+        argument :range, :map,
+          constraints: [fields: [from: [type: :integer], to: [type: :integer]]]
+      end
+    end
+  end
+
+  describe "URL argument types" do
+    test "codegen fails for a GET route with a map query argument" do
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [MapQueryArgument],
+          typed_channels: []
+        )
+
+      error =
+        assert_raise RuntimeError, fn ->
+          CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
+        end
+
+      message = Exception.message(error)
+      assert message =~ "Route :search sends the arguments :range in its URL"
+      refute message =~ ":tags"
+      refute message =~ ":save_range"
+    end
+  end
+
   describe "verifier enforcement" do
     test "VerifierChecker reports typed controller verifier failures" do
       assert {:error, message} =

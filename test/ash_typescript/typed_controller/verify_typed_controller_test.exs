@@ -563,6 +563,36 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
       end
     end
 
+    test "the manifest rejects a route the manifest's formatter turns into a reserved word" do
+      defmodule ControllerWithRemoveRoute do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.RemoveRouteController
+
+          route :remove_item, :post do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+        end
+      end
+
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [ControllerWithRemoveRoute],
+          typed_channels: []
+        )
+
+      error =
+        assert_raise Spark.Error.DslError, fn ->
+          AshTypescript.Manifest.redecorate(manifest,
+            output_formatter: {__MODULE__, :reserved_remove_formatter}
+          )
+        end
+
+      assert Exception.message(error) =~
+               "route :remove_item generates the function `delete`, a JavaScript reserved word"
+    end
+
     test "accepts names that contain a reserved word or are TypeScript type keywords" do
       defmodule ControllerWithNearReservedRoutes do
         use AshTypescript.TypedController
@@ -588,4 +618,11 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
                VerifyTypedController.verify(ControllerWithNearReservedRoutes.spark_dsl_config())
     end
   end
+
+  @doc false
+  # Camel case, except :remove_item, which it names `delete`.
+  def reserved_remove_formatter(:remove_item), do: "delete"
+
+  def reserved_remove_formatter(name),
+    do: AshRpc.FieldFormatter.format_field_name(name, :camel_case)
 end

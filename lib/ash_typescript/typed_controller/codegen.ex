@@ -10,6 +10,8 @@ defmodule AshTypescript.TypedController.Codegen do
   from typed controller routes configured in the DSL.
   """
 
+  alias AshTypescript.TypeSystem.Introspection
+
   alias AshTypescript.TypedController.Codegen.{
     RouteConfigCollector,
     RouteRenderer,
@@ -67,6 +69,54 @@ defmodule AshTypescript.TypedController.Codegen do
   def validate_path_param_arguments!(route_infos) do
     validate_missing_arguments!(route_infos)
     validate_path_param_allow_nil!(route_infos)
+  end
+
+  # Arguments sent in the URL — path params, and every other argument of a
+  # non-mutation route (its query string) — are written with `String(...)`,
+  # so a map, struct, union or resource value would arrive as "[object Object]".
+  # The query string may carry arrays of scalars (`name[]=` pairs); the path
+  # may not.
+  @doc false
+  def validate_url_argument_types!(route_infos) do
+    Enum.each(route_infos, fn info ->
+      path_params = MapSet.new(info.path_params)
+
+      invalid =
+        Enum.filter(info.manifest_route.inputs, fn input ->
+          in_path? = MapSet.member?(path_params, input.name)
+
+          cond do
+            in_path? -> url_unsafe?(input.type, false)
+            info.method in @mutation_methods -> false
+            true -> url_unsafe?(input.type, true)
+          end
+        end)
+
+      if invalid != [] do
+        args = Enum.map_join(invalid, ", ", &":#{&1.name}")
+
+        raise """
+        Route :#{info.route.name} sends the arguments #{args} in its URL, but their \
+        types are not scalars, so they can't be written to a path segment or query \
+        string.
+
+        Use a scalar type (or, in the query string of a GET route, an array of \
+        scalars), or make the route a POST, PATCH, PUT or DELETE so the arguments \
+        go in the JSON body.
+        """
+      end
+    end)
+  end
+
+  # `arrays?`: whether an array of scalars is allowed (the query string).
+  defp url_unsafe?(type, arrays?) do
+    case Introspection.resolve_named_type(type) do
+      %Ash.Info.Manifest.Type{kind: :array, item_type: item} ->
+        not arrays? or url_unsafe?(item, false)
+
+      resolved ->
+        Introspection.structured?(resolved)
+    end
   end
 
   defp validate_missing_arguments!(route_infos) do
@@ -214,6 +264,7 @@ defmodule AshTypescript.TypedController.Codegen do
       route_infos = resolve_route_infos(router, routes_config)
 
       validate_path_param_arguments!(route_infos)
+      validate_url_argument_types!(route_infos)
 
       generate_typescript_with_imports(
         route_infos,
