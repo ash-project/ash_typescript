@@ -111,6 +111,16 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: `AshRpc.ResultProcessor.normalize_value_for_json/2` is removed. `AshRpc.ResultProcessor.normalize_primitive/2` does the same conversion
 
+* rpc, codegen: every top-level request key goes through the `output_field_formatter`, `action`, `input` and `identity` included, and so do the filter connectives (`and`/`or`/`not`). Under `:pascal_case` or a custom formatter the generated clients send `Action`, `Input`, `Identity` and `And` (lifecycle hooks still receive the action name as their first argument). `AshTypescript.run_typed_query/4` sends formatted keys too. Under `:camel_case` and `:snake_case` nothing changes
+
+* codegen: structured filter values (embedded resources, typed maps and structs, unions, declared custom types) take the type's input shape and client keys (`metadata: { eq?: TaskMetadataInputSchema }`, nullable fields optional), which the server now maps back to internal names; an unknown key is `unknown_input`. Before, the values were typed with the output shape and the server passed their keys through, so client names failed or were silently dropped. Embedded resources, unions and typed maps and structs that aren't declared custom types lose the ordering operators (`lessThan`, `greaterThan`, `lessThanOrEqual`, `greaterThanOrEqual`), and a value that reaches a non-embedded resource (a calculation returning a record) only offers `isNil`
+
+* rpc: a read action's metadata field whose client name equals a public field's fails manifest compilation with ash_rpc's "Client name collision in metadata of entrypoint" (`AshRpc.Manifest.NameCollisionError`) instead of ash_typescript's "Metadata field conflicts with resource field". Metadata of create, update and destroy actions is returned under its own `metadata` key and is no longer checked
+
+* rpc: an identity with an extra key next to a valid identity's keys is `invalid_identity`, and `unknown_field` no longer names the resource (`Unknown field %{field}`, no `vars.resource`)
+
+* codegen: manifest compilation fails for a `custom_types` `field` whose `client_name` isn't a TypeScript identifier, and for an action type field mapped (with `typescript_field_names/0`) to a name that isn't one. A typed controller route whose formatted name is a JavaScript reserved word fails manifest compilation with the current formatter. Codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
+
 ### Improvements:
 
 * typed-controller, typed-channel: route argument names, route result types and channel payload types are decorated in the manifest, so the names codegen emits and the names the runtime accepts and sends always agree
@@ -140,6 +150,14 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 * rpc: struct arguments whose `instance_of` is a resource without the `AshTypescript.Resource` extension accept the generated (output-formatted) keys; other keys are `unknown_input`
 
 * rpc: a `:map_with_tag` union's tag key uses the member type's client name
+
+* codegen: validation functions of `get_by` actions take and send `getBy`
+
+* codegen: Zod and Valibot schemas of embedded resources are declared after the resource schemas they reference through union members, typed maps and named types, not only direct attributes and arrays
+
+* codegen: action metadata types of embedded resources and unions are plain objects (`{createdBy: string, …}`, `{ text: … } | …`) instead of field-selection schemas with `__type` markers
+
+* rpc: a leftover `input_field_formatter` config key prints a warning when the manifest compiles
 
 * rpc: error `path` segments use the client names of the resource or type at that point, overrides included, and client-sent string segments are reported as sent instead of being formatted again
 

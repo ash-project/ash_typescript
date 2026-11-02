@@ -244,9 +244,17 @@ After, request keys (params, `input`, nested map keys, filter and sort names)
 must be the client names the `output_field_formatter` produces, matched
 exactly. A key in another casing is rejected with `unknown_input` (or
 `unknown_field` for field selection). The `input_field_formatter` config key is
-no longer read; remove it from `config/*.exs`. If you set it to something other
+no longer read (leaving it set prints a warning when the manifest compiles);
+remove it from `config/*.exs`. If you set it to something other
 than your `output_field_formatter`, update your clients to send the generated
 names.
+
+This covers every top-level key too: `action`, `input` and `identity` go
+through the `output_field_formatter` like `fields` and `filter`, and so do the
+filter connectives `and`, `or` and `not`. Under `:camel_case` and
+`:snake_case` nothing changes. Under `:pascal_case` (or a custom formatter) the
+generated clients send `{ Action: "create_todo", Input: {...} }`;
+hand-written clients must send the formatted keys.
 
 ## Typed controller request keys are client names
 
@@ -653,7 +661,16 @@ unless you opt them into an alias the same way (a field-less `map` entry, a
   typed maps no longer carry `__type` / `__primitiveFields`: they are plain
   objects, so a filter like `{ price: { eq: { currency: "NOK", amount: "1" } } }`
   type-checks. Code that read those keys from a metadata type no longer
-  compiles. Union filter values are unchanged.
+  compiles.
+- Structured filter values (embedded resources, typed maps and structs,
+  unions) take the type's input shape and client keys
+  (`metadata: { eq: TaskMetadataInputSchema }`), which the server maps back to
+  attribute names; an unknown key is `unknown_input`. Before, the keys were
+  passed to Ash as sent, so client names failed or were silently dropped.
+  Ordering operators (`lessThan`, `greaterThan`, …) are gone from these
+  values unless the type is a declared custom type, and a value that reaches
+  a non-embedded resource (a calculation returning a record) only offers
+  `isNil`.
 
 ### Typed maps and structs send declared fields only
 
