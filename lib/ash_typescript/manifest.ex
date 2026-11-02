@@ -140,7 +140,11 @@ defmodule AshTypescript.Manifest do
       "Give these types a `valibot` schema in your manifest module's `custom_types` section: " <>
         "`scalar MyType, :string, valibot: \"<valibot schema>\"` (or `map MyType do ... valibot ... end`)",
     warn_on_missing_channel_returns:
-      "A typed channel publication without `returns` is now a compile error."
+      "A typed channel publication without `returns` is now a compile error.",
+    input_field_formatter:
+      "Request keys must now be the client names `output_field_formatter` produces, " <>
+        "matched exactly. Remove the setting, and if it differed from " <>
+        "`output_field_formatter`, update clients to send the generated names."
   ]
 
   defp warn_on_legacy_config do

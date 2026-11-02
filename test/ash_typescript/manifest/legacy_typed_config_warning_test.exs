@@ -12,7 +12,8 @@ defmodule AshTypescript.Manifest.LegacyTypedConfigWarningTest do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
       :typed_controllers,
       :typed_channels,
-      :warn_on_missing_channel_returns
+      :warn_on_missing_channel_returns,
+      :input_field_formatter
     ])
 
     :ok
@@ -68,10 +69,32 @@ defmodule AshTypescript.Manifest.LegacyTypedConfigWarningTest do
                "compile error."
   end
 
+  test "the removed input formatter warns that it is no longer read" do
+    Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+    stderr =
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        Module.create(
+          AshTypescript.Manifest.LegacyTypedConfigWarningTest.InputFormatter,
+          quote do
+            use AshTypescript.Manifest,
+              otp_app: :ash_typescript,
+              domains: [AshTypescript.Test.SecondDomain]
+          end,
+          Macro.Env.location(__ENV__)
+        )
+      end)
+
+    assert stderr =~
+             "config :ash_typescript, :input_field_formatter is no longer read and is " <>
+               "ignored. Request keys must now be the client names"
+  end
+
   test "no warning when the keys are unset" do
     Application.delete_env(:ash_typescript, :typed_controllers)
     Application.delete_env(:ash_typescript, :typed_channels)
     Application.delete_env(:ash_typescript, :warn_on_missing_channel_returns)
+    Application.delete_env(:ash_typescript, :input_field_formatter)
 
     stderr =
       ExUnit.CaptureIO.capture_io(:stderr, fn ->
@@ -89,5 +112,6 @@ defmodule AshTypescript.Manifest.LegacyTypedConfigWarningTest do
     refute stderr =~ "typed_controllers"
     refute stderr =~ "typed_channels"
     refute stderr =~ "warn_on_missing_channel_returns"
+    refute stderr =~ "input_field_formatter"
   end
 end
