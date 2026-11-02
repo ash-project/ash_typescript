@@ -50,6 +50,30 @@ defmodule AshTypescript.TypeSystem.Introspection do
     as: :named_type!
 
   @doc """
+  `type`, or the definition of the named type (`:type_ref`) it is, resolved
+  through named types until a node that isn't one. A named type with no
+  definition (an opaque scalar custom type) stays a `:type_ref`.
+  """
+  @spec resolve_named_type(Type.t()) :: Type.t()
+  def resolve_named_type(%Type{kind: :type_ref, module: module} = type) do
+    case AshRpc.Introspection.named_type_definition(AshTypescript.type_lookup(), module) do
+      %Type{kind: :type_ref} -> type
+      %Type{} = definition -> resolve_named_type(definition)
+    end
+  end
+
+  def resolve_named_type(%Type{} = type), do: type
+
+  @structured_kinds [:map, :struct, :keyword, :tuple, :union, :resource, :embedded_resource]
+
+  @doc """
+  Whether `type`, its named types resolved, is structured data: a map,
+  struct, keyword, tuple, union or (embedded) resource. Arrays are not.
+  """
+  @spec structured?(Type.t()) :: boolean()
+  def structured?(%Type{} = type), do: resolve_named_type(type).kind in @structured_kinds
+
+  @doc """
   Every `%Ash.Info.Manifest.Type{}` node under `roots`, the roots included,
   as codegen renders them inline: array items, union members, the fields of
   maps, keywords, tuples and structs (tuple elements included) and the

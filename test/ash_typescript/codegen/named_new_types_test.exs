@@ -266,7 +266,7 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
       stats = filter_block(types, "InputParsingResourceFilterInput", "stats")
 
       assert stats =~
-               "    eq?: {totalCount1: number, isComplete: boolean | null, lastUpdatedAt: UtcDateTime | null};\n"
+               "    eq?: {totalCount1: number, isComplete?: boolean | null, lastUpdatedAt?: UtcDateTime | null};\n"
     end
   end
 
@@ -293,13 +293,13 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
       end
     end
 
-    test "filter values reference the plain aliases", %{types: types} do
+    test "filter values reference the input aliases", %{types: types} do
       stats = filter_block(types, "TaskFilterInput", "stats")
-      assert stats =~ "    eq?: TaskStats;\n"
-      assert stats =~ "    in?: Array<TaskStats>;\n"
+      assert stats =~ "    eq?: TaskStatsInput;\n"
+      assert stats =~ "    in?: Array<TaskStatsInput>;\n"
 
       assert filter_block(types, "TodoFilterInput", "timestampInfo") =~
-               "    eq?: AshTypescriptTestTodoTimestamp;\n"
+               "    eq?: AshTypescriptTestTodoTimestampInput;\n"
     end
 
     test "schema positions stay inline", %{types: types, rpc: rpc} do
@@ -439,7 +439,7 @@ defmodule AshTypescript.Codegen.NamedNewTypesTest do
       manifest = holder_manifest()
       lines = alias_lines(manifest)
 
-      assert "export type AshTypescriptCodegenNamedNewTypesTestTargetRef = {target: NewTypesTargetResourceSchema | null};" in lines
+      assert "export type AshTypescriptCodegenNamedNewTypesTestTargetRef = {target: {id: UUID} | null};" in lines
 
       refute Enum.any?(lines, &(&1 =~ "TargetRefInput"))
 

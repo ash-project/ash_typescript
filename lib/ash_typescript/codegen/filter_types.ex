@@ -18,9 +18,19 @@ defmodule AshTypescript.Codegen.FilterTypes do
   The TS renderer maps the canonical name to a client-facing key via
   `@operator_atom_to_key` and computes the RHS TS type from `op.rhs`.
 
+  Operator values are typed with the field's input rendering: ash_rpc reads
+  them as input, so a structured value takes the same client keys (optional
+  ones optional) as an action input of that type. Ordering operators are
+  dropped for structured values (embedded resources, unions, typed maps and
+  structs that aren't declared custom types), where they mean nothing. A value
+  that reaches a non-embedded resource (a calculation returning a record) has
+  no input shape and comparing whole records means nothing, so it keeps
+  `isNil` only.
+
   Fields/relationships whose `filterable?` is `false` are skipped entirely.
   """
-  alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
+  alias AshTypescript.Codegen.{ClientNames, CustomTypeAliases, Helpers, TypeMapper}
+  alias AshTypescript.TypeSystem.Introspection
 
   # Mapping from canonical operator names (`%ApplicableOperator{}.name`, the
   # symbols that appear in `Ash.Query.filter` expressions) to the TS filter
@@ -180,10 +190,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
   end
 
   defp spec_field_filter(%Ash.Info.Manifest.Field{} = field, api_resource) do
-    base_type = TypeMapper.map_plain_type(field.type, :output)
-    operator_lines = manifest_operations(field, base_type)
-    function_lines = manifest_function_operations(field, base_type)
-    lines = operator_lines ++ function_lines
+    lines =
+      if CustomTypeAliases.reaches_resource?(field.type) do
+        manifest_operations(%{field | filter_operators: nil_check_operators(field)}, "never")
+      else
+        base_type = TypeMapper.map_plain_type(field.type, :input)
+        manifest_operations(field, base_type) ++ manifest_function_operations(field, base_type)
+      end
 
     formatted_name = ClientNames.resource_field(api_resource, field.name)
 
@@ -203,7 +216,28 @@ defmodule AshTypescript.Codegen.FilterTypes do
     field.filter_operators
     |> Enum.filter(fn %{name: name} -> Map.has_key?(@operator_atom_to_key, name) end)
     |> Enum.reject(fn %{name: name} -> name == :is_nil and not field.allow_nil? end)
+    |> reject_ordering_for_structured(field.type)
     |> Enum.map(&format_operation(&1, base_type))
+  end
+
+  defp nil_check_operators(%Ash.Info.Manifest.Field{filter_operators: operators}),
+    do: Enum.filter(operators, &(&1.name == :is_nil))
+
+  @ordering_operators [:<, :>, :<=, :>=]
+
+  defp reject_ordering_for_structured(operators, type) do
+    if structured?(type) do
+      Enum.reject(operators, &(&1.name in @ordering_operators))
+    else
+      operators
+    end
+  end
+
+  # A declared custom type (`Money`) may define its own ordering, so only
+  # undeclared structured types count.
+  defp structured?(type) do
+    resolved = Introspection.resolve_named_type(type)
+    Introspection.structured?(resolved) and not AshRpc.Manifest.Custom.custom_type?(resolved)
   end
 
   # Translates the field's `%ApplicableFunction{}` records into TS lines for
@@ -219,13 +253,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # Shared helpers
   # ─────────────────────────────────────────────────────────────────
 
-  # Boolean connectives come from `manifest.filter_capabilities.boolean_connectives`.
-  # Their names happen to be lowercase atoms that match TS keys 1:1 (`and`, `or`,
-  # `not`) — no translation table needed.
+  # Boolean connectives come from `manifest.filter_capabilities.boolean_connectives`
+  # (`and`, `or`, `not`). ash_rpc reads them under their formatted names, like
+  # every other filter key.
   defp generate_logical_operators(filter_type_name) do
     AshTypescript.manifest().filter_capabilities.boolean_connectives
     |> Enum.map_join("\n", fn connective ->
-      "  #{connective}?: Array<#{filter_type_name}>;"
+      "  #{format_field(connective)}?: Array<#{filter_type_name}>;"
     end)
     |> Kernel.<>("\n")
   end

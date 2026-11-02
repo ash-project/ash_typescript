@@ -366,12 +366,14 @@ terminate (`input_name/1` hung before this check). References:
 |----------|---------|
 | Inputs, calculation arguments, identity and `getBy` (`config_builder.ex`) | `map_type/3` `:input` → `input_name/1` (`map_plain_type(t, :input)` for identity/`getBy`) |
 | Route results, channel payloads | `map_route_result_type/1` / `map_channel_payload_type/1` → `plain_name/1` |
-| Filter values (`filter_types.ex`), action metadata (`metadata_types.ex`) | `map_plain_type(t, :output)`: typed containers plain, aliased types the alias, unions in schema form |
+| Filter operator values (`filter_types.ex`) | `map_plain_type(t, :input)`: ash_rpc formats them as input (client keys, `unknown_input` for others), so the input alias / input schema, unions as `{ member: input }`. Ordering operators are dropped for structured values that aren't declared custom types; a value reaching a non-embedded resource keeps `isNil` only |
+| Action metadata (`metadata_types.ex`) | `map_plain_type(t, :output)`: typed containers plain, aliased types the alias, resources as plain objects of their public attributes, unions as `{ member: value }` objects |
 | Resource schemas, field selection, generic action results | inline `TypedMap` (unchanged) |
 
-Known limitation: an embedded-resource field renders as its resource schema in
-a plain alias and in filter values (`LineItem = {…, meta: TaskMetadataResourceSchema | null}`),
-which requires the `__type` markers.
+An embedded-resource field renders as a plain object of the resource's public
+attributes in a plain alias
+(`LineItem = {…, meta: {createdBy: string, …} | null}`); a recursive embedded
+resource stops at `Record<string, any>`.
 
 `AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames` reports ("Types with
 colliding TypeScript names found", one aggregated `DslError`

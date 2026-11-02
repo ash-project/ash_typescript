@@ -560,14 +560,15 @@ defmodule AshTypescript.Codegen.TypeMapper do
   value as data, with no field selection, so typed maps carry no
   `__type`/`__primitiveFields` metadata.
 
-  - `:output`, for filter operator values and action metadata: the
-    `map_route_result_type/1` mapping. Typed containers (nested ones and array
-    items included) are plain objects with every key present, and aliased
-    types reference their alias. A filter value is cast with the
-    attribute's type and compared whole, so it takes the full shape. Unions,
-    resources and scalars map as in `map_type/3`.
-  - `:input`, for identity and `getBy` values: the `map_type/3` input mapping
-    (aliased types reference their input alias).
+  - `:output`, for action metadata: the `map_route_result_type/1` mapping.
+    Typed containers (nested ones and array items included) are plain
+    objects with every key present, and aliased types reference their
+    alias. Resources and embedded resources are plain objects of their
+    public attributes, unions are `{ member: value }` objects (one per
+    member), and scalars map as in `map_type/3`.
+  - `:input`, for filter operator values, identity and `getBy` values: the
+    `map_type/3` input mapping (aliased types reference their input alias).
+    ash_rpc formats filter values as input.
   """
   @spec map_plain_type(Type.t(), direction()) :: String.t()
   def map_plain_type(%Type{} = type, :output), do: map_plain_output_type(type, false)
@@ -601,16 +602,19 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def expand_input(%Type{} = definition), do: build_field_input_type(definition)
 
   # `custom_fields?` as in `map_type_info/3`: true for a member of a declared
-  # custom type's definition.
-  defp map_plain_output_type(%Type{kind: :type_ref, module: module}, _custom_fields?) do
+  # custom type's definition. `seen` holds the resources being expanded, so a
+  # recursive embedded resource stops at an untyped map instead of looping.
+  defp map_plain_output_type(type, custom_fields?, seen \\ MapSet.new())
+
+  defp map_plain_output_type(%Type{kind: :type_ref, module: module}, _custom_fields?, seen) do
     definition = Introspection.named_type_definition(module)
-    CustomTypeAliases.plain_name(definition) || map_plain_output_type(definition, false)
+    CustomTypeAliases.plain_name(definition) || map_plain_output_type(definition, false, seen)
   end
 
-  defp map_plain_output_type(%Type{kind: :array, item_type: item_type}, custom_fields?),
-    do: wrap_array(map_plain_output_type(item_type, custom_fields?))
+  defp map_plain_output_type(%Type{kind: :array, item_type: item_type}, custom_fields?, seen),
+    do: wrap_array(map_plain_output_type(item_type, custom_fields?, seen))
 
-  defp map_plain_output_type(%Type{kind: kind} = type_info, _custom_fields?)
+  defp map_plain_output_type(%Type{kind: kind} = type_info, _custom_fields?, seen)
        when kind in [:map, :keyword, :tuple, :struct] do
     case Type.get_fields(type_info) do
       [] ->
@@ -618,11 +622,57 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
       fields ->
         custom_fields? = AshRpc.Manifest.Custom.custom_type?(type_info)
-        plain_object_type(type_info, fields, &map_plain_output_type(&1, custom_fields?))
+        plain_object_type(type_info, fields, &map_plain_output_type(&1, custom_fields?, seen))
     end
   end
 
-  defp map_plain_output_type(type_info, custom_fields?),
+  # A resource value outside field selection is its public attributes, every
+  # key present: the attributes ash_rpc sends for a resource value in
+  # metadata (it may also send unloaded calculations and relationships as
+  # `null`).
+  defp map_plain_output_type(%Type{kind: kind} = type_info, _custom_fields?, seen)
+       when kind in [:resource, :embedded_resource] do
+    resource = Type.effective_resource(type_info)
+
+    case Map.get(AshTypescript.resource_lookup(), resource) do
+      %Ash.Info.Manifest.Resource{} = api_resource ->
+        if MapSet.member?(seen, resource) do
+          AshTypescript.untyped_map_type()
+        else
+          seen = MapSet.put(seen, resource)
+
+          field_types =
+            api_resource
+            |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
+            |> Enum.map_join(", ", fn field ->
+              null_suffix = if field.allow_nil?, do: " | null", else: ""
+
+              "#{ClientNames.resource_field(api_resource, field.name)}: " <>
+                map_plain_output_type(field.type, false, seen) <> null_suffix
+            end)
+
+          "{#{field_types}}"
+        end
+
+      nil ->
+        map_type_info(type_info, :output, false)
+    end
+  end
+
+  # A union value is `{member: value}` with exactly one member key, as sent
+  # and as accepted.
+  defp map_plain_output_type(%Type{kind: :union} = union, _custom_fields?, seen) do
+    (union.members || [])
+    |> Enum.map_join(" | ", fn %{name: name, type: type} ->
+      "{ #{ClientNames.union_member(union, name)}: #{map_plain_output_type(type, false, seen)} }"
+    end)
+    |> case do
+      "" -> "any"
+      objects -> objects
+    end
+  end
+
+  defp map_plain_output_type(type_info, custom_fields?, _seen),
     do: map_type_info(type_info, :output, custom_fields?)
 
   # A typed container as a plain object type, with field names taken from the

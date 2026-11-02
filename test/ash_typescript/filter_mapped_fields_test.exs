@@ -174,13 +174,15 @@ defmodule AshTypescript.FilterMappedFieldsTest do
         result
         |> String.split("metadata?: {")
         |> Enum.at(1)
-        |> String.split("};")
+        |> String.split("\n  };")
         |> Enum.at(0)
 
-      # Embedded resource should have basic operations
-      assert metadata_section =~ "eq?: TaskMetadataResourceSchema"
-      assert metadata_section =~ "notEq?: TaskMetadataResourceSchema"
-      assert metadata_section =~ "in?: Array<TaskMetadataResourceSchema>"
+      # Embedded resource values take the resource's input shape
+      assert metadata_section =~ "eq?: TaskMetadataInputSchema;"
+      assert metadata_section =~ "notEq?: TaskMetadataInputSchema;"
+      assert metadata_section =~ "in?: Array<TaskMetadataInputSchema>;"
+      refute metadata_section =~ "greaterThan"
+      refute metadata_section =~ "TaskMetadataResourceSchema"
     end
   end
 

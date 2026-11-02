@@ -43,7 +43,7 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
         "export type GeoPoint = {lat: number, lng: number};",
         "export type ColorPalette = {primary: string, secondary: string, accent: string};",
         "export type Theme = #{@theme_plain};",
-        "export type LineItem = {label: string, price: Money, meta: TaskMetadataResourceSchema | null};"
+        "export type LineItem = {label: string, price: Money, meta: {createdBy: string, id: UUID, isPublic: boolean, notes: string | null, priorityLevel: number | null} | null};"
       ]
 
       for line <- expected, do: assert(line in lines(types), "missing line: #{line}")
@@ -62,9 +62,16 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
     end
 
     test "a type reaching a non-embedded resource gets only its plain alias", %{types: types} do
-      assert "export type AshTypescriptTestTodoRef = {todo: TodoResourceSchema | null};" in lines(
-               types
-             )
+      [todo_ref] =
+        Enum.filter(
+          lines(types),
+          &String.starts_with?(&1, "export type AshTypescriptTestTodoRef = ")
+        )
+
+      # A resource at a plain position is its attributes, not its selection schema
+      assert todo_ref =~ "export type AshTypescriptTestTodoRef = {todo: {"
+      assert todo_ref =~ "title: string"
+      refute todo_ref =~ "ResourceSchema"
 
       refute types =~ "TodoRefInput"
       refute types =~ "{todo?: TodoInputSchema"
@@ -151,29 +158,31 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
   end
 
   describe "plain positions" do
-    test "filter values reference the alias", %{types: types} do
+    test "filter values reference the input alias", %{types: types} do
       price = filter_block(types, "TaskFilterInput", "price")
       assert price =~ "    eq?: Money;\n"
       assert price =~ "    notEq?: Money;\n"
       assert price =~ "    in?: Array<Money>;\n"
 
       assert filter_block(types, "TaskFilterInput", "geoPoint") =~ "    eq?: GeoPoint;\n"
-      assert filter_block(types, "TaskFilterInput", "theme") =~ "    eq?: Theme;\n"
+      assert filter_block(types, "TaskFilterInput", "theme") =~ "    eq?: ThemeInput;\n"
       assert filter_block(types, "TodoFilterInput", "colorPalette") =~ "    eq?: ColorPalette;\n"
     end
 
-    test "filter values of other typed maps are plain", %{types: types} do
+    test "filter values of other typed maps take their input shape", %{types: types} do
       assert types =~
-               "    eq?: {totalCount1: number, isComplete: boolean | null, lastUpdatedAt: UtcDateTime | null};\n"
+               "    eq?: {totalCount1: number, isComplete?: boolean | null, lastUpdatedAt?: UtcDateTime | null};\n"
 
       refute types =~ ~r/^    eq\?: \{totalCount1.*__type/m
     end
 
-    test "union filter values keep their schema form", %{types: types} do
+    test "union filter values are { member: input } objects", %{types: types} do
       content = filter_block(types, "InputParsingResourceFilterInput", "content")
 
       assert content =~
-               ~s(    eq?: { __type: "Union"; __primitiveFields: "simpleValue"; text?: InputParsingTextContentResourceSchema; data?: {itemCount: number, isCached: boolean | null, __type: "TypedMap", __primitiveFields: "itemCount" | "isCached"}; simpleValue?: string; };)
+               ~s(    eq?: { text: InputParsingTextContentInputSchema } | { data: {itemCount: number, isCached?: boolean | null} } | { simpleValue: string };)
+
+      refute content =~ "__type"
     end
 
     test "metadata values are plain", %{rpc: rpc} do

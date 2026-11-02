@@ -326,7 +326,7 @@ Positions that carry plain data reference the aliases:
 |----------|------------|
 | Action inputs, calculation arguments, typed controller route arguments, identity and `getBy` values | the input alias (`Money`, `ThemeInput`) |
 | Typed controller route results and typed channel payloads | the alias (`Money`, `Theme`) |
-| Filter operator values (`{ price: { eq: money } }`) | the alias |
+| Filter operator values (`{ price: { eq: money } }`) | the input alias |
 | Action metadata | the alias |
 | Fields of another declared type | the alias (`LineItem = {…, price: Money, …}`); inside an `Input` alias, the nested type's input alias |
 
@@ -359,20 +359,20 @@ own. Code that declares its own `Money` next to an import of the generated
 names needs one of them renamed (`ts_alias "…"`, see
 [Name Collisions](#name-collisions)).
 
-Filter values of every typed map (a custom type or not) are plain objects with
-no `__type` / `__primitiveFields` keys, and so are typed-map values in action
-metadata. Union filter values keep their field-selection form.
+Filter values of every typed map (a custom type or not) take the type's input
+shape (client keys, nullable fields optional), with no `__type` /
+`__primitiveFields` keys; the server maps the keys back and rejects unknown
+ones as `unknown_input`. Typed-map values in action metadata are plain objects.
+Union filter values are `{ member: value }` objects, one per member. Ordering
+operators (`lessThan`, `greaterThan`, …) are only offered on structured values
+that are declared custom types (which may define their own ordering), not on
+other typed maps, structs, embedded resources or unions.
 
-> #### Embedded resources inside a declared type {: .warning}
->
-> An embedded-resource field of a declared type is rendered as the resource's
-> field-selection schema in the type's alias
-> (`LineItem = {…, meta: TaskMetadataResourceSchema | null}`), and so is one of
-> any typed map in filter values. That schema requires the `__type` /
-> `__primitiveFields` keys, so such a value can't be written by hand unless the
-> field is `null`. The input alias
-> (`LineItemInput = {…, meta?: TaskMetadataInputSchema | null}`) isn't
-> affected.
+An embedded-resource field of a declared type is rendered in the type's alias
+as a plain object of the resource's public attributes
+(`LineItem = {…, meta: {createdBy: string, …} | null}`). The input alias
+references the resource's input schema
+(`LineItemInput = {…, meta?: TaskMetadataInputSchema | null}`).
 
 Its zod and valibot schemas are objects of its fields, named once per type
 (see [Named Schemas](#named-schemas)), unless its `map` entry has `zod` /
