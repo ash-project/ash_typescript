@@ -118,7 +118,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
           validation_function?: true,
           is_validation: true,
           is_channel: true
-        )
+        ) ++
+        ConfigBuilder.build_get_by_config_field(resource, rpc_action)
 
     result_handler_type = "(result: ValidationResult) => void"
     error_handler_type = "any"
@@ -140,7 +141,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: false,
-        include_filtering_pagination: false
+        include_filtering_pagination: false,
+        rpc_action: rpc_action
       )
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"

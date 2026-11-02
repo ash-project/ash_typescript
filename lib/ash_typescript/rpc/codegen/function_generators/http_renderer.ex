@@ -99,7 +99,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         rpc_action_name: rpc_action_name,
         validation_function?: true,
         is_validation: true
-      )
+      ) ++ ConfigBuilder.build_get_by_config_field(resource, rpc_action)
 
     config_fields = config_fields ++ fetch_config_fields()
 
@@ -108,7 +108,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
     validation_payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: false,
-        include_filtering_pagination: false
+        include_filtering_pagination: false,
+        rpc_action: rpc_action
       )
 
     validation_payload_def = "{\n    #{Enum.join(validation_payload_fields, ",\n    ")}\n  }"
