@@ -59,6 +59,59 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
       assert error_message =~ "is_valid?"
     end
 
+    test "detects a typescript_field_names mapping that isn't a TypeScript identifier" do
+      defmodule DashedSwatch do
+        use Ash.Type.NewType,
+          subtype_of: :map,
+          constraints: [fields: [hex_code: [type: :string]]]
+
+        def typescript_field_names, do: [hex_code: "hex-code"]
+      end
+
+      defmodule TestResourceDashedMapping do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceDashedMapping"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          action :get_swatch, DashedSwatch do
+            run fn _input, _context -> {:ok, %{hex_code: "#000000"}} end
+          end
+        end
+      end
+
+      defmodule TestDomainDashedMapping do
+        use Ash.Domain,
+          otp_app: :ash_typescript,
+          extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource TestResourceDashedMapping do
+            rpc_action :get_swatch, :get_swatch
+          end
+        end
+
+        resources do
+          resource TestResourceDashedMapping
+        end
+      end
+
+      assert {:error, error_message} = silent_verify_for_domains([TestDomainDashedMapping])
+      assert error_message =~ ~r/Invalid field names found in action return types/
+
+      assert error_message =~
+               ~s(field hex_code -> a TypeScript identifier ("hex-code" is not one\))
+    end
+
     test "detects invalid field names in keyword return type" do
       defmodule TestResourceKeywordReturn do
         use Ash.Resource,

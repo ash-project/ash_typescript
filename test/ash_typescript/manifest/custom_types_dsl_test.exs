@@ -180,6 +180,23 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
                  "only for an `Ash.Type.NewType` with fields, such as an `Ash.TypedStruct`)."
     end
 
+    test "a client_name that isn't a TypeScript identifier is rejected" do
+      message =
+        compile_error!(
+          DashedClientName,
+          quote do
+            custom_types do
+              map SomeLib.Swatch do
+                field :hex, :string, client_name: "hex-code"
+              end
+            end
+          end
+        )
+
+      assert message =~
+               ~s(The client_name "hex-code" of field :hex of SomeLib.Swatch is not a TypeScript identifier)
+    end
+
     test "a module declared twice is rejected" do
       message =
         compile_error!(

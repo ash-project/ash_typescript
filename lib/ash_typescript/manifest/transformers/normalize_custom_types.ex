@@ -31,6 +31,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
       field winning per key). A field typed by a `map` entry isn't checked;
+    * a `field` `client_name` that isn't a TypeScript identifier;
     * a `ts_alias` string (`map` or `scalar`) that isn't a TypeScript
       identifier, or is a reserved word (`string`, `object`, `default`, …;
       `AshTypescript.CustomTypes.check_name/2`), or is a global TypeScript
@@ -298,6 +299,25 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     path = [:map, map.module, :field, field.name]
     subject = "field #{inspect(field.name)} of #{inspect(map.module)}"
 
+    with :ok <- check_client_name(field, path, subject) do
+      normalize_field_type(field, path, subject, by_module)
+    end
+  end
+
+  defp check_client_name(%Field{client_name: nil}, _path, _subject), do: :ok
+
+  defp check_client_name(%Field{client_name: name} = field, path, subject) do
+    if AshTypescript.NameValidation.identifier?(name) do
+      :ok
+    else
+      {:error,
+       {field, path,
+        "The client_name #{inspect(name)} of #{subject} is not a TypeScript identifier " <>
+          "([A-Za-z_$][A-Za-z0-9_$]*)."}}
+    end
+  end
+
+  defp normalize_field_type(field, path, subject, by_module) do
     case CustomTypes.resolve_field_type(field.type, field.constraints, &Map.get(by_module, &1)) do
       {:ok, base, constraints} ->
         with :ok <- init(field, path, base, constraints, subject) do

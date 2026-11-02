@@ -21,7 +21,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   level verifiers (`VerifyFieldNames`, `VerifyMapFieldNames`).
   """
   use Spark.Dsl.Verifier
-  import AshTypescript.NameValidation, only: [invalid_name?: 1, make_name_better: 1]
+
+  import AshTypescript.NameValidation,
+    only: [identifier?: 1, invalid_name?: 1, make_name_better: 1]
+
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias Spark.Dsl.Verifier
@@ -209,10 +212,18 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
       field_error_kind = field_error_kind(type)
 
       name_errors =
-        if invalid_name?(mapped_name) do
-          [{resource, context, field_error_kind, field_name, make_name_better(field_name)}]
-        else
-          []
+        cond do
+          invalid_name?(mapped_name) ->
+            [{resource, context, field_error_kind, field_name, make_name_better(field_name)}]
+
+          not identifier?(mapped_name) ->
+            [
+              {resource, context, field_error_kind, field_name,
+               "a TypeScript identifier (#{inspect(to_string(mapped_name))} is not one)"}
+            ]
+
+          true ->
+            []
         end
 
       name_errors ++ validate_type(resource, field_type, context, visited, type_lookup)
