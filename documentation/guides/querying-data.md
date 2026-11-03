@@ -23,7 +23,7 @@ import { listTodos } from './ash_rpc';
 // First page
 const page1 = await listTodos({
   fields: ["id", "title", "completed"],
-  page: { offset: 0, limit: 20 }
+  page: { offset: 0, limit: 20, count: true }
 });
 
 if (page1.success) {
@@ -41,12 +41,12 @@ const page2 = await listTodos({
 
 **Response includes:**
 - `results`: Array of items for the current page
-- `count`: Total number of items
+- `count`: Total number of items, only when the page requests it (`count: true`) on a `countable` action; otherwise `null`
 - `hasMore`: Boolean indicating if more results exist
 
 ### Keyset (Cursor-based) Pagination
 
-For better performance with large datasets:
+For better performance with large datasets. On an action that supports both offset and keyset, a page with only `limit` uses Ash's `default_page_type`, which is `:offset` unless you set `config :ash, default_page_type: :keyset`; once you pass `after` or `before`, the page is keyset:
 
 ```typescript
 // First page
@@ -129,7 +129,7 @@ const byDate = await listTodos({
 - `fieldName` or `+fieldName`: ascending order
 - `-fieldName`: descending order
 - `++fieldName`: ascending, nulls first
-- `--fieldName`: descending, nulls first
+- `--fieldName`: descending, nulls last
 
 ### Multiple Sort Fields
 
@@ -161,7 +161,7 @@ end
 
 When disabled:
 - The `sort` parameter is **not included** in TypeScript types
-- Any sort sent by client is **silently ignored**
+- A `sort` sent anyway is rejected with a `sort_not_supported` error (`details.reason: "disabled"`)
 - Filtering and pagination remain available
 
 ```typescript
@@ -216,6 +216,8 @@ const overdueTodos = await listTodos({
 - `has`: Array contains a value (array fields)
 
 The exact operator set per field is derived from the field's type and generated into each resource's `FilterInput` type — your editor's autocomplete shows what's available. Note that `isNil` is not offered on fields that can never be nil, such as `count`/`exists`/`list` aggregates.
+
+A field whose value is a record of a non-embedded resource, such as a calculation returning a `Todo`, only offers `isNil`. Ash's filter input can compare such a value only as a whole, which never matches, and can't reach the fields inside it. To filter on one of them, expose it as an expression calculation of its own that reaches the field through a relationship (`calculate :author_name, :string, expr(author.name)`), or filter through the relationship directly; an expression can't read fields through a calculation's returned record. Module calculations without an `expression/2` callback can only be filtered on by data layers that run them in Elixir, such as ETS; see Ash's [calculations guide](https://hexdocs.pm/ash/calculations.html).
 
 ### Logical Operators
 
@@ -297,6 +299,30 @@ const johnsTodos = await listTodos({
 });
 ```
 
+### Filtering on Structured Values
+
+The value of `eq`, `notEq` and `in` on an embedded resource, a typed map or
+struct, or a map-like custom type takes the type's input shape: its fields'
+client names, with nullable fields optional. These values are plain objects,
+without the `__type` / `__primitiveFields` keys of result types. The server
+maps the keys back to the attribute names, and an unknown key is an
+`unknown_input` error. A union's value is a `{ member: value }` object, as in
+union input.
+
+```typescript
+const todos = await listTodos({
+  fields: ["id"],
+  filter: {
+    coordinates: { eq: { latitude: 59.9, longitude: 10.7 } },
+    content: { eq: { note: "Call back" } }
+  }
+});
+```
+
+Ordering operators (`lessThan`, `greaterThan`, …) are only offered on map-like
+custom types with declared fields (which can define their own ordering), not on
+other typed maps, structs, embedded resources or unions.
+
 ### Disabling Client-Side Filtering
 
 Use `enable_filter?: false` when filtering should be server-controlled:
@@ -315,8 +341,8 @@ end
 
 When disabled:
 - The `filter` parameter is **not included** in TypeScript types
-- Filter types for this action are **not generated**
-- Any filter sent by client is **silently ignored**
+- The action's config type has no `filter` key (the resource's `FilterInput` type is still generated for other actions)
+- A `filter` sent anyway is rejected with a `filter_not_supported` error (`details.reason: "disabled"`)
 
 ```typescript
 // With enable_filter?: false - use action arguments instead
@@ -348,7 +374,7 @@ const result = await listTodos({
     ]
   },
   sort: ["-priority", "+dueDate"],
-  page: { offset: 0, limit: 20 }
+  page: { offset: 0, limit: 20, count: true }
 });
 
 if (result.success) {
@@ -403,7 +429,7 @@ todoFilterFields.forEach(field => {
 const field: TodoFilterField = "priority";  // Autocompleted by IDE
 ```
 
-These include attributes, relationships, and aggregates that are filterable on the resource.
+These include attributes, calculations, aggregates and relationships that are filterable on the resource.
 
 ### Filter Operators
 
