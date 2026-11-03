@@ -152,13 +152,13 @@ For requests that require authentication, pass headers:
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
 // With CSRF protection (for browser-based apps)
-const result = await listTodos({
+const csrfResult = await listTodos({
   fields: ["id", "title"],
   headers: buildCSRFHeaders()
 });
 
 // With Bearer token authentication
-const result = await listTodos({
+const bearerResult = await listTodos({
   fields: ["id", "title"],
   headers: {
     "Authorization": "Bearer your-token-here"
@@ -166,7 +166,7 @@ const result = await listTodos({
 });
 
 // Combining both
-const result = await listTodos({
+const combinedResult = await listTodos({
   fields: ["id", "title"],
   headers: {
     ...buildCSRFHeaders(),
@@ -189,48 +189,50 @@ import {
   buildCSRFHeaders
 } from './ash_rpc';
 
-const headers = buildCSRFHeaders();
+async function crudDemo() {
+  const headers = buildCSRFHeaders();
 
-// CREATE
-const createResult = await createTodo({
-  fields: ["id", "title"],
-  input: { title: "Learn AshTypescript" },
-  headers
-});
+  // CREATE
+  const createResult = await createTodo({
+    fields: ["id", "title"],
+    input: { title: "Learn AshTypescript" },
+    headers
+  });
 
-if (!createResult.success) {
-  console.error("Create failed:", createResult.errors);
-  return;
+  if (!createResult.success) {
+    console.error("Create failed:", createResult.errors);
+    return;
+  }
+
+  const todoId = createResult.data.id;
+
+  // READ (single)
+  const getResult = await getTodo({
+    fields: ["id", "title", "completed"],
+    getBy: { id: todoId },
+    headers
+  });
+
+  // READ (list)
+  const listResult = await listTodos({
+    fields: ["id", "title", "completed"],
+    headers
+  });
+
+  // UPDATE
+  const updateResult = await updateTodo({
+    fields: ["id", "title", "completed"],
+    identity: todoId,
+    input: { title: "Mastered AshTypescript" },
+    headers
+  });
+
+  // DELETE
+  const deleteResult = await destroyTodo({
+    identity: todoId,
+    headers
+  });
 }
-
-const todoId = createResult.data.id;
-
-// READ (single)
-const getResult = await getTodo({
-  fields: ["id", "title", "completed"],
-  getBy: { id: todoId },
-  headers
-});
-
-// READ (list)
-const listResult = await listTodos({
-  fields: ["id", "title", "completed"],
-  headers
-});
-
-// UPDATE
-const updateResult = await updateTodo({
-  fields: ["id", "title", "completed"],
-  identity: todoId,
-  input: { title: "Mastered AshTypescript" },
-  headers
-});
-
-// DELETE
-const deleteResult = await destroyTodo({
-  identity: todoId,
-  headers
-});
 ```
 
 ## What's Next?

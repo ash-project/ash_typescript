@@ -21,6 +21,10 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## Breaking Changes
 
+### 0.20.0
+
+0.20 moves the RPC runtime to the AshRpc package and changes several APIs and config keys. See [Upgrading to v0.20](documentation/upgrading/upgrading-to-0.20.md) for every change and the migration steps.
+
 ### 0.18.0
 
 #### Required Manifest Module
@@ -154,7 +158,7 @@ Actions and relationship read actions referenced in `typescript_rpc` blocks are 
 - **Auto-generated filters** - Type-safe filtering with comprehensive operator support
 - **Form validation** - Client-side validation functions for all actions
 - **Typed queries** - Pre-configured queries for SSR and optimized data fetching
-- **Flexible field formatting** - Separate input/output formatters (camelCase, snake_case, etc.)
+- **Flexible field formatting** - One output formatter (camelCase, snake_case, etc.) names every generated field, and requests use the same names
 - **Custom HTTP clients** - Support for custom fetch functions and request options (axios, interceptors, etc.)
 - **Field/argument name mapping** - Map invalid TypeScript identifiers to valid names
 
@@ -209,7 +213,7 @@ defmodule MyApp.Domain do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
       rpc_action :create_todo, :create
-      rpc_action :get_todo, :read, get?: true
+      rpc_action :get_todo, :read, get_by: [:id]
     end
   end
 end
@@ -306,9 +310,9 @@ Check out the **[AshTypescript Demo](https://github.com/ChristianAlexander/ash_t
 ## Requirements
 
 - Elixir 1.15 or later
-- Ash 3.0 or later
+- Ash 3.27 or later
 - Phoenix (for RPC controller integration)
-- Node.js 16+ (for TypeScript)
+- Node.js 18+ (for TypeScript)
 
 ## Contributing
 

@@ -34,7 +34,7 @@ import { listTodos, createTodo, buildCSRFHeaders } from './ash_rpc';
 
 function TodoList() {
   const [todos, setTodos] = useState<
-    Array<{ id: string; title: string; completed: boolean }>
+    Array<{ id: string; title: string; completed: boolean | null }>
   >([]);
   const headers = buildCSRFHeaders();
 
@@ -58,7 +58,7 @@ function TodoList() {
 import { ref, onMounted } from 'vue';
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-const todos = ref<Array<{ id: string; title: string; completed: boolean }>>([]);
+const todos = ref<Array<{ id: string; title: string; completed: boolean | null }>>([]);
 const headers = buildCSRFHeaders();
 
 onMounted(async () => {
@@ -81,7 +81,7 @@ onMounted(async () => {
   import { onMount } from 'svelte';
   import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-  let todos: Array<{ id: string; title: string; completed: boolean }> = [];
+  let todos: Array<{ id: string; title: string; completed: boolean | null }> = [];
   const headers = buildCSRFHeaders();
 
   onMount(async () => {
@@ -242,14 +242,20 @@ end
 
 In your meta-framework, import the generated functions like any other module:
 
-```typescript
-// SvelteKit example: src/routes/todos/+page.svelte
+```svelte
 <script lang="ts">
-  import { listTodos, createTodo } from '$lib/generated/ashRpc';
+  // SvelteKit example: src/routes/todos/+page.svelte
+  import { onMount } from 'svelte';
+  import { listTodos } from '$lib/generated/ashRpc';
+
+  let todos: Array<{ id: string; title: string; user: { name: string } }> = [];
 
   // Full type safety — fields, filters, sorting all typed
-  const result = await listTodos({
-    fields: ["id", "title", { user: ["name"] }],
+  onMount(async () => {
+    const result = await listTodos({
+      fields: ["id", "title", { user: ["name"] }],
+    });
+    if (result.success) todos = result.data;
   });
 </script>
 ```
@@ -262,11 +268,11 @@ For SPAs that don't use Phoenix sessions, use [Lifecycle Hooks](../features/life
 # config/config.exs
 config :ash_typescript,
   rpc_action_before_request_hook: "RpcHooks.beforeRequest",
-  import_into_generated: [%{import_name: "RpcHooks", file: "./rpcHooks"}]
+  import_into_generated: [%{import_name: "RpcHooks", file: "sveltekit/src/lib/rpcHooks.ts"}]
 ```
 
 ```typescript
-// src/lib/rpcHooks.ts
+// sveltekit/src/lib/rpcHooks.ts
 import type { ActionConfig } from '$lib/generated/ashRpc';
 
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
@@ -285,14 +291,14 @@ During development, run both servers:
 - **Phoenix**: `mix phx.server` (serves API + LiveView pages)
 - **Meta-framework**: `npm run dev` in the frontend directory (Vite dev server with HMR)
 
-The meta-framework's dev server proxies API requests to Phoenix. For production, just `npm run build` to output static files to `priv/`, and Phoenix serves everything.
+Configure the meta-framework's dev server to proxy `/api` to Phoenix (for example Vite's `server.proxy: { '/api': 'http://localhost:4000' }`). For production, just `npm run build` to output static files to `priv/`, and Phoenix serves everything.
 
 ## CSRF Protection
 
 For browser-based applications using Phoenix session authentication:
 
 ```typescript
-import { buildCSRFHeaders } from './ash_rpc';
+import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
 const result = await listTodos({
   fields: ["id", "title"],

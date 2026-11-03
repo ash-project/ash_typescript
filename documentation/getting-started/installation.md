@@ -94,7 +94,7 @@ If you prefer manual setup, add to your `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:ash_typescript, "~> 0.18"}
+    {:ash_typescript, "~> 0.20"}
   ]
 end
 ```
@@ -185,7 +185,8 @@ AshTypescript's RPC profile and send the JSON response themselves (always HTTP
 from the conn (`Ash.PlugHelpers`). If you need the response map instead — to
 post-process it or render it yourself — call
 `AshRpc.run_action(AshTypescript.RpcProfile, conn, params)` /
-`AshRpc.validate_action(AshTypescript.RpcProfile, conn, params)`.
+`AshRpc.validate_action(AshTypescript.RpcProfile, conn, params)`. See
+[Calling the Runtime from Elixir](#calling-the-runtime-from-elixir).
 
 ### 4. Add Routes
 
@@ -230,7 +231,42 @@ mix ash.codegen
 mix ash_typescript.codegen
 ```
 
-Types can also be regenerated automatically in development: add `AshPhoenix.Plug.CheckCodegenStatus` (from the `ash_phoenix` package, which AshTypescript no longer depends on) to your endpoint (it shows an error page when generated files are stale), and optionally set `config :ash_typescript, always_regenerate: true` in `config/dev.exs` to have it silently rewrite the files instead.
+Types can also be regenerated automatically in development: add `AshPhoenix.Plug.CheckCodegenStatus` (from the `ash_phoenix` package; AshTypescript doesn't depend on it, so add it to your deps) to your endpoint (it shows an error page when generated files are stale), and optionally set `config :ash_typescript, always_regenerate: true` in `config/dev.exs` to have it silently rewrite the files instead.
+
+## Calling the Runtime from Elixir
+
+`AshRpc.run_action/4` and `AshRpc.validate_action/4` take the profile, a
+source, the request params (as the client sends them) and options, and return
+the client-formatted response map: `%{"success" => true, "data" => ...}` or
+`%{"success" => false, "errors" => [...]}`. They never return tuples, and an
+exception raised while handling the request is logged and returned as an
+`unknown_error` failure response.
+
+The source supplies the actor, tenant and Ash context:
+
+- a `%Plug.Conn{}` (read with `Ash.PlugHelpers`),
+- a `%Phoenix.Socket{}` (read from `socket.assigns[:ash_actor]`,
+  `[:ash_tenant]` and `[:ash_context]`),
+- an `%AshRpc.Context{actor: ..., tenant: ..., context: %{}}`, for calls with
+  no conn or socket, such as LiveViews or background jobs.
+
+A `tenant` param overrides the source's tenant.
+
+```elixir
+AshRpc.run_action(
+  AshTypescript.RpcProfile,
+  %AshRpc.Context{actor: current_user, tenant: org_id},
+  %{"action" => "list_todos", "fields" => ["id", "title"]}
+)
+```
+
+Options:
+
+- `manifest:` runs against the given `%Ash.Info.Manifest{}` instead of the
+  configured manifest module's (see
+  [Testing with another formatter](../advanced/field-name-mapping.md#testing-with-another-formatter)).
+- `entrypoint:` runs the given entrypoint and ignores the `action` param. Typed
+  queries use it (see [Typed Queries](../guides/typed-queries.md)).
 
 ## Verify Installation
 
