@@ -78,7 +78,7 @@ With namespaces enabled, the generated JSDoc includes the namespace:
 
 ```typescript
 /**
- * List all todos
+ * Read Todo records
  *
  * @ashActionType :read
  * @namespace todos
@@ -92,11 +92,11 @@ Generated TypeScript functions include JSDoc comments that provide IDE discovera
 
 ### Default Output
 
-Every generated RPC function includes basic JSDoc:
+Every generated RPC function includes basic JSDoc. Without a `description`, the summary line is derived from the action type and resource:
 
 ```typescript
 /**
- * List all todos
+ * Read Todo records
  *
  * @ashActionType :read
  */
@@ -116,11 +116,11 @@ This adds internal references:
 
 ```typescript
 /**
- * List all todos
+ * Read Todo records
  *
  * @ashActionType :read
  * @ashResource MyApp.Todo
- * @ashAction :list_todos
+ * @ashAction :read
  * @ashActionDef lib/my_app/resources/todo.ex
  * @rpcActionDef lib/my_app/domain.ex
  * @namespace todos
@@ -239,16 +239,16 @@ Generated: 2025-01-15
 
 ### Todo
 
-| Function | Action Type | Ash Action | Resource | Validation | Zod Schema | Channel |
-|----------|-------------|------------|----------|------------|------------|---------|
-| `listTodos` | read | `list` | `MyApp.Todo` | `validateListTodos` | `ListTodosInputSchema` | `listTodosChannel` |
-| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `CreateTodoInputSchema` | `createTodoChannel` |
+| Function | Action Type | Ash Action | Resource | Validation | Zod Schema | Channel | Validation Channel |
+|----------|-------------|------------|----------|------------|------------|---------|--------------------|
+| `listTodos` | read | `read` | `MyApp.Todo` | `validateListTodos` | `listTodosZodSchema` | `listTodosChannel` | `validateListTodosChannel` |
+| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `createTodoZodSchema` | `createTodoChannel` | `validateCreateTodoChannel` |
 
 - **`listTodos`**: Fetch all todos for the current user
 - **`createTodo`**: Create a new Todo | **See also:** `listTodos`
 
 **Typed Queries:**
-- `todoFields` -> `TodoFieldsResult`: Pre-defined field selection
+- `todoFields` → `TodoFieldsResult`: Pre-defined field selection
 ```
 
 ### Grouping Behavior
@@ -264,6 +264,8 @@ The `add_ash_internals_to_manifest` config controls whether internal Ash details
 |---------|---------------|
 | `false` | Function, Action Type |
 | `true` | Function, Action Type, Ash Action, Resource |
+
+The Validation, Zod Schema, Valibot Schema, Channel and Validation Channel columns follow their own settings (`generate_validation_functions`, `generate_zod_schemas`, `generate_valibot_schemas`, `generate_phx_channel_rpc_actions`), whatever `add_ash_internals_to_manifest` is. An action without inputs shows `-` in the schema columns.
 
 ## Configuration Reference
 

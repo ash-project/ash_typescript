@@ -159,7 +159,7 @@ end
 
 # config/config.exs
 config :ash_typescript,
-  import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}]
+  import_into_generated: [%{import_name: "CustomTypes", file: "assets/js/customTypes.ts"}]
 ```
 
 ```typescript
@@ -179,10 +179,10 @@ needs no such file, and `ts_alias` exports it under a name of its own. See
 > #### Config keys are gone {: .warning}
 >
 > `config :ash_typescript, type_mapping_overrides: [...]`,
-> `zod_mapping_overrides: [...]` and `valibot_mapping_overrides: [...]` are no
-> longer read. Compiling the manifest prints a warning while one is still set,
-> and its entries have no effect. Move them to `custom_types`: see the
-> [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest).
+> `zod_mapping_overrides: [...]` and `valibot_mapping_overrides: [...]` aren't
+> read. Compiling the manifest warns while one is set, and its entries have no
+> effect. Move them to `custom_types`: see the
+> [upgrade guide](../upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types).
 
 ## Map-Like Custom Types
 
@@ -196,7 +196,12 @@ nullable, as typed-map fields do.
 Declare a `map` in the manifest module's `custom_types` section. Each `field`
 takes the field's name and type, plus `constraints`, `allow_nil?` (default
 `true`), `client_name` and `description`. `zod` and `valibot` replace the
-generated schemas:
+generated schemas.
+
+A `client_name` is used as written, so it must be a TypeScript identifier
+(`[A-Za-z_$][A-Za-z0-9_$]*`): `"accentColour"`, not `"accent-colour"`. The
+manifest fails to compile otherwise ("The client_name … of field … is not a
+TypeScript identifier").
 
 ```elixir
 custom_types do
@@ -252,7 +257,11 @@ For each custom type, the first of these that applies supplies its fields:
 3. a built-in `map` entry (see [Built-In Types](#built-in-types));
 4. `composite_types/1`, when `composite?/1` is true.
 
-`typescript_field_names/0` names the fields from steps 2-4.
+`typescript_field_names/0` names the fields from steps 2-4. Its names are used
+as written and must be TypeScript identifiers too. A non-identifier name fails
+the manifest ("Invalid field names found in action return types or argument
+types") when the type is reached through an RPC action argument or a generic
+action's return type.
 
 Fields are **per module**, not per use. `typescript_fields/0` takes no
 constraints, and `composite?/1` and `composite_types/1` are called with the
@@ -263,7 +272,8 @@ shape with a `map` entry or `typescript_fields/0`.
 An `Ash.Type.NewType` over a custom type inherits the subtype's fields (its
 `custom_types` entry, its `typescript_fields/0`, or its built-in) unless the
 NewType declares its own. The NewType's `typescript_field_names/0` win over
-the subtype's. When it inherits the subtype's `map` entry, it inherits that
+the subtype's, except over a subtype's `map` entry, whose `client_name`s are
+the only names. When it inherits the subtype's `map` entry, it inherits that
 entry's `zod` / `valibot` too. Names aren't inherited: the NewType gets its
 own alias and schemas, from its own `map` entry or `typescript_type_alias/0`,
 else its joined module name (`MyAppNewMoney`), never the subtype's.
@@ -384,32 +394,9 @@ A map-like custom type, or one with declared fields, can't name its TypeScript
 type: the generated type has to match the fields clients select and the keys
 the server sends. If such a type exports `typescript_type/0`, or a `scalar`
 entry covers it, compiling the manifest fails with a migration message. A `map`
-entry has no `ts_type` option.
-
-#### Migrating from `typescript_type_name/0`
-
-Before, a map-storage type named a hand-written TypeScript type:
-
-```elixir
-defmodule MyApp.ColorPalette do
-  use Ash.Type
-  def storage_type(_), do: :map
-  # ...
-  def typescript_type_name, do: "CustomTypes.ColorPalette"
-end
-```
-
-After:
-
-1. remove `typescript_type_name/0` (`typescript_type/0` since this release);
-2. declare the fields with `typescript_fields/0` (or a `map` entry for a type
-   you don't own);
-3. select sub-fields in the client (`{ colorPalette: ["primary", "secondary"] }`
-   instead of `"colorPalette"`).
-
-The hand-written `CustomTypes.ColorPalette` is no longer referenced by the
-generated code. Delete it and import the generated `ColorPalette` alias
-instead, or keep it for your own code.
+entry has no `ts_type` option. To upgrade a v0.19 type that named its
+TypeScript type, see
+[Map-like custom types declare fields](../upgrading/upgrading-to-0.20.md#map-like-custom-types-declare-fields).
 
 ### Precise Member Types
 
@@ -738,6 +725,16 @@ box, as entries of the same shape as `custom_types` (the core types, such as
 | `AshDoubleEntry.ULID` | `scalar` over `:string` | the alias `ULID = string` |
 | `AshPostgres.Ltree` | `scalar` with MFAs, by the `escape?` constraint | the alias `AshPostgresLtreeArray = string[]` (`escape?: true`) or `AshPostgresLtreeFlexible = string \| string[]` |
 
+Money is a typed map like any declared type: clients select its fields, and
+a value is sent as its declared `currency` and `amount` only, so the other
+keys of the `%Money{}` struct (such as `format_options`) never reach the
+client.
+
+`AshUUID.UUID` isn't built in. Its values are encoded and prefixed by default
+(`encoded?: true`, `prefixed?: true`), so they aren't RFC UUIDs: declare it as
+`scalar AshUUID.UUID, :string`, not over `:uuid`, whose zod and valibot schemas
+would reject them.
+
 ULID's and Ltree's aliases are exported once per variant used and referenced
 at every use (their zod/valibot schemas stay inline). A `scalar` entry for
 ULID or Ltree without `ts_alias` replaces the built-in, so its uses are typed
@@ -981,7 +978,7 @@ constraints.
 
 ```typescript
 // More permissive - values can be used directly
-const todo = await getTodo({ fields: ["id", "customData"] });
+const todo = await getTodo({ input: { id: "todo-123" }, fields: ["id", "customData"] });
 if (todo.success && todo.data.customData) {
   const value = todo.data.customData.someField;  // OK - no error
   console.log(value.toUpperCase());              // Runtime error if not a string!
@@ -992,7 +989,7 @@ if (todo.success && todo.data.customData) {
 
 ```typescript
 // Stricter - requires type checking before use
-const todo = await getTodo({ fields: ["id", "customData"] });
+const todo = await getTodo({ input: { id: "todo-123" }, fields: ["id", "customData"] });
 if (todo.success && todo.data.customData) {
   const value = todo.data.customData.someField;     // Type: unknown
   console.log(value.toUpperCase());                 // ❌ TypeScript error!
@@ -1022,11 +1019,11 @@ config :ash_typescript,
   import_into_generated: [
     %{
       import_name: "CustomTypes",
-      file: "./customTypes"
+      file: "assets/js/customTypes.ts"
     },
     %{
       import_name: "MyAppConfig",
-      file: "./myAppConfig"
+      file: "assets/js/myAppConfig.ts"
     }
   ]
 ```
@@ -1043,7 +1040,7 @@ import * as MyAppConfig from "./myAppConfig";
 | Option | Type | Description |
 |--------|------|-------------|
 | `import_name` | `string` | Name to use for the import (e.g., `CustomTypes`) |
-| `file` | `string` | Relative path to the module file (e.g., `./customTypes`) |
+| `file` | `string` | Path to the module file from the project root (e.g., `assets/js/customTypes.ts`); each generated file imports it by a path relative to itself |
 
 ## Next Steps
 

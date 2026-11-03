@@ -49,7 +49,7 @@ end
 
 ```typescript
 // Input (create/update)
-const user = await createUser({
+const result = await createUser({
   input: {
     name: "John",
     addressLine1: "123 Main St",    // Mapped from address_line_1
@@ -205,7 +205,7 @@ const tasks = await readWithMetadata({
 
 ## Verification and Error Messages
 
-AshTypescript includes three verifiers that check for invalid names at compile time:
+AshTypescript checks names at compile time. The most common errors:
 
 ### Resource Field Verification Error
 
@@ -238,13 +238,16 @@ and define the `typescript_field_names/0` callback to map invalid field names to
 Invalid metadata field names found in show_metadata configuration.
 
 Invalid metadata field name in RPC action:
-  - RPC action: read_with_metadata (action: read)
+  - RPC action: read_with_metadata (action: read_with_metadata)
   - Field: field_1
   - Suggested: field1
   - Reason: Contains question marks or numbers preceded by underscores
 
-Metadata field names must be valid TypeScript identifiers and cannot conflict with resource fields.
+Metadata field names must be valid TypeScript identifiers.
 ```
+
+On a read action, a metadata client name equal to a public resource field's
+client name fails the manifest with `AshRpc.Manifest.NameCollisionError`.
 
 ## Automatic Field Formatting
 
@@ -265,11 +268,33 @@ config :ash_typescript,
 
 The formatter produces the client names used in both directions. Request keys are
 matched against those names exactly; there is no separate input formatter, so a key
-in another casing (`user_name` under `:camel_case`) is rejected.
+in another casing (`user_name` under `:camel_case`) is rejected: an input key with
+`unknown_input`, and a field, sort or filter name with `unknown_field`.
+
+Every key of the request goes through the formatter: the top-level keys (`action`,
+`input`, `identity`, `fields`, `filter`, `sort`, `page`, ...), input keys at any
+depth, field, sort and filter names, filter operators (`eq`, `greaterThan`, ...) and
+the filter connectives `and`, `or` and `not`. Response keys (`success`, `data`,
+`errors` and the keys of each error) go through it too. Under `:camel_case` and
+`:snake_case` the fixed keys read the same. Under `:pascal_case` (or a custom
+formatter) the generated client sends `{ Action: "list_todos", Fields: ["Id"] }` and
+reads `result.Success`, and hand-written clients must do the same.
+
+`output_field_formatter` is read when the manifest module compiles (see
+[Manifest Module](../reference/configuration.md#manifest-module-required)), so
+changing it at runtime has no effect.
 
 Explicit string mappings (`field_names`, `argument_names`, `typescript_field_names/0`)
 always take precedence over the formatter: those names are used exactly as written and
 never reformatted.
+
+A mapped name must be a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). A
+`field_names` value that isn't one fails the resource's compilation ("Invalid
+field_names configuration found"). A `typescript_field_names/0` value that isn't
+one fails the manifest wherever an RPC action argument or a generic action's
+return type reaches the type. So does a `client_name` in a `custom_types` `map`
+entry (see
+[Declaring Fields in the Manifest](custom-types.md#declaring-fields-in-the-manifest)).
 
 The generated TypeScript and the RPC runtime read these names from the same place, so
 every name in the generated client is one the server accepts and sends: resource
@@ -282,6 +307,32 @@ ignored, so use `field_names` in the `typescript` section instead.
 **Available formatters:**
 - `:camel_case` - Converts to camelCase (default)
 - `:snake_case` - Keeps snake_case
+- `:pascal_case` - Converts to PascalCase
+- `{Module, :function}` / `{Module, :function, extra_args}` - Custom: called with
+  the field name (then `extra_args`), returning the client name
+
+### Testing with another formatter
+
+To run requests or codegen under another formatter in a test, re-decorate the
+manifest and pass it explicitly, instead of changing the config:
+
+```elixir
+manifest =
+  AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
+
+# RPC requests
+AshRpc.run_action(AshTypescript.RpcProfile, conn, params, manifest: manifest)
+
+# Typed queries
+AshTypescript.run_typed_query(:dashboard_todo, %{}, conn, manifest: manifest)
+
+# Typed controllers and codegen read the process's manifest
+AshTypescript.with_manifest(manifest, fn -> ... end)
+```
+
+`AshTypescript.Manifest.redecorate/2` also rebuilds the stored typed controller
+routes and typed channel publications under the new formatter. Both are safe in
+`async: true` tests.
 
 ## Next Steps
 

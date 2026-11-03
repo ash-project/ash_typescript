@@ -28,7 +28,7 @@ AshTypescript provides comprehensive lifecycle hooks for both HTTP and Phoenix C
   - [Channel Hook Function Signatures](#channel-hook-function-signatures)
   - [beforeChannelPush Hook](#beforechannelpush-hook)
   - [afterChannelResponse Hook](#afterchannelresponse-hook)
-  - [Channel Config Precedence Rules](#channel-config-precedence-rules)
+  - [What beforeChannelPush Can Change](#what-beforechannelpush-can-change)
   - [Complete Channel Working Example](#complete-channel-working-example)
 - [Troubleshooting](#troubleshooting)
 
@@ -46,7 +46,7 @@ Lifecycle hooks provide a centralized way to:
 - **Handle errors globally** - Track errors in Sentry, Datadog, etc.
 - **Add correlation IDs** - Track requests across distributed systems
 - **Add default headers** - Set client version, request IDs, etc.
-- **Transform requests** - Modify config before sending
+- **Customize requests** - Add headers, fetch options or a custom fetch before sending (the request payload is already built, so the hook can't change it)
 
 ### HTTP Configuration
 
@@ -68,10 +68,11 @@ config :ash_typescript,
   rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext",
 
   # Import the module containing your hook functions
+  # (`file` is relative to the project root)
   import_into_generated: [
     %{
       import_name: "RpcHooks",
-      file: "./rpcHooks"
+      file: "assets/js/rpcHooks.ts"
     }
   ]
 ```
@@ -275,13 +276,13 @@ export interface ValidationConfig {
 **Key Points:**
 - Hooks receive the entire `config` object as a parameter
 - Hook context is accessed via `config.hookCtx` (optional)
-- `beforeRequest` returns a modified config object
+- `beforeRequest` returns a modified config object. The request payload (`input`, `fields`, `filter`, `sort`, `page`, `tenant`, …) is built before the hook runs, so only `headers`, `fetchOptions` and `customFetch` from the returned config affect the request; the whole returned config, `hookCtx` included, is passed to `afterRequest`
 - `afterRequest` returns nothing (void) - it's for side effects only
 - Hooks run unconditionally when configured (not gated by `hookCtx` presence)
 
 ### beforeRequest Hook
 
-The `beforeRequest` hook runs **before the HTTP request** and can modify the request configuration. Common use cases:
+The `beforeRequest` hook runs **before the HTTP request** and can add headers, fetch options or a custom fetch, and set `hookCtx` values for `afterRequest`. Common use cases:
 
 #### Adding Authentication Tokens
 
@@ -398,7 +399,7 @@ export function beforeRequest(actionName: string, config: ActionConfig): ActionC
 
 ### afterRequest Hook
 
-The `afterRequest` hook runs **after the HTTP request completes** (both success and error) and is used for side effects. It receives three parameters:
+The `afterRequest` hook runs **after a response is received** (any HTTP status) and is used for side effects. If `fetch` itself rejects (a network failure or an aborted request), the error propagates to the caller and `afterRequest` doesn't run. After the action name, it receives three parameters:
 
 1. `response: Response` - The raw HTTP response object
 2. `result: any | null` - Parsed JSON result (null when `response.ok` is false)
@@ -744,8 +745,7 @@ Channel lifecycle hooks provide a centralized way to:
 - **Measure performance** - Time channel operations and track latency
 - **Send telemetry** - Report metrics to monitoring services
 - **Handle errors globally** - Track channel errors in Sentry, Datadog, etc.
-- **Add default configuration** - Set default timeouts or other options
-- **Transform messages** - Modify config before pushing to channel
+- **Carry context** - Set `hookCtx` values (such as a start time) for `afterChannelResponse`
 
 ### Key Differences from HTTP Hooks
 
@@ -778,10 +778,11 @@ config :ash_typescript,
   rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext",
 
   # Import the module containing your channel hook functions
+  # (`file` is relative to the project root)
   import_into_generated: [
     %{
       import_name: "ChannelHooks",
-      file: "./channelHooks"
+      file: "assets/js/channelHooks.ts"
     }
   ]
 ```
@@ -869,7 +870,7 @@ export async function beforeChannelPush(
 export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
-  data: any,  // result (for ok), error (for error), or null (for timeout)
+  data: any,  // result (for ok), error (for error), or undefined (for timeout)
   config: ActionChannelConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
@@ -910,7 +911,7 @@ The generated `ActionChannelConfig` and `ValidationChannelConfig` interfaces inc
 // Generated ActionChannelConfig interface (in your generated file)
 export interface ActionChannelConfig {
   // Channel connection (required)
-  channel: Channel;
+  channel: any; // Phoenix Channel
 
   // Request parameters (varies by action)
   input?: Record<string, any>;
@@ -943,55 +944,15 @@ export interface ActionChannelConfig {
 
 **Key Points:**
 - Channel hooks support async operations (Promise-based)
-- `beforeChannelPush` receives action name and config, returns modified config
+- `beforeChannelPush` receives action name and config, returns a config that is passed to `afterChannelResponse`
 - `afterChannelResponse` receives action name, response type, data, and config
 - Response type distinguishes between three channel outcomes: "ok", "error", "timeout"
-- Return a modified config object from `beforeChannelPush` to change settings
+- The payload, `timeout` and handlers come from the caller's config: changing them in `beforeChannelPush` has no effect on the push (see [What beforeChannelPush Can Change](#what-beforechannelpush-can-change))
 - Your custom `hookCtx` type is automatically included when you configure context type settings
 
 ### beforeChannelPush Hook
 
-The `beforeChannelPush` hook runs **before the channel.push()** call and can modify the channel message configuration. Common use cases:
-
-#### Setting Default Timeout
-
-```typescript
-// channelHooks.ts
-export interface ActionChannelHookContext {
-  useDefaultTimeout?: boolean;
-  customTimeout?: number;
-}
-
-export async function beforeChannelPush(
-  actionName: string,
-  config: ChannelActionConfig
-): Promise<ChannelActionConfig> {
-  const ctx = config.hookCtx;
-
-  // Set default timeout if not specified
-  if (ctx?.useDefaultTimeout && !config.timeout) {
-    return {
-      ...config,
-      timeout: ctx.customTimeout || 10000  // 10 second default
-    };
-  }
-
-  return config;
-}
-```
-
-```typescript
-// Usage: Pass timeout preferences via hook context
-listTodosChannel({
-  channel: myChannel,
-  fields: ["id", "title"],
-  hookCtx: {
-    useDefaultTimeout: true,
-    customTimeout: 15000
-  },
-  resultHandler: (result) => console.log(result)
-});
-```
+The `beforeChannelPush` hook runs **before the channel.push()** call. The message payload is already built and the timeout and handlers are read from the caller's config, so the hook is for side effects and for setting `hookCtx` values that `afterChannelResponse` reads. Common use cases:
 
 #### Logging Channel Messages
 
@@ -1004,8 +965,8 @@ export interface ActionChannelHookContext {
 
 export async function beforeChannelPush(
   actionName: string,
-  config: ChannelActionConfig
-): Promise<ChannelActionConfig> {
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
   const ctx = config.hookCtx;
 
   // Setup timing
@@ -1029,8 +990,8 @@ The `afterChannelResponse` hook runs **after the channel response is received** 
 
 1. `actionName: string` - The name of the action being executed
 2. `responseType: "ok" | "error" | "timeout"` - The type of channel response
-3. `data: any` - Response data (result for "ok", error for "error", null for "timeout")
-4. `config: ChannelActionConfig` - The config used for the request
+3. `data: any` - Response data (result for "ok", error for "error", undefined for "timeout")
+4. `config: ActionChannelConfig` - The config used for the request
 
 #### Logging All Channel Responses
 
@@ -1039,14 +1000,14 @@ export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: ChannelActionConfig
+  config: ActionChannelConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
   console.log(`[Channel] Response received:`, {
     action: actionName,
     responseType,
-    hasData: data !== null,
+    hasData: data != null,
     correlationId: ctx?.correlationId,
     timestamp: new Date().toISOString()
   });
@@ -1073,7 +1034,7 @@ export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: ChannelActionConfig
+  config: ActionChannelConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
@@ -1105,7 +1066,7 @@ export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: ChannelActionConfig
+  config: ActionChannelConfig
 ): Promise<void> {
   // Send telemetry to monitoring service
   sendTelemetry({
@@ -1134,7 +1095,7 @@ export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: ChannelActionConfig
+  config: ActionChannelConfig
 ): Promise<void> {
   // Track errors in error monitoring service
   if (responseType === "error" || responseType === "timeout") {
@@ -1159,28 +1120,15 @@ export async function afterChannelResponse(
 }
 ```
 
-### Channel Config Precedence Rules
+### What beforeChannelPush Can Change
 
-When using `beforeChannelPush` hooks, the **original config always takes precedence** over the modified config:
+Unlike `beforeRequest`, whose returned `headers`, `fetchOptions` and `customFetch` are applied to the request, nothing `beforeChannelPush` returns changes the push:
 
-```typescript
-export async function beforeChannelPush(
-  actionName: string,
-  config: ChannelActionConfig
-): Promise<ChannelActionConfig> {
-  return {
-    ...config,
-    timeout: config.timeout ?? 10000  // ← Original timeout takes precedence
-  };
-}
-```
+- The message payload (`input`, `fields`, `filter`, `sort`, `page`, `tenant`, …) is built before the hook runs
+- The timeout is the caller's `timeout`
+- `resultHandler`, `errorHandler` and `timeoutHandler` are the caller's
 
-**Precedence order:**
-1. Original `config` values (highest priority)
-2. Modified config from `beforeChannelPush` hook
-3. No default timeout (lowest priority)
-
-This ensures that per-request customizations always override hook defaults.
+The config the hook returns is passed to `afterChannelResponse`, so use it to carry `hookCtx` values. To set a default timeout, pass `timeout` in the call, or wrap the generated channel function.
 
 ### Complete Channel Working Example
 
@@ -1336,14 +1284,14 @@ return {
 
 **Performance timing not working:**
 ```typescript
-// ❌ Wrong: Context is read-only, modifications lost
+// ❌ Wrong: throws when the caller passed no hookCtx
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
-  ctx.startTime = Date.now();  // Lost!
+  ctx.startTime = Date.now();  // TypeError if hookCtx is undefined
   return config;
 }
 
-// ✅ Correct: Return modified context
+// ✅ Correct: Return a new context, which works with or without one
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx || {};
   return {
@@ -1358,6 +1306,7 @@ export function beforeRequest(actionName: string, config: ActionConfig): ActionC
 - Check that `import_into_generated` includes the hooks module
 - Regenerate types with `mix ash.codegen --dev`
 - Ensure hook function names match the configuration exactly
+- For validation hooks, verify that `generate_validation_functions: true` is set
 
 **TypeScript errors with hook context:**
 ```typescript
@@ -1374,23 +1323,9 @@ if (ctx?.trackPerformance) {
 
 ### Channel Hooks
 
-**Setting default timeout:**
+**Hook changes to the channel config have no effect:**
 
-Both patterns work for setting a default that the caller can override:
-
-```typescript
-// Option 1: Spread overwrites earlier properties
-return {
-  timeout: 10000,  // Default
-  ...config        // Caller's timeout (if set) overwrites
-};
-
-// Option 2: Explicit nullish coalescing
-return {
-  ...config,
-  timeout: config.timeout ?? 10000
-};
-```
+The payload, `timeout` and handlers come from the caller's config, so set them in the call. Only `hookCtx` (and anything else in the returned config) reaches `afterChannelResponse`.
 
 **Hook not executing:**
 - Verify channel hook functions are exported from the configured module
@@ -1398,6 +1333,7 @@ return {
 - Regenerate types with `mix ash.codegen --dev`
 - Ensure hook function names match the configuration exactly
 - Verify that `generate_phx_channel_rpc_actions: true` is set in config
+- For validation channel hooks, verify that `generate_validation_functions: true` is set as well
 
 **TypeScript errors with channel hook context:**
 ```typescript

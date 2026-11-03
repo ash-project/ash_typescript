@@ -193,13 +193,13 @@ defmodule AshTypescript.Rpc do
       enable_filter?: [
         type: :boolean,
         doc:
-          "When false, disables filter support for this read action. The filter key will not be included in the generated TypeScript config, the action's filter type won't be generated, and any filter sent by the client will be dropped. Defaults to true.",
+          "When false, disables filter support for this read action. The filter key will not be included in the generated TypeScript config (the resource's filter type is still generated), and a filter sent by the client is rejected with a `filter_not_supported` error (`details.reason: \"disabled\"`). Defaults to true.",
         default: true
       ],
       enable_sort?: [
         type: :boolean,
         doc:
-          "When false, disables sort support for this read action. The sort key will not be included in the generated TypeScript config, and any sort sent by the client will be dropped. Defaults to true.",
+          "When false, disables sort support for this read action. The sort key will not be included in the generated TypeScript config, and a sort sent by the client is rejected with a `sort_not_supported` error (`details.reason: \"disabled\"`). Defaults to true.",
         default: true
       ],
       allowed_loads: [

@@ -23,6 +23,11 @@ rpc_action :function_name, :ash_action_name, options
 | Second | Name of the Ash action to execute |
 | Options | Keyword list of configuration options |
 
+The function name is the first argument under the `output_field_formatter`, so it
+can't be a JavaScript reserved word: `rpc_action :delete, :destroy` is a compile error
+("generates the function `delete`, a JavaScript reserved word"). Use a name like
+`:delete_todo`. Names that only contain a reserved word (`:import_users`) are fine.
+
 ## Load Restrictions
 
 Control which relationships and calculations clients can request using `allowed_loads` and `denied_loads`.
@@ -75,9 +80,9 @@ const result = await listTodos({
   fields: ["id", "title", { user: ["name"] }]
 });
 
-// Error: "activity_stats" is denied
+// Error: "activityStats" is denied
 const result = await listTodos({
-  fields: ["id", "title", { activity_stats: ["total_events"] }]
+  fields: ["id", "title", { activityStats: ["totalEvents"] }]
 });
 ```
 
@@ -103,15 +108,15 @@ end
 const result = await listTodos({
   fields: [
     "id",
-    { user: ["name", { public_profile: ["bio"] }] }
+    { user: ["name", { publicProfile: ["bio"] }] }
   ]
 });
 
-// Error: user.private_settings not allowed
+// Error: user.privateSettings not allowed
 const result = await listTodos({
   fields: [
     "id",
-    { user: ["name", { private_settings: ["data"] }] }
+    { user: ["name", { privateSettings: ["data"] }] }
   ]
 });
 ```
@@ -147,7 +152,8 @@ const result = await listTodos({
 //   success: false,
 //   errors: [{
 //     type: "load_not_allowed",
-//     message: "Field 'comments' is not in the allowed loads list",
+//     message: "Loading the following fields is not allowed: %{fields}",
+//     vars: { fields: "comments" },
 //     fields: ["comments"]
 //   }]
 // }
@@ -156,7 +162,7 @@ const result = await listTodos({
 ```typescript
 // With denied_loads: [:activity_stats]
 const result = await listTodos({
-  fields: ["id", { activity_stats: ["total_events"] }]
+  fields: ["id", { activityStats: ["totalEvents"] }]
 });
 
 // Returns:
@@ -164,8 +170,9 @@ const result = await listTodos({
 //   success: false,
 //   errors: [{
 //     type: "load_denied",
-//     message: "Field 'activity_stats' is denied",
-//     fields: ["activity_stats"]
+//     message: "Loading the following fields is denied: %{fields}",
+//     vars: { fields: "activityStats" },
+//     fields: ["activityStats"]
 //   }]
 // }
 ```
@@ -199,8 +206,8 @@ end
 
 When `enable_filter?: false`:
 - The `filter` parameter is **not included** in TypeScript types
-- Filter types for this action are **not generated**
-- Any filter sent by client is **silently ignored**
+- The resource's `FilterInput` type is still generated for other actions
+- A `filter` sent by the client is rejected with a `filter_not_supported` error (`details.reason: "disabled"`)
 
 ```typescript
 // With enable_filter?: false
@@ -229,7 +236,7 @@ end
 
 When `enable_sort?: false`:
 - The `sort` parameter is **not included** in TypeScript types
-- Any sort sent by client is **silently ignored**
+- A `sort` sent by the client is rejected with a `sort_not_supported` error (`details.reason: "disabled"`)
 
 ```typescript
 // With enable_sort?: false
@@ -258,12 +265,14 @@ Constrain a read action to return a single record:
 ```elixir
 typescript_rpc do
   resource MyApp.User do
-    rpc_action :get_current_user, :read, get?: true
+    rpc_action :get_current_user, :current_user, get?: true
   end
 end
 ```
 
-Uses `Ash.read_one` instead of `Ash.read`, returning a single record or error.
+Uses `Ash.read_one` instead of `Ash.read`, returning a single record or error,
+so use it on a read action that yields at most one record (here, one that
+filters to the actor). To look up a record by its fields, use `get_by`.
 
 ### get_by
 
@@ -392,11 +401,12 @@ await updateUser({
 For actions that operate on the current actor:
 
 ```elixir
-# Action filters to current user
+# The action's filter scopes it to the actor's own record
 defmodule MyApp.User do
   actions do
     update :update_me do
-      change relate_actor(:id)
+      accept [:name]
+      filter expr(id == ^actor(:id))
     end
   end
 end
@@ -455,15 +465,16 @@ See [Action Metadata](action-metadata.md) for details.
 | `enable_filter?` | `boolean` | `true` | Enable client-side filtering |
 | `enable_sort?` | `boolean` | `true` | Enable client-side sorting |
 | `get?` | `boolean` | `false` | Return single record |
-| `get_by` | `list(atom)` | `nil` | Fields for single-record lookup |
-| `not_found_error?` | `boolean` | `true` | Error vs null on not found |
+| `get_by` | `list(atom)` | `[]` | Fields for single-record lookup |
+| `not_found_error?` | `boolean \| nil` | `nil` (global `not_found_error?`, default `true`) | Error vs null on not found |
 | `identities` | `list(atom)` | `[:_primary_key]` | Allowed identity lookups |
-| `show_metadata` | `list(atom) \| false \| nil` | `nil` | Metadata fields to expose |
-| `metadata_field_names` | `keyword` | `nil` | Metadata field name mappings |
-| `namespace` | `atom \| string` | `nil` | Organize action into namespace |
+| `read_action` | `atom` | `nil` | Read action used to find records for update and destroy |
+| `show_metadata` | `list(atom) \| boolean \| nil` | `nil` | Metadata fields to expose |
+| `metadata_field_names` | `list({atom, string})` | `[]` | Metadata field name mappings |
+| `namespace` | `string` | `nil` | Organize action into namespace |
 | `description` | `string` | `nil` | Custom JSDoc description |
 | `deprecated` | `boolean \| string` | `nil` | Mark as deprecated |
-| `see` | `list(atom)` | `nil` | Related actions for @see tags |
+| `see` | `list(atom)` | `[]` | Related actions for @see tags |
 
 ## Next Steps
 

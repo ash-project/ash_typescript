@@ -130,13 +130,16 @@ const tasksPartial = await readLimited({
   metadataFields: ["processingTimeMs"]
 });
 
-// Silently filtered: Non-exposed fields are ignored
-const tasksFiltered = await readLimited({
+// ❌ Rejected: apiVersion is not exposed
+const tasksRejected = await readLimited({
   fields: ["id", "title"],
-  metadataFields: ["processingTimeMs", "apiVersion"]  // apiVersion not exposed
+  metadataFields: ["processingTimeMs", "apiVersion"]
 });
-// Result will only include processingTimeMs, apiVersion is filtered out
 ```
+
+A `metadataFields` entry that isn't the client name of an exposed metadata field
+fails the request with one `unknown_metadata_fields` error: the unknown entries
+are in `fields`, and the names the action allows are in `details.allowedFields`.
 
 ## Field Name Formatting
 
@@ -154,6 +157,9 @@ result.metadata.processingTimeMs   // Formatted
 result.metadata.cacheStatus        // Formatted
 ```
 
+A metadata field of a typed map or struct type is sent with its declared fields
+only, under their client names.
+
 ## Type Safety
 
 Generated TypeScript types include metadata fields with full type inference:
@@ -163,9 +169,9 @@ Generated TypeScript types include metadata fields with full type inference:
 type TaskWithMetadata = {
   id: string;
   title: string;
-  processingTimeMs?: number | null;    // Metadata field
-  cacheStatus?: string | null;         // Metadata field
-  apiVersion?: string | null;          // Metadata field
+  processingTimeMs: number;            // Metadata field (allow_nil? false)
+  cacheStatus?: string;                // Metadata field (allow_nil? true)
+  apiVersion?: string;                 // Metadata field (allow_nil? true)
 }
 
 // For mutations with separate metadata
@@ -181,7 +187,7 @@ type CreateTaskResult = {
   }
 } | {
   success: false;
-  errors: Array<ErrorType>;
+  errors: AshRpcError[];
 }
 ```
 
@@ -239,7 +245,7 @@ if (tasks.success) {
 const result = await createTask({
   fields: ["id", "title"],
   input: { title: "New Task" },
-  metadataFields: ["field1"]  // Mapped names
+  metadataFields: ["field1", "isCached"]  // Mapped names
 });
 
 if (result.success) {
@@ -257,17 +263,17 @@ AshTypescript includes compile-time verification that detects invalid metadata f
 Invalid metadata field names found in show_metadata configuration.
 
 Invalid metadata field name in RPC action:
-  - RPC action: read_with_metadata (action: read)
+  - RPC action: read_with_metadata (action: read_with_metadata)
   - Field: field_1
   - Suggested: field1
   - Reason: Contains question marks or numbers preceded by underscores
 
-Metadata field names must be valid TypeScript identifiers and cannot conflict with resource fields.
+Metadata field names must be valid TypeScript identifiers.
 ```
 
 ## Next Steps
 
 - [Field Selection](../guides/field-selection.md) - Learn about field selection patterns
 - [RPC Action Options](rpc-action-options.md) - All RPC action configuration options
-- [Troubleshooting](../reference/troubleshooting.md) - Learn about field and argument name mapping
+- [Field Name Mapping](../advanced/field-name-mapping.md) - Learn about field and argument name mapping
 - [Ash Action Metadata](https://hexdocs.pm/ash/dsl-ash-resource.html#actions-read-metadata) - Learn about Ash metadata in depth

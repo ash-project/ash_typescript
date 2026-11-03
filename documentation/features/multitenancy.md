@@ -23,8 +23,8 @@ config :ash_typescript, require_tenant_parameters: true
 ```
 
 **When `true` (explicit tenants)**:
-- Tenant must be provided as a parameter in every RPC call
-- TypeScript enforces tenant parameter at compile time
+- Tenant must be provided as a parameter in every RPC call on a multitenant resource (`:attribute` or `:context` strategy, not `global?`); other resources keep the optional `tenant`
+- TypeScript enforces the tenant parameter at compile time; the server does not check that one was sent
 - Best for frontend applications that manage tenant context in state
 
 **When `false` (default - implicit tenants)**:
@@ -33,7 +33,7 @@ config :ash_typescript, require_tenant_parameters: true
 
 ## Explicit Tenant Parameters
 
-With `require_tenant_parameters: true`, tenant parameters are automatically added to all RPC function signatures:
+With `require_tenant_parameters: true`, the tenant parameter becomes required in the signatures of actions on multitenant resources:
 
 ```typescript
 // Tenant parameter required in function signature
@@ -103,7 +103,16 @@ listProjectsChannel({
 });
 ```
 
-The tenant is included in the channel message payload and enforced server-side.
+The tenant is included in the channel message payload. Without one, the
+request uses `socket.assigns[:ash_tenant]`; a `tenant` parameter overrides it,
+on channels as on HTTP (where it overrides the conn's tenant).
+
+The server doesn't check the `tenant` parameter against the socket or conn: a
+value that isn't a string or an integer is rejected with
+`invalid_tenant_type`, and any other value is passed to Ash, where an invalid
+or unauthorized tenant surfaces as a normal Ash or policy error. If a client
+must not choose another tenant than the one its socket or conn carries,
+enforce that in your resources' policies or multitenancy configuration.
 
 ## Next Steps
 

@@ -121,7 +121,11 @@ end
 `"validate"` events (replying `{:ok, result}`, with success or failure in the
 result body) plus a catch-all that replies
 `{:error, %{reason: "Unknown event: ...", payload: ...}}` to any other event.
-Your module owns `join/3`, topics and socket authentication.
+Your module owns `join/3`, topics and socket authentication. An exception
+raised while handling a request becomes a wire error in the reply instead of
+crashing the channel. Phoenix encodes the reply in the channel process, so an
+untyped value (an unconstrained `:map` or `:term`) that Jason can't encode does
+crash it.
 
 Because the injected clauses include a catch-all, don't define further
 `handle_in/3` clauses in the same module. If your channel needs extra events,
@@ -148,7 +152,7 @@ end
 
 **Important Notes:**
 - Actor, tenant and context are read from `socket.assigns.ash_actor`, `socket.assigns.ash_tenant` and `socket.assigns.ash_context`. Set them during socket connection if your app uses authentication or multitenancy
-- A `tenant` parameter sent with the request overrides `socket.assigns.ash_tenant`, exactly as it does over HTTP. The value is passed to Ash unvalidated, so invalid or unauthorized tenants surface as normal Ash/policy errors
+- A `tenant` parameter sent with the request overrides `socket.assigns.ash_tenant`, exactly as it does over HTTP. A value that isn't a string or an integer is rejected with `invalid_tenant_type`; any other value is passed to Ash unchecked, so invalid or unauthorized tenants surface as normal Ash/policy errors
 
 ## Channel Function Features
 
