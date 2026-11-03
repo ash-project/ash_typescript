@@ -391,6 +391,7 @@ npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas against real data
 npm run testValibot                  # Run generated Valibot schemas against real data
+npm run testChannelHooks             # Run generated channel push helpers with the test hooks
 ```
 
 `testZod` / `testValibot` compile and **execute** the generated validation
@@ -493,7 +494,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | "Mod: an MFA `ts_alias` needs an MFA `ts_type`" / "The TypeScript alias `X` of a scalar has more than one body" (codegen) | A per-use scalar name without a per-use body, or one alias name for two TypeScript types | MFA `ts_alias` with an MFA `ts_type`; one name per body |
 | "config :ash_typescript, :type_mapping_overrides is no longer read" (or `zod_`/`valibot_mapping_overrides`) | Removed config key still set | Move the entries to the manifest module's `custom_types` section |
 | "config :ash_typescript, :input_field_formatter is no longer read" | Removed config key still set | Remove it; clients must send the client names `output_field_formatter` produces (update clients if the two formatters differed) |
-| "The client_name … of … is not a TypeScript identifier" (manifest compile) | A `custom_types` `map` entry's `field … client_name:` isn't a TypeScript identifier (a `typescript_field_names/0` mapping to a non-identifier in an action type is reported under "Invalid field names found") | Use an identifier (`[A-Za-z_$][A-Za-z0-9_$]*`) |
+| "The client_name … of … is not a TypeScript identifier" (manifest compile) | A `custom_types` `map` entry's `field … client_name:` isn't a TypeScript identifier (a `typescript_field_names/0` mapping to a non-identifier is reported under "Invalid field names found", wherever the manifest reaches the type) | Use an identifier (`[A-Za-z_$][A-Za-z0-9_$]*`) |
 | Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Give it a `custom_types` `scalar` entry (base type, or `zod`/`valibot`; without `ts_type` it keeps the type's `typescript_type/0`), or express the type as an `Ash.Type.NewType` with constraints |
 | `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A `custom_types` entry's `zod`/`valibot` references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
@@ -523,7 +524,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?`, or that aren't valid identifiers (`:"foo-bar"`) | Rename to avoid patterns that produce awkward camelCase |
 | "generates the function `delete`, a JavaScript reserved word" / "generates the const `delete`" | A typed controller route, `rpc_action` or `typed_query` named after a JS reserved word (`:delete`, `:new`, `:import`, …; `NameValidation.reserved_word?/1`), whatever the method or mode, or a reserved `ts_fields_const_name` | Rename it, for example `:delete_item` (a typed query can set `ts_fields_const_name` instead) |
-| "Invalid field names found in typed controller route types" | A `fields` constraint (in `returns` or an argument type, at any depth) has a name with `_1` or `?`, or one that isn't a valid identifier — or a type's `typescript_field_names/0` maps a field to such a name | Rename the field (or fix the mapping) — route bodies are sent as-is, so there is no route-level name mapping. Spark only warns at compile time; codegen fails |
+| "Invalid field names found in typed controller route types" | A `fields` constraint (in `returns` or an argument type, at any depth) has a name with `_1` or `?`, or one that isn't a valid identifier — or a type's `typescript_field_names/0` maps a field to such a name | Rename the field (or fix the mapping) — route bodies are sent as-is, so there is no route-level name mapping. Spark only warns at compile time; codegen fails. A bad `typescript_field_names/0` mapping is also reported by the manifest under "Invalid field names found in action return types or argument types, or in other types the manifest reaches" |
 | "Route :x sends the arguments … in its URL, but their types are not scalars" (codegen) | A path param, or a query argument of a non-mutation route, has a map, struct, union or resource type (it would be sent as `[object Object]`); GET query args may be arrays of scalars, path params may not | Use a scalar type (or an array of scalars in a GET query string), or make the route a POST/PATCH/PUT/DELETE so the arguments go in the JSON body |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
@@ -650,6 +651,7 @@ npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas at runtime
 npm run testValibot                  # Run generated Valibot schemas at runtime
+npm run testChannelHooks             # Run generated channel push helpers with the test hooks
 mix test                             # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 ```
 

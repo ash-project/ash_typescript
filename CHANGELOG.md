@@ -119,7 +119,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: an identity with an extra key next to a valid identity's keys is `invalid_identity`, and `unknown_field` no longer names the resource (`Unknown field %{field}`, no `vars.resource`)
 
-* codegen: manifest compilation fails for a `custom_types` `field` whose `client_name` isn't a TypeScript identifier, and for an action type field mapped (with `typescript_field_names/0`) to a name that isn't one. A typed controller route whose formatted name is a JavaScript reserved word fails manifest compilation with the current formatter. Codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
+* codegen: manifest compilation fails for a `custom_types` `field` whose `client_name` isn't a TypeScript identifier, and for a type field mapped (with `typescript_field_names/0`) to a name that isn't one, or a `custom_types` `map` entry field without `client_name` whose formatted name isn't one (`:is_on?` needs `client_name: "isOn"`), wherever the manifest reaches the type (action types, resource fields, embedded resources, routes, publications). A typed controller route whose formatted name is a JavaScript reserved word fails manifest compilation with the current formatter. Codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
 
 * codegen: `type_mapping_overrides`, `zod_mapping_overrides` and `valibot_mapping_overrides` are removed. Declare the types in the manifest module's `custom_types` section (`scalar Mod, :string`, with `ts_type`, `zod` or `valibot` where needed); see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types). A leftover config key is ignored and triggers a compile-time warning
 
@@ -152,6 +152,10 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 * codegen: every client name codegen emits (resource fields, calculation arguments, action inputs, type fields, union members, metadata) is read from the same `custom.ash_rpc` decoration the RPC runtime uses, so generated names and the names the runtime accepts can't disagree. A name missing from the decoration raises during codegen instead of falling back to the formatter. A guard test keeps every other codegen module from reading `field_names`, `argument_names` or `typescript_field_names/0` directly
 
 ### Bug Fixes:
+
+* rpc: the generated channel functions push with the `timeout` and send the response to the `resultHandler` / `errorHandler` / `timeoutHandler` of the config `beforeChannelPush` returns, so the hook can set a default timeout (`return { ...config, timeout: config.timeout ?? 10000 }`) or wrap the handlers. Before, changes to them in the hook had no effect. The payload is still built from the caller's config. A hook that returns a config without the caller's handlers now drops them, so return `{ ...config, … }` (see [Lifecycle Hooks](documentation/features/lifecycle-hooks.md#what-beforechannelpush-can-change))
+
+* codegen: on an action that supports both offset and keyset pagination, a page with only `limit` is typed as the page `config :ash, :default_page_type` selects (Ash's default `:offset`), read when codegen runs. Before, it was always typed as a keyset page, while Ash returns an offset page unless `default_page_type` is `:keyset` (see [Querying Data](documentation/guides/querying-data.md#keyset-cursor-based-pagination))
 
 * codegen: typed-map return NewTypes (and typed-struct returns) use their `typescript_field_names` in the generated `Fields` and result types (for example `"isProcessed"`, not `"isProcessed?"`)
 
