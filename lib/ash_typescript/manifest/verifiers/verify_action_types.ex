@@ -19,6 +19,13 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
 
   Accepted-attribute inputs are skipped here; those are validated by the resource-
   level verifiers (`VerifyFieldNames`, `VerifyMapFieldNames`).
+
+  The client names a type maps its fields to (`typescript_field_names/0`), and
+  the formatter-made names of a `custom_types` `map` entry's fields without
+  `client_name`, are checked wherever the manifest reaches the type
+  (`AshTypescript.Manifest.TypeUses.nodes/1`: resource fields, embedded
+  resources, routes, publications), reported per type unless an entrypoint
+  already reported them.
   """
   use Spark.Dsl.Verifier
 
@@ -26,6 +33,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
     only: [identifier?: 1, invalid_name?: 1, make_name_better: 1]
 
   alias Ash.Info.Manifest.Type
+  alias AshTypescript.Manifest.Custom
+  alias AshTypescript.Manifest.TypeUses
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias Spark.Dsl.Verifier
 
@@ -42,14 +51,16 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   defp do_verify(%Ash.Info.Manifest{} = manifest, resource_lookup) do
     type_lookup = build_type_lookup(manifest)
 
-    errors =
+    entrypoint_errors =
       Enum.flat_map(manifest.entrypoints, fn entrypoint ->
         validate_entrypoint(entrypoint, resource_lookup, type_lookup)
       end)
 
+    errors = entrypoint_errors ++ reached_type_errors(manifest, entrypoint_errors)
+
     case errors do
       [] -> :ok
-      _ -> format_validation_errors(errors)
+      _ -> format_validation_errors(errors, map_entry_modules(manifest, errors))
     end
   end
 
@@ -212,22 +223,91 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
       field_error_kind = field_error_kind(type)
 
       name_errors =
-        cond do
-          invalid_name?(mapped_name) ->
-            [{resource, context, field_error_kind, field_name, make_name_better(field_name)}]
-
-          not identifier?(mapped_name) ->
-            [
-              {resource, context, field_error_kind, field_name,
-               "a TypeScript identifier (#{inspect(to_string(mapped_name))} is not one)"}
-            ]
-
-          true ->
+        case name_suggestion(field_name, mapped_name) do
+          nil ->
             []
+
+          suggested ->
+            [
+              {resource, context, field_error_kind, field_name, suggested,
+               {Type.effective_module(type), field_name}}
+            ]
         end
 
       name_errors ++ validate_type(resource, field_type, context, visited, type_lookup)
     end)
+  end
+
+  defp name_suggestion(field_name, mapped_name) do
+    cond do
+      invalid_name?(mapped_name) ->
+        make_name_better(field_name)
+
+      not identifier?(mapped_name) ->
+        "a TypeScript identifier (#{inspect(to_string(mapped_name))} is not one)"
+
+      true ->
+        nil
+    end
+  end
+
+  # The client names a named type maps its fields to (`typescript_field_names/0`)
+  # are checked wherever the manifest reaches the type (resource fields,
+  # embedded resources, routes, publications), not only through entrypoint
+  # inputs and returns, and so are the formatter-made names of a manifest `map`
+  # entry's fields without `client_name`. Other unmapped field names on
+  # resources are the resource verifiers' job (`VerifyMapFieldNames`); names
+  # already reported through an entrypoint aren't repeated.
+  defp reached_type_errors(manifest, entrypoint_errors) do
+    reported = MapSet.new(entrypoint_errors, &elem(&1, 5))
+    entry_of = &Custom.declared_custom_type(manifest, &1)
+
+    manifest
+    |> TypeUses.nodes()
+    |> Enum.uniq()
+    |> Enum.flat_map(fn %Type{} = type ->
+      # The overrides are read from the struct module of a `:struct` with
+      # `instance_of`, else from the type's own module.
+      module = Type.effective_module(type)
+
+      type
+      |> reached_client_names(module, entry_of)
+      |> Enum.sort()
+      |> Enum.flat_map(fn {field_name, mapped_name} ->
+        suggested = name_suggestion(field_name, mapped_name)
+
+        if suggested && not MapSet.member?(reported, {module, field_name}) do
+          [
+            {nil, {:type, module}, field_error_kind(type), field_name, suggested,
+             {module, field_name}}
+          ]
+        else
+          []
+        end
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
+  # The decorated overrides, plus, for a type declared by a `map` entry, the
+  # decorated client names of the entry's other fields (the formatter's).
+  defp reached_client_names(type, nil, _entry_of),
+    do: AshRpc.Manifest.Custom.type_field_name_overrides(type)
+
+  defp reached_client_names(type, module, entry_of) do
+    overrides = AshRpc.Manifest.Custom.type_field_name_overrides(type)
+
+    case AshTypescript.CustomTypes.map_entry(module, entry_of) do
+      %AshTypescript.CustomTypes.MapType{fields: fields} ->
+        # A `:type_ref` to the type carries no names; its definition does.
+        type
+        |> AshRpc.Manifest.Custom.type_field_names()
+        |> Map.take(Enum.map(fields, & &1.name))
+        |> Map.merge(overrides)
+
+      nil ->
+        overrides
+    end
   end
 
   defp field_error_kind(%Type{kind: :struct}), do: :struct_field
@@ -310,7 +390,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
 
         name_errors =
           if invalid_name?(mapped_name) do
-            [{resource, context, error_kind, field.name, make_name_better(field.name)}]
+            [{resource, context, error_kind, field.name, make_name_better(field.name), nil}]
           else
             []
           end
@@ -327,7 +407,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
         mapped_name = Map.get(mappings, field.name, field.name)
 
         if invalid_name?(mapped_name) do
-          [{resource, context, error_kind, field.name, make_name_better(field.name)}]
+          [{resource, context, error_kind, field.name, make_name_better(field.name), nil}]
         else
           []
         end
@@ -349,9 +429,40 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   # Error formatting (matches the legacy `Rpc.Verifiers.VerifyActionTypes` format)
   # ─────────────────────────────────────────────────────────────────
 
-  defp format_validation_errors(errors) do
+  # The offending types declared by a manifest `custom_types` `map` entry,
+  # whose fields' `client_name`s are their only names (`typescript_field_names/0`
+  # isn't read for them).
+  defp map_entry_modules(manifest, errors) do
+    entry_of = &Custom.declared_custom_type(manifest, &1)
+
+    errors
+    |> Enum.flat_map(fn
+      {_resource, _context, _kind, _field, _suggested, {module, _}} when not is_nil(module) ->
+        [module]
+
+      _ ->
+        []
+    end)
+    |> Enum.uniq()
+    |> Enum.filter(&AshTypescript.CustomTypes.map_entry(&1, entry_of))
+    |> Enum.sort()
+  end
+
+  defp custom_type_hint([]) do
+    "- For custom types with declared fields: Define the `typescript_field_names/0` callback " <>
+      "on the custom type module, or set `client_name` on the fields of its `map` entry in " <>
+      "the manifest's `custom_types` section"
+  end
+
+  defp custom_type_hint(modules) do
+    "- For custom types with a `map` entry in the manifest's `custom_types` section " <>
+      "(#{Enum.map_join(modules, ", ", &inspect/1)}): set `client_name` on the entry's fields; " <>
+      "`typescript_field_names/0` isn't read for them"
+  end
+
+  defp format_validation_errors(errors, map_entry_modules) do
     grouped =
-      Enum.group_by(errors, fn {_resource, context, _field_type, _field_name, _suggested} ->
+      Enum.group_by(errors, fn {_resource, context, _field_type, _field_name, _suggested, _source} ->
         context
       end)
 
@@ -360,7 +471,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
     {:error,
      Spark.Error.DslError.exception(
        message: """
-       Invalid field names found in action return types or argument types.
+       Invalid field names found in action return types or argument types, or in other types the manifest reaches.
        These patterns are not allowed in TypeScript generation.
 
        #{message_parts}
@@ -368,7 +479,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
        To fix this:
        - For map/keyword/tuple types: Create a custom Ash.Type.NewType and define the `typescript_field_names/0` callback
        - For typed structs: Define the `typescript_field_names/0` callback on the struct module
-       - For custom types with declared fields: Define the `typescript_field_names/0` callback on the custom type module, or set `client_name` on the fields of its `map` entry in the manifest's `custom_types` section
+       #{custom_type_hint(map_entry_modules)}
        - For embedded resources: Use the `field_names` option in the resource's typescript DSL block
        - For action arguments: Use the `argument_names` option in the resource's typescript DSL block
        """
@@ -379,7 +490,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
     context_description = format_context(context)
 
     field_suggestions =
-      Enum.map_join(errors, "\n", fn {_resource, _context, field_type, field_name, suggested} ->
+      Enum.map_join(errors, "\n", fn {_resource, _context, field_type, field_name, suggested,
+                                      _source} ->
         "    - #{field_type} #{field_name} -> #{suggested}"
       end)
 
@@ -392,5 +504,9 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
 
   defp format_context({:argument, rpc_name, action_name, arg_name}) do
     "Invalid field names in argument #{arg_name} of RPC action #{rpc_name} (action: #{action_name})"
+  end
+
+  defp format_context({:type, module}) do
+    "Invalid field names in type #{inspect(module)}"
   end
 end

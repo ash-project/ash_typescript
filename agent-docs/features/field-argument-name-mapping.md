@@ -261,6 +261,19 @@ end
 # - Nested composite types
 ```
 
+`VerifyMapFieldNames` exempts keys a type maps with `typescript_field_names/0` and
+doesn't check the mapped values. Those are checked by the manifest verifier
+`AshTypescript.Manifest.Verifiers.VerifyActionTypes`: it walks entrypoint argument
+and generic return types, then every type node the manifest reaches
+(`TypeUses.nodes/1`: resource fields, embedded resources, routes, publications) and
+rejects a mapped value that isn't a TypeScript identifier, and a `custom_types` `map`
+entry field without `client_name` whose formatter-made name is invalid
+(`invalid_name?/1`, e.g. `is_on?`) or isn't an identifier. A pair already reported
+through an entrypoint isn't repeated under "Invalid field names in type Mod". Like
+every Spark verifier it only warns at compile time; codegen re-runs it and fails
+(`AshTypescript.Manifest.run_verifiers/1`). Tests:
+`test/ash_typescript/rpc/verify_action_types/mapped_field_names_test.exs`.
+
 ### Error Messages
 
 **Resource field verification failure** (abridged — `verify_field_names.ex:88-129` also

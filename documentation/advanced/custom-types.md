@@ -201,7 +201,9 @@ generated schemas.
 A `client_name` is used as written, so it must be a TypeScript identifier
 (`[A-Za-z_$][A-Za-z0-9_$]*`): `"accentColour"`, not `"accent-colour"`. The
 manifest fails to compile otherwise ("The client_name … of field … is not a
-TypeScript identifier").
+TypeScript identifier"). A field without `client_name` is named by the
+`output_field_formatter`, and that name must be a valid identifier too:
+`:is_on?` needs `client_name: "isOn"`.
 
 ```elixir
 custom_types do
@@ -260,8 +262,8 @@ For each custom type, the first of these that applies supplies its fields:
 `typescript_field_names/0` names the fields from steps 2-4. Its names are used
 as written and must be TypeScript identifiers too. A non-identifier name fails
 the manifest ("Invalid field names found in action return types or argument
-types") when the type is reached through an RPC action argument or a generic
-action's return type.
+types, or in other types the manifest reaches") wherever the manifest reaches
+the type.
 
 Fields are **per module**, not per use. `typescript_fields/0` takes no
 constraints, and `composite?/1` and `composite_types/1` are called with the

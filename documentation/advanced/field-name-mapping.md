@@ -291,9 +291,8 @@ never reformatted.
 A mapped name must be a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). A
 `field_names` value that isn't one fails the resource's compilation ("Invalid
 field_names configuration found"). A `typescript_field_names/0` value that isn't
-one fails the manifest wherever an RPC action argument or a generic action's
-return type reaches the type. So does a `client_name` in a `custom_types` `map`
-entry (see
+one fails the manifest wherever the manifest reaches the type. So does a
+`client_name` in a `custom_types` `map` entry (see
 [Declaring Fields in the Manifest](custom-types.md#declaring-fields-in-the-manifest)).
 
 The generated TypeScript and the RPC runtime read these names from the same place, so
