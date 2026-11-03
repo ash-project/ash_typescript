@@ -208,6 +208,7 @@ When `enable_filter?: false`:
 - The `filter` parameter is **not included** in TypeScript types
 - The resource's `FilterInput` type is still generated for other actions
 - A `filter` sent by the client is rejected with a `filter_not_supported` error (`details.reason: "disabled"`)
+- The same applies to nested relationship load options of the action (`{ comments: { filter, fields } }`): their `filter` is omitted from the types too, and rejected with the same error
 
 ```typescript
 // With enable_filter?: false
@@ -237,6 +238,7 @@ end
 When `enable_sort?: false`:
 - The `sort` parameter is **not included** in TypeScript types
 - A `sort` sent by the client is rejected with a `sort_not_supported` error (`details.reason: "disabled"`)
+- The same applies to nested relationship load options of the action (`{ comments: { sort, fields } }`): their `sort` is omitted from the types too, and rejected with the same error
 
 ```typescript
 // With enable_sort?: false
