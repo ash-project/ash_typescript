@@ -246,13 +246,13 @@ All RPC functions accept optional headers:
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
 // With CSRF protection
-const todos = await listTodos({
+const csrfTodos = await listTodos({
   fields: ["id", "title"],
   headers: buildCSRFHeaders()
 });
 
 // With Bearer token
-const todos = await listTodos({
+const bearerTodos = await listTodos({
   fields: ["id", "title"],
   headers: {
     "Authorization": "Bearer your-token-here"
@@ -260,7 +260,7 @@ const todos = await listTodos({
 });
 
 // Combined
-const todos = await listTodos({
+const combinedTodos = await listTodos({
   fields: ["id", "title"],
   headers: {
     ...buildCSRFHeaders(),
@@ -281,46 +281,48 @@ import {
   buildCSRFHeaders
 } from './ash_rpc';
 
-const headers = buildCSRFHeaders();
+async function crudExample() {
+  const headers = buildCSRFHeaders();
 
-// 1. Create
-const createResult = await createTodo({
-  fields: ["id", "title", "createdAt"],
-  input: { title: "Learn AshTypescript CRUD", priority: "high", userId: "user-123" },
-  headers
-});
+  // 1. Create
+  const createResult = await createTodo({
+    fields: ["id", "title", "createdAt"],
+    input: { title: "Learn AshTypescript CRUD", priority: "high", userId: "user-123" },
+    headers
+  });
 
-if (!createResult.success) return;
+  if (!createResult.success) return;
 
-const todoId = createResult.data.id;
+  const todoId = createResult.data.id;
 
-// 2. Read (single)
-const getResult = await getTodo({
-  fields: ["id", "title", "priority", { user: ["name"] }],
-  input: { id: todoId },
-  headers
-});
+  // 2. Read (single)
+  const getResult = await getTodo({
+    fields: ["id", "title", "priority", { user: ["name"] }],
+    input: { id: todoId },
+    headers
+  });
 
-// 3. Read (list)
-const listResult = await listTodos({
-  fields: ["id", "title", "completed"],
-  filter: { completed: { eq: false } },
-  headers
-});
+  // 3. Read (list)
+  const listResult = await listTodos({
+    fields: ["id", "title", "completed"],
+    filter: { completed: { eq: false } },
+    headers
+  });
 
-// 4. Update
-const updateResult = await updateTodo({
-  fields: ["id", "title", "updatedAt"],
-  identity: todoId,
-  input: { title: "Mastered AshTypescript CRUD" },
-  headers
-});
+  // 4. Update
+  const updateResult = await updateTodo({
+    fields: ["id", "title", "updatedAt"],
+    identity: todoId,
+    input: { title: "Mastered AshTypescript CRUD" },
+    headers
+  });
 
-// 5. Delete
-const deleteResult = await destroyTodo({
-  identity: todoId,
-  headers
-});
+  // 5. Delete
+  const deleteResult = await destroyTodo({
+    identity: todoId,
+    headers
+  });
+}
 ```
 
 ## Next Steps

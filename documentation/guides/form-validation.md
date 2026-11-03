@@ -56,16 +56,16 @@ config :ash_typescript,
 
 ### Generated Schemas
 
-For each action, AshTypescript generates a Zod schema based on the action's arguments:
+For each action, AshTypescript generates a Zod schema based on the action's inputs (accepted attributes and arguments):
 
 ```typescript
 // Generated schema
 export const createTodoZodSchema = z.object({
-  title: z.string().min(1).max(100),
-  description: z.string().optional(),
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
-  dueDate: z.string().datetime().optional(),
-  tags: z.array(z.string()).optional()
+  title: z.string().min(1),
+  description: z.string().min(1).nullable().optional(),
+  priority: z.enum(["high", "low", "medium", "urgent"]).nullable().optional(),
+  dueDate: z.iso.date().nullable().optional(),
+  tags: z.array(z.string().min(1)).nullable().optional()
 });
 ```
 
@@ -194,12 +194,14 @@ async function handleSubmit(formData) {
 }
 ```
 
-Server-side validation builds the action's query or changeset natively (no
-AshPhoenix dependency) and reports errors with the same types as running the
-action: missing required inputs are `required` (e.g. `"attribute title is
-required"`), bad values are `invalid_attribute` / `invalid_argument`. For update
-and destroy actions, the target record is loaded with the RPC action's
-`read_action`.
+Server-side validation builds the action's query, changeset or action input
+with Ash directly (it doesn't use AshPhoenix) and reports errors with the same
+types as running the action: a missing required input is `required` (message
+`"attribute %{field} is required"` or `"argument %{field} is required"`, with
+the client name in `vars.field` and `fields`), and a bad value is
+`invalid_attribute` / `invalid_argument`. For update and destroy actions, the
+target record is loaded with the RPC action's `read_action` (the primary read
+action when unset), so a record that action doesn't return is `not_found`.
 
 > Atomic validations on update/destroy actions only run when the action is
 > executed, so a validation call can succeed where the real call then fails.
@@ -210,18 +212,7 @@ and destroy actions, the target record is loaded with the RPC action's
 ```typescript
 type ValidationResult =
   | { success: true }
-  | {
-      success: false;
-      errors: Array<{
-        type: string;
-        message: string;
-        shortMessage: string;
-        vars: Record<string, any>;
-        fields: string[];
-        path: string[];
-        details?: Record<string, any>;
-      }>;
-    };
+  | { success: false; errors: AshRpcError[] };  // see Error Handling for AshRpcError
 ```
 
 ### Real-time Validation with Phoenix Channels

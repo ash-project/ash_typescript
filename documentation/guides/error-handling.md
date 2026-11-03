@@ -95,9 +95,14 @@ implement the protocol for your own error types and set one yourself.
 | `invalid_changes` | Invalid changeset |
 | `load_not_allowed` | Requested field not in `allowed_loads` |
 | `load_denied` | Requested field in `denied_loads` |
-| `unknown_field` | Unknown or inaccessible field |
+| `invalid_identity` | The `identity` keys match no configured identity (`details.expectedKeys` / `details.providedKeys`), a primary key was sent to an action without a primary-key identity, or an identity value isn't a scalar |
+| `unknown_field` | A field, sort or filter name that isn't a client name of the resource, or a field that isn't accessible |
+| `unknown_input` | An input key (at any depth) that isn't a client name of the action's inputs or of the value's type |
+| `unknown_filter_operator` | A filter operator the field doesn't support (`vars.operator`) |
+| `unknown_metadata_fields` | A `metadataFields` entry that isn't a metadata field the action exposes (misses in `fields`, allowed names in `details.allowedFields`) |
 | `unknown_error` | Unexpected error |
 | `internal_error` | Error details withheld; see `errorId` in the server log |
+| `network_error` | The HTTP response wasn't 2xx (built by the generated client; `vars.statusCode`, `vars.statusText`) |
 | `authentication_failed` | Sign-in failed (requires `ash_authentication`) |
 | `invalid_token` | Token was missing, expired or revoked (requires `ash_authentication`) |
 
@@ -174,7 +179,6 @@ function categorizeError(error: AshRpcError): ErrorCategory {
     case "invalid_changes":
       return "validation";
 
-    case "unauthorized":
     case "forbidden":
     case "forbidden_field":
       return "auth";
@@ -182,10 +186,10 @@ function categorizeError(error: AshRpcError): ErrorCategory {
     case "not_found":
       return "not_found";
 
+    case "network_error":
+      return "network";
+
     default:
-      if (error.message.toLowerCase().includes("network")) {
-        return "network";
-      }
       return "other";
   }
 }
@@ -270,10 +274,7 @@ async function withRetry<T>(
     if (result.success) return result;
 
     // Only retry network errors
-    const isRetryable = result.errors?.some(e =>
-      e.message.toLowerCase().includes("network") ||
-      e.message.toLowerCase().includes("timeout")
-    );
+    const isRetryable = result.errors?.some(e => e.type === "network_error");
 
     if (!isRetryable || attempt === maxRetries) return result;
 
@@ -321,7 +322,7 @@ For global error handling (logging, monitoring, auth redirects), use [Lifecycle 
 config :ash_typescript,
   rpc_action_after_request_hook: "RpcHooks.afterRequest",
   import_into_generated: [
-    %{import_name: "RpcHooks", file: "./rpcHooks"}
+    %{import_name: "RpcHooks", file: "assets/js/rpcHooks.ts"}
   ]
 ```
 
@@ -348,7 +349,7 @@ export async function afterRequest(
       console.error(`[RPC] ${actionName} error:`, error);
 
       // Global auth error handling
-      if (error.type === "forbidden" || error.type === "unauthorized") {
+      if (error.type === "forbidden") {
         // Redirect to login, show session expired message, etc.
         window.location.href = "/login";
       }
@@ -389,9 +390,9 @@ end
 ## Custom Error Handlers
 
 Each domain's `typescript_rpc` section can set an `error_handler` that
-post-processes every error map (after the `AshRpc.Error` protocol has run)
-before it is sent to the client. Return a modified map, or `nil` to drop the
-error:
+post-processes the error maps of that domain's actions (after the
+`AshRpc.Error` protocol has run) before they are sent to the client. Return a
+modified map, or `nil` to drop the error:
 
 ```elixir
 defmodule MyApp.CustomErrorHandler do
@@ -399,7 +400,7 @@ defmodule MyApp.CustomErrorHandler do
 
   @impl true
   def handle_error(error, context) do
-    # context contains :domain, :resource, :action, :actor, ...
+    # context is the request's Ash context map (see below)
     Map.put(error, :short_message, translate(error.short_message))
   end
 
@@ -417,9 +418,18 @@ defmodule MyApp.Domain do
 end
 ```
 
-The handler is applied to errors from both `validate_action` and `run_action`
-— including errors raised while executing the Ash action. The default is
-`AshRpc.DefaultErrorHandler`, which returns errors unchanged.
+The handler and `show_raised_errors?` apply to the Ash errors and exceptions of
+both `validate_action` and `run_action`, including errors raised while
+executing the Ash action (`forbidden`, `not_found`, ...). The default is
+`AshRpc.DefaultErrorHandler`, which returns errors unchanged. Request errors
+the runtime reports itself (`action_not_found`, `unknown_input`, ...) don't
+pass through the handler, and neither do errors raised before the action is
+resolved, since they belong to no domain.
+
+The `context` argument is the request's Ash context map: the
+`Ash.PlugHelpers` context on a conn, the `ash_context` assign on a socket, or
+the `context` of an `%AshRpc.Context{}`. The domain isn't in the context; each
+domain's `error_handler` handles that domain's errors.
 
 To include Ash's policy breakdown in `forbidden` error messages (useful in
 development), set `config :ash_typescript, policies: [show_policy_breakdowns?: true]`.

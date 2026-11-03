@@ -67,13 +67,9 @@ end
 ```
 
 ```typescript
-// Generated TypeScript
-export type DashboardTodo = {
-  id: string;
-  title: string;
-  priority: "low" | "medium" | "high";
-  user: { name: string };
-};
+// Generated TypeScript: a list read's result type is the array of records
+// (a get-style action gives the record type)
+export type DashboardTodo = Array<InferResult<TodoResourceSchema, ["id", "title", "priority", { user: ["name"] }]>>;
 
 // (satisfies the fields type of the RPC action the typed query runs, e.g. ListTodosFields)
 export const dashboardTodoFields = [
@@ -153,6 +149,20 @@ end
 - Pattern match on `%{"success" => true, "data" => data}`
 - NOT `{:ok, data}` (common mistake!)
 
+`AshTypescript.run_typed_query(name, params, conn, opts \\ [])` takes:
+
+- `name`: the typed query's name, as an atom.
+- `params`: a map with any of `:input`, `:page`, `:filter` and `:sort`. It is
+  required; pass `%{}` when there are none. The query's `fields` are always
+  the configured ones.
+- `conn`: the source of the actor, tenant and context.
+- `opts`: `manifest:` runs against the given manifest instead of the
+  configured one.
+
+Typed queries only run server-side. A typed query isn't an RPC action, so a
+client request can't name it. A name that isn't a typed query returns a
+failure response with a `typed_query_not_found` error.
+
 ### Step 3: Use Generated Types in Your Page
 
 **Svelte example:**
@@ -162,7 +172,7 @@ end
   import type { DashboardTodo } from '$js/ash_rpc';
 
   interface Props {
-    todos: DashboardTodo[];  // ✅ Type-safe!
+    todos: DashboardTodo;  // ✅ Type-safe!
   }
 
   let { todos }: Props = $props();
@@ -185,7 +195,7 @@ end
 import type { DashboardTodo } from '../ash_rpc';
 
 interface Props {
-  todos: DashboardTodo[];
+  todos: DashboardTodo;
 }
 
 export default function TodoList({ todos }: Props) {
@@ -212,7 +222,7 @@ The generated fields constant allows client-side re-fetching with the same shape
   import { listTodos, dashboardTodoFields, type DashboardTodo } from '$js/ash_rpc';
 
   interface Props {
-    todos: DashboardTodo[];
+    todos: DashboardTodo;
   }
 
   let { todos: initialTodos }: Props = $props();
@@ -242,7 +252,9 @@ The generated fields constant allows client-side re-fetching with the same shape
 
 ## Passing Arguments
 
-Use **atom keys** for arguments (you're in Elixir), wrapped in `:input`:
+Use **atom keys** for arguments (you're in Elixir), wrapped in `:input`. Atom
+keys are the Elixir names (`:user_id`); string keys are matched as the client
+names the generated TypeScript uses (`"userId"` under `:camel_case`).
 
 ```elixir
 def show(conn, %{"id" => id}) do
@@ -270,7 +282,9 @@ end
 
 ## Pagination
 
-Use maps (not keyword lists) for pagination:
+Use maps (not keyword lists) for pagination. With `:page`, `data` is a page map
+(`results`, `hasMore`, …) rather than a list, while the generated result type
+stays the plain array of records:
 
 ```elixir
 def index(conn, params) do
@@ -358,7 +372,7 @@ Always use the generated types—never duplicate:
   import type { DashboardTodo } from '$js/ash_rpc';
 
   interface Props {
-    todos: DashboardTodo[];
+    todos: DashboardTodo;
   }
 </script>
 ```
@@ -373,7 +387,7 @@ If you support client-side re-fetching, use the same fields constant:
 
   // Initial data from server (uses same typed query)
   interface Props {
-    todos: DashboardTodo[];
+    todos: DashboardTodo;
   }
 
   let { todos: initialTodos }: Props = $props();

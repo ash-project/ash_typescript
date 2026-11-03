@@ -122,14 +122,14 @@ const todo = await getTodo({
 
 ### Calculations Returning Complex Types
 
-For calculations returning complex types (unions, embedded resources) without arguments, use nested syntax:
+For calculations returning complex types (unions, embedded resources) without arguments, use nested syntax. In a union, members that are resources or typed maps must be selected with nested syntax; only primitive members can be listed as strings:
 
 ```typescript
 const todo = await getTodo({
   fields: [
     "id",
     {
-      relatedItem: ["article", { article: ["id", "title"] }]
+      relatedItem: [{ article: ["id", "title"] }]
     }
   ],
   input: { id: "todo-123" }

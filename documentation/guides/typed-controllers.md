@@ -75,7 +75,7 @@ The `module_name` in the DSL determines the generated Phoenix controller module.
 defmodule MyAppWeb.Router do
   use Phoenix.Router
 
-  scope "/auth" do
+  scope "/auth", MyAppWeb do
     pipe_through [:browser]
 
     get "/", SessionController, :auth
@@ -140,10 +140,12 @@ export async function executeTypedControllerRequest(
   actionName: string,
   body: string | undefined,
   config?: TypedControllerConfig,
+  defaultHeaders?: Record<string, string>,
 ): Promise<Response> {
   const processedConfig = config || {};
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...defaultHeaders,
     ...processedConfig.headers,
   };
   const fetchFunction = processedConfig.customFetch || fetch;
@@ -167,7 +169,7 @@ export function loginPath(): string {
 
 export type LoginInput = {
   magicLinkToken: string;
-  rememberMe?: boolean;
+  rememberMe?: boolean | null;
 };
 
 export async function login(
@@ -261,7 +263,7 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | name | atom | Yes | — | Argument name (positional arg) |
-| type | Ash type | Yes | — | An Ash type that is plain data: `:string`, `:boolean`, `:integer`, an enum, a typed map (`:map` with `fields`, an `Ash.TypedStruct`, a NewType of one), a custom type module, or `{:array, inner}` of those. Resources, embedded resources, unions and recursive types are rejected (see [Response Types](#response-types)) |
+| type | Ash type | Yes | — | An Ash type that is plain data: `:string`, `:boolean`, `:integer`, an enum, a typed map (`:map` with `fields`, an `Ash.TypedStruct`, a NewType of one), a custom type module, or `{:array, inner}` of those. Resources, embedded resources, unions and recursive types are rejected (see [Response Types](#response-types)). On GET routes and in path params, only scalars (and, in a GET query string, arrays of scalars) are allowed; see [Compile-Time Validation](#compile-time-validation) |
 | `constraints` | keyword | No | `[]` | Type constraints (e.g. `min_length`, `match`, `min`, `max`). Validated against `Ash.Type.constraints/1` at compile time — invalid constraints are compile errors — and enforced at runtime like Ash action arguments |
 | `allow_nil?` | boolean | No | `true` | If `false`, argument is required |
 | `default` | any | No | — | Default value |
@@ -363,7 +365,9 @@ both. All keys are run through the configured `output_field_formatter`.
 
 All validation errors are collected in a single pass, so the client receives
 every issue at once. An argument that violates several constraints produces one
-error per violation.
+error per violation. Errors name an argument by its client name (`fields:
+["userId"]` under `:camel_case`), and a nested `unknown_input` error's `path`
+starts with it.
 
 As with RPC errors, `message` keeps its `%{var}` placeholders and `vars` carries
 the values — interpolation is left to the client, so you can localize or reword
@@ -371,7 +375,8 @@ messages. See [Message Interpolation](error-handling.md#message-interpolation).
 
 **500 Internal Server Error** (handler doesn't return `%Plug.Conn{}`, the
 handler raised, or the controller isn't listed in the manifest module's
-`typed_controllers:` option):
+`typed_controllers:` option). With `typed_controller_show_raised_errors: true`
+(otherwise `message` is `"Internal server error"`):
 
 ```json
 {
@@ -450,7 +455,7 @@ end
 ```typescript
 export type LoginInput = {
   code: string;
-  rememberMe?: boolean;
+  rememberMe?: boolean | null;
 };
 
 export async function login(
@@ -480,7 +485,7 @@ end
 
 Router:
 ```elixir
-scope "/organizations/:org_slug" do
+scope "/organizations/:org_slug", MyAppWeb do
   get "/settings", OrganizationController, :settings
 end
 ```
@@ -488,7 +493,7 @@ end
 Generated TypeScript (default `:object` style):
 ```typescript
 export function settingsPath(path: { orgSlug: string }): string {
-  return `/organizations/${path.orgSlug}/settings`;
+  return `/organizations/${encodeURIComponent(path.orgSlug)}/settings`;
 }
 ```
 
@@ -505,7 +510,7 @@ end
 
 Router:
 ```elixir
-scope "/organizations/:org_slug" do
+scope "/organizations/:org_slug", MyAppWeb do
   get "/members", OrganizationController, :members
 end
 ```
@@ -514,9 +519,9 @@ Generated TypeScript:
 ```typescript
 export function membersPath(
   path: { orgSlug: string },
-  query?: { role?: string; page?: number }
+  query?: { role?: string | null; page?: number | null }
 ): string {
-  const base = `/organizations/${path.orgSlug}/members`;
+  const base = `/organizations/${encodeURIComponent(path.orgSlug)}/members`;
   const searchParams = new URLSearchParams();
   if (query?.role !== undefined && query?.role !== null) searchParams.set("role", String(query.role));
   if (query?.page !== undefined && query?.page !== null) searchParams.set("page", String(query.page));
@@ -538,14 +543,14 @@ end
 
 Router:
 ```elixir
-patch "/providers/:provider", SessionController, :update_provider
+patch "/providers/:provider", MyAppWeb.SessionController, :update_provider
 ```
 
 Generated TypeScript:
 ```typescript
 export type UpdateProviderInput = {
   enabled: boolean;
-  displayName?: string;
+  displayName?: string | null;
 };
 
 export async function updateProvider(
@@ -554,7 +559,7 @@ export async function updateProvider(
   config?: TypedControllerConfig,
 ): Promise<Response> {
   return executeTypedControllerRequest(
-    `/auth/providers/${path.provider}`, "PATCH", "updateProvider",
+    `/auth/providers/${encodeURIComponent(path.provider)}`, "PATCH", "updateProvider",
     JSON.stringify(input), config,
   );
 }
@@ -686,6 +691,10 @@ end
 # => {"userId": "…", "rememberMe": true}
 ```
 
+Each typed map and struct in the result is sent with its declared fields only,
+under their client names; other keys are dropped. Struct values (an
+`Ash.TypedStruct`, `%Money{}`) are formatted like maps.
+
 Pass maps with atom keys for typed containers. For a non-200 status, call
 `Plug.Conn.put_status/2` first. To format without sending, use
 `AshTypescript.TypedController.format_result/2`. Both raise if the route has no
@@ -728,12 +737,12 @@ Generated functions follow this parameter order:
 When a controller is mounted at multiple paths, AshTypescript uses the Phoenix `as:` option to disambiguate:
 
 ```elixir
-scope "/admin", as: :admin do
+scope "/admin", MyAppWeb, as: :admin do
   get "/auth", SessionController, :auth
   post "/login", SessionController, :login
 end
 
-scope "/app", as: :app do
+scope "/app", MyAppWeb, as: :app do
   get "/auth", SessionController, :auth
   post "/login", SessionController, :login
 end
@@ -857,10 +866,12 @@ Route-level namespace overrides controller-level. Routes without any namespace g
 
 ### Generated Output
 
-With the example above, code generation produces:
-- `routes.ts` — imports and re-exports from namespace files
-- `namespace/auth.ts` — `authPath`, `login`, `LoginInput`, etc.
-- `namespace/account.ts` — `profilePath`
+With `enable_controller_namespace_files: true`, code generation produces:
+- `routes.ts` — every route helper, as without namespaces
+- `auth.ts` — re-exports `authPath`, `login`, `LoginInput`, etc. from `routes.ts`
+- `account.ts` — re-exports `profilePath`
+
+The namespace files are written next to `routes_output_file`, or into `controller_namespace_output_dir`. Without the option, namespaces have no effect on the output.
 
 ## JSDoc `@see` Tags
 
@@ -901,7 +912,7 @@ config :ash_typescript,
   typed_controller_after_request_hook: "RouteHooks.afterRequest",
   typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
   typed_controller_import_into_generated: [
-    %{import_name: "RouteHooks", file: "./routeHooks"}
+    %{import_name: "RouteHooks", file: "assets/js/routeHooks.ts"}
   ]
 ```
 
@@ -955,8 +966,8 @@ Use `typed_controller_import_into_generated` to add custom TypeScript imports to
 ```elixir
 config :ash_typescript,
   typed_controller_import_into_generated: [
-    %{import_name: "RouteHooks", file: "./routeHooks"},
-    %{import_name: "Analytics", file: "./analytics"}
+    %{import_name: "RouteHooks", file: "assets/js/routeHooks.ts"},
+    %{import_name: "Analytics", file: "assets/js/analytics.ts"}
   ]
 ```
 
@@ -1103,7 +1114,7 @@ AshTypescript validates typed controllers at compile time:
 - **Handlers present** — every route must have a `run` handler
 - **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
 - **Plain-data arguments and `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
-- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters, and a route's function name (the route name under the output formatter) can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, … whatever the method or mode; `:delete_item` is fine)
+- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters, and a route's function name (the route name under the output formatter) can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, … whatever the method or mode; `:delete_item` is fine). The reserved-word check also runs when the manifest module compiles, which raises, using the manifest's formatter
 - **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
 
 Like other Spark verifiers, these checks are reported as warnings when the module
@@ -1113,6 +1124,7 @@ fails with the same errors instead of generating code.
 Path parameters are also validated at codegen time:
 
 - Every `:param` in the router path must have a matching DSL argument
+- **URL arguments are scalars** — arguments sent in the URL are written with `String(...)`, so they must be scalar types. That means a route's path params, and every argument of a GET route (its query string). A GET query argument may also be an array of scalars (sent as `name[]=` pairs). A map, struct, keyword, tuple, union or resource argument there fails codegen ("Route :search sends the arguments :range in its URL…"). Use a scalar, or make the route a POST, PATCH, PUT or DELETE so the argument goes in the JSON body.
 - **Always-present path params** must have `allow_nil?: false` — if a path parameter exists at every mount of a route, it is always provided by the router and can never be nil
 - **Sometimes-present path params** must have `allow_nil?: true` — if a route is mounted at multiple paths and a parameter only appears at some mounts, it will be nil at the others
 

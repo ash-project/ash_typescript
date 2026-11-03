@@ -17,12 +17,12 @@ Use `AshTypescript.TypedChannel` when your application pushes events to clients 
 |----------|---------------------|
 | Server pushes events to clients (notifications, updates) | **TypedChannel** |
 | Client sends requests, server responds (CRUD, queries) | [RPC Actions](../guides/crud-operations.md) |
-| Client sends requests over WebSocket | [Channel-based RPC](phoenix-channels.md) |
+| Client sends requests over WebSocket | [Channel-based RPC](../features/phoenix-channels.md) |
 | Controller-style routes (Inertia, redirects) | [Typed Controllers](../guides/typed-controllers.md) |
 
 ## Requirements
 
-Typed channels require **Ash >= 3.21.1**, which introduced `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms.
+Typed channels use the `returns`, `public?` and calculation `transform` options of Ash PubSub publications (Ash 3.21.1+, covered by AshTypescript's Ash requirement).
 
 ## Quick Start
 
@@ -198,8 +198,8 @@ const refs = onOrgChannelMessages(channel, {
     console.log("New post:", payload.title);
   },
   post_updated: (payload) => {
-    // payload is typed as string
-    console.log("Updated title:", payload);
+    // payload is typed as { title: string | null }
+    console.log("Updated title:", payload.title);
   },
 });
 
@@ -317,6 +317,8 @@ The topic string determines the factory function signature:
 | `"org:*"` (wildcard) | `createOrgChannel(socket, suffix)` | `createOrgChannel(socket, orgId)` |
 | `"global"` (no wildcard) | `createGlobalChannel(socket)` | `createGlobalChannel(socket)` |
 
+The function names come from the channel module's last segment (`MyAppWeb.OrgChannel` → `createOrgChannel`, `onOrgChannelMessages`), not from the topic.
+
 Wildcard topics require a `suffix` parameter that replaces the `*`. The factory constructs the full topic string (e.g., `org:${suffix}`).
 
 ## Payload Type Resolution
@@ -364,9 +366,27 @@ Things to know:
 - Formatting happens at the websocket boundary only. Elixir-side subscribers of the same PubSub topics (e.g. LiveViews) still receive the raw, untransformed payload.
 - Your own `intercept` calls and `handle_out/3` clauses are preserved — the typed events are merged into the intercept list, and no clause is injected for an event you already handle yourself, so your clause owns the push (and you are responsible for formatting that payload).
 - If you do write your own `handle_out/3` for a declared event, add it to your own `intercept/1` list as well. Phoenix checks the intercept list at definition time, before AshTypescript merges the typed events in, so it otherwise prints a spurious "An intercept for event ... has not yet been defined" warning. Listing it twice is harmless — the lists are deduplicated.
+- Each typed map and struct in the payload is sent with its declared fields only, under their client names; other keys are dropped.
 - Intercepting disables Phoenix's fastlane optimization for the declared events: payloads are encoded once per subscriber instead of once per broadcast. This is the standard cost of `Phoenix.Channel.intercept/1` and is usually negligible.
 - The payload type comes from the manifest. A channel that isn't listed in the manifest module's `typed_channels:` option pushes its payloads unformatted and logs a warning naming the channel, event and resource.
 - Because the interception must live in the channel that serves the topic, the DSL module must itself be a Phoenix channel — a compile warning is emitted otherwise, and payloads would reach clients unformatted.
+
+To format a declared event's payload in your own `handle_out/3`, call `AshTypescript.TypedChannel.PayloadFormatter`. `format_payload(channel_module, resource, event, payload)` returns the formatted payload, and `push_formatted(socket, channel_module, resource, event, payload)` formats and pushes it:
+
+```elixir
+intercept ["post_created"]
+
+@impl true
+def handle_out("post_created" = event, payload, socket) do
+  if visible?(payload, socket) do
+    AshTypescript.TypedChannel.PayloadFormatter.push_formatted(
+      socket, __MODULE__, MyApp.Post, event, payload
+    )
+  end
+
+  {:noreply, socket}
+end
+```
 
 ## Frontend Usage Patterns
 
@@ -456,6 +476,6 @@ Channel types are appended to `ash_types.ts`. Channel functions go into the sepa
 
 ## Next Steps
 
-- [Phoenix Channel-based RPC](phoenix-channels.md) - Request/response RPC over channels
+- [Phoenix Channel-based RPC](../features/phoenix-channels.md) - Request/response RPC over channels
 - [Configuration Reference](../reference/configuration.md) - All configuration options
-- [Lifecycle Hooks](lifecycle-hooks.md) - Add hooks for logging and telemetry
+- [Lifecycle Hooks](../features/lifecycle-hooks.md) - Add hooks for logging and telemetry
