@@ -49,7 +49,7 @@ SPDX-License-Identifier: MIT
 | **Metadata Config** | `show_metadata: [:field1]` | Control metadata exposure |
 | **Metadata Mapping** | `metadata_field_names: [field_1: "field1"]` | Map metadata names |
 | **Metadata (Read)** | `metadataFields: ["field1"]` | Merged into records |
-| **Metadata (Mutation)** | `result.metadata.field1` | Separate metadata field |
+| **Metadata (Mutation)** | `metadataFields: ["field1"]` → `result.metadata.field1` | Separate metadata field (typed only for the requested names) |
 | **Domain Namespace** | `typescript_rpc do namespace "api"` | Default for all resources (strings only) |
 | **Resource Namespace** | `resource X do namespace "todos"` | Override domain default |
 | **Action Namespace** | `namespace: "custom"` | Override resource default |
@@ -345,7 +345,8 @@ The manifest contains:
 - **`files`** — generated file locations with `importPath` (for TS imports, always relative, no `.ts`) and `filename` (format controlled by config)
 - **`actions`** — every RPC action with: `functionName`, `actionType` (read/create/update/destroy/action), `get`, `namespace`, `resource`, `description`, `types` (result, fields, inferResult, input, config, filterInput — only present when applicable), `pagination`, `enableFilter`, `enableSort`, `variants`/`variantNames`, `deprecated`, `see`, `input` (none/optional/required)
 - **`typedControllerRoutes`** — each route with: `functionName`, `method`, `path`, `pathParams`, `mutation`, plus `types` when the route has input arguments
-- **`version`** — semver string (currently `"1.0"`) for consumer compatibility, and `generatedAt` (date string)
+- **`resources`** — per-resource relationship query capabilities (`pagination`, `filterable`, `sortable`) for nested relationship query options
+- **`version`** — semver string (currently `"1.1"`) for consumer compatibility, and `generatedAt` (date string)
 
 ### Consumer Example
 
@@ -459,7 +460,7 @@ config :ash_typescript,
   # Dev codegen behavior
   always_regenerate: false,
   # Imports/Types
-  import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
+  import_into_generated: [%{import_name: "CustomTypes", file: "assets/js/customTypes.ts"}],
   # Typed Controller (route helpers); list controllers on the manifest module
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts",
@@ -470,7 +471,7 @@ config :ash_typescript,
   # typed_controller_before_request_hook: "RouteHooks.beforeRequest",
   # typed_controller_after_request_hook: "RouteHooks.afterRequest",
   # typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
-  # typed_controller_import_into_generated: [%{import_name: "RouteHooks", file: "./routeHooks"}],
+  # typed_controller_import_into_generated: [%{import_name: "RouteHooks", file: "assets/js/routeHooks.ts"}],
   # typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
   # typed_controller_show_raised_errors: false  # true only in dev
   # Typed Channel (event subscriptions); list channels on the manifest module

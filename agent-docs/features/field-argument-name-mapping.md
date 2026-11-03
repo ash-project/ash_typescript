@@ -303,7 +303,7 @@ and define the `typescript_field_names/0` callback to map invalid field names to
 ```
 
 **Mapped field validation failure** (verbatim from
-`lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex:128-152`):
+`lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex:125-156`):
 
 ```
 Invalid field_names configuration found:
@@ -318,10 +318,11 @@ Requirements:
 - Values must be valid TypeScript identifiers (e.g., "isActive", "addressLine1")
 ```
 
-The three error-part variants are:
+The four error-part variants are:
 - `- Field <name> does not exist on resource <resource>`
 - `- Field <name> is already a valid name and doesn't need mapping`
 - `- Replacement name <inspect(name)> must be a string, not an atom. Use "<name>" instead of :<name>`
+- `- Replacement name "<name>" is not a valid TypeScript identifier`
 
 ## Integration Points
 

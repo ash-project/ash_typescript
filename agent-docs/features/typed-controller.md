@@ -28,7 +28,7 @@ The `AshTypescript.TypedController` DSL generates TypeScript path helpers and ty
 ├─────────────────────────────────────────────────────────┤
 │  Generation Layer: Codegen + RouterIntrospector           │
 │  - Introspects Phoenix router for actual URL paths       │
-│  - Discovers typed controllers from app config           │
+│  - Takes typed controllers from the manifest module      │
 │  - Handles multi-mount scenarios with scope prefixes     │
 │  - Validates path param allow_nil? consistency            │
 ├─────────────────────────────────────────────────────────┤
@@ -350,8 +350,8 @@ export function authPath(): string {
   return "/auth";
 }
 
-export function providerPagePath(provider: string): string {
-  return `/auth/providers/${provider}`;
+export function providerPagePath(path: { provider: string }): string {
+  return `/auth/providers/${encodeURIComponent(path.provider)}`;
 }
 ```
 
@@ -360,18 +360,19 @@ export function providerPagePath(provider: string): string {
 When GET routes have arguments (excluding path parameters), arguments become typed query parameters using `URLSearchParams`:
 
 ```typescript
-export function searchPath(query: { q: string; page?: number | null }): string {
+export function searchPath(query: { q: string; page?: number | null; tags?: Array<string> | null }): string {
   const base = "/search";
   const searchParams = new URLSearchParams();
   searchParams.set("q", String(query.q));
-  if (query?.page !== undefined) searchParams.set("page", String(query.page));
+  if (query?.page !== undefined && query?.page !== null) searchParams.set("page", String(query.page));
+  if (query?.tags !== undefined && query?.tags !== null) query.tags.forEach((v) => searchParams.append("tags[]", String(v)));
   const qs = searchParams.toString();
   return qs ? `${base}?${qs}` : base;
 }
 ```
 
 - Required arguments (`allow_nil?: false`, no default) → always set on `searchParams`
-- Optional arguments → conditionally set with `!== undefined` check
+- Optional arguments → set only when neither `undefined` nor `null`; array arguments append one `name[]` entry per item
 - If all arguments are optional, the `query` parameter itself is optional (`query?:`)
 - Path parameters are excluded from query args (they stay in the URL template)
 
@@ -411,7 +412,7 @@ export async function updateProvider(
   config?: TypedControllerConfig,
 ): Promise<Response> {
   return executeTypedControllerRequest(
-    `/auth/providers/${path.provider}`, "PATCH", "updateProvider",
+    `/auth/providers/${encodeURIComponent(path.provider)}`, "PATCH", "updateProvider",
     JSON.stringify(input), config,
   );
 }
@@ -459,7 +460,7 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   arrays and untyped values stay allowed at the top level. A controller not listed in
   the manifest isn't checked, but it isn't generated or served either.
 - **Field names must be valid TS names.** `VerifyTypedController` walks `returns` and
-  every argument type (same shape as `map_route_result_type/2`) and rejects field names
+  every argument type (same shape as `map_route_result_type/1`) and rejects field names
   with `?` or `_<digit>`, or that fail `NameValidation.identifier?/1`, with a path in the
   error. There is deliberately no route-level name mapping: handlers send/receive bodies
   as-is. A type's own `typescript_field_names/0` is honored, as for RPC; an invalid
@@ -577,7 +578,7 @@ In `:paths_only` mode, the `_basePath` variable is generated standalone (not ins
 - String → `"\"value\""`
 - `{:runtime_expr, expr}` → `expr` (raw JS)
 
-This is the same function used by RPC endpoint formatting (via `defdelegate format_endpoint_for_typescript/1`).
+RPC endpoint formatting (`AshTypescript.Rpc.Codegen.format_endpoint_for_typescript/1`) formats the same way.
 
 ### Test File
 
@@ -716,7 +717,7 @@ config :ash_typescript,
   typed_controller_after_request_hook: "RouteHooks.afterRequest",
   typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
   typed_controller_import_into_generated: [
-    %{import_name: "RouteHooks", file: "./routeHooks"}
+    %{import_name: "RouteHooks", file: "assets/js/routeHooks.ts"}
   ],
 
   # Error handling

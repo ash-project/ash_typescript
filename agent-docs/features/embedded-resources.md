@@ -18,8 +18,9 @@ Embedded resources are discovered from the manifest, **not** by scanning attribu
 
 ```elixir
 # lib/ash_typescript/codegen/type_discovery.ex — find_embedded_resources/1
+# entries: [{rpc_resource, rpc_action_names}]
 {reachable_resources, _} =
-  Ash.Info.Manifest.Generator.Reachability.find_reachable(rpc_resources)
+  Ash.Info.Manifest.Generator.Reachability.find_reachable(entries)
 
 Enum.filter(reachable_resources, fn resource ->
   Ash.Resource.Info.resource?(resource) and Ash.Resource.Info.embedded?(resource)
@@ -27,7 +28,7 @@ end)
 ```
 
 Called from `Orchestrator.generate/2`. Reachability itself lives in ash core
-(`Ash.Info.Manifest.Generator.Reachability.find_reachable/2`), not in this repo.
+(`Ash.Info.Manifest.Generator.Reachability.find_reachable/2`, `find_reachable(resource_entries, opts \\ [])`), not in this repo.
 
 Ash 3.25.2+ carries embedded resources in `manifest.types` as `kind: :embedded_resource`
 entries (the `%Manifest.Resource{}` definition nested under `.resource`), **not** in
@@ -88,7 +89,7 @@ member holds an embedded resource — or an array of them — is **excluded from
 members cannot be string-selected and must use nested selection.
 
 Those members emit the same relationship wrapper resource schemas use
-(`TypeMapper.extract_field_info/1` + `resource_member/1`), so the
+(`TypeMapper.extract_field_info/2` + `resource_member/1`), so the
 `ComplexFieldSelection`/`InferFieldValue` machinery can resolve them via the shared
 `InferTypedMapMemberValue` helper in `codegen/utility_types.ex`:
 

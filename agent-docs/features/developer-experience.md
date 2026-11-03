@@ -278,14 +278,13 @@ Note: `importPath` (used for TypeScript imports) is always relative to the manif
 
 ### Schema
 
-The manifest includes a `version` field (currently `"1.0"`) using semver so consumers can detect breaking changes. Additive changes bump the minor version.
+The manifest includes a `version` field (currently `"1.1"`; 1.1 added `resources`) using semver so consumers can detect breaking changes. Additive changes bump the minor version.
 
 ### Generated Structure
 
 ```json
 {
-  "$schema": "https://github.com/ash-project/ash_typescript/blob/main/json-manifest-schema.json",
-  "version": "1.0",
+  "version": "1.1",
   "generatedAt": "2026-03-16",
   "files": {
     "rpc": { "importPath": "./generated", "filename": "./generated.ts" },
@@ -294,6 +293,13 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
     "valibot": { "importPath": "./ash_valibot", "filename": "./ash_valibot.ts" },
     "routes": { "importPath": "./routes", "filename": "./routes.ts" },
     "typedChannels": { "importPath": "./ash_typed_channels", "filename": "./ash_typed_channels.ts" }
+  },
+  "resources": {
+    "Todo": {
+      "relationships": {
+        "comments": { "filterable": true, "pagination": "mixed", "sortable": true }
+      }
+    }
   },
   "actions": [
     {
@@ -323,12 +329,13 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       },
       "enableFilter": true,
       "enableSort": true,
-      "variants": { "validation": true, "zod": true, "valibot": true, "channel": true },
+      "variants": { "validation": true, "zod": true, "valibot": true, "channel": true, "validationChannel": true },
       "variantNames": {
         "validation": "validateListTodos",
         "zod": "listTodosZodSchema",
         "valibot": "listTodosValibotSchema",
-        "channel": "listTodosChannel"
+        "channel": "listTodosChannel",
+        "validationChannel": "validateListTodosChannel"
       }
     }
   ],
@@ -367,8 +374,8 @@ The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` 
 `TypedController.Codegen.route_zod_schema_name/2` and `route_valibot_schema_name/2`,
 shared by the renderer, namespace re-exports, and the manifests, so they cannot
 drift. Each key appears only when the corresponding `generate_*_schemas` config
-is enabled. (The Markdown manifest lists no Valibot names anywhere — for routes
-or RPC actions — so route Valibot names surface only in the JSON manifest.)
+is enabled. (The Markdown manifest adds a Valibot Schema column for actions and
+routes when `generate_valibot_schemas` is on.)
 
 ### Action Entry Fields
 
@@ -403,6 +410,10 @@ Each entry in `files` provides two paths:
 - `filename` — format controlled by `json_manifest_filename_format` config
 
 Only files that are actually generated appear (e.g., `zod` is absent if Zod schemas are disabled).
+
+### Resources Section
+
+`resources` (since 1.1) maps each resource's client type name to its `relationships` (many-cardinality relationships to exposed resources only): per relationship, `pagination` (`"none"`, `"offset"`, `"keyset"` or `"mixed"`), `filterable` and `sortable`, the capabilities of nested relationship query options.
 
 ### Consumer Example (TanStack Query)
 
@@ -443,8 +454,10 @@ The manifest includes:
 - Validation functions, Zod schemas, and channel functions (when enabled)
 - Descriptions, deprecation notices, and related actions
 - Typed queries
-- A `## Typed Controller Routes` section (Method / Path / Function / Input Type / Zod Schema)
-  when typed controllers are configured — includes GET path helpers
+- A `## Typed Controller Routes` section (Method / Path / Function / Input Type / Result Type,
+  plus Zod Schema / Valibot Schema when enabled) when typed controllers are configured —
+  includes GET path helpers
+- Valibot Schema and Validation Channel columns in the action tables when those are enabled
 
 ### Sample Output
 
@@ -457,10 +470,10 @@ Generated: 2025-01-15
 
 ### Todo
 
-| Function | Action Type | Ash Action | Resource | Validation | Zod Schema | Channel |
-|----------|-------------|------------|----------|------------|------------|---------|
-| `listTodos` | read | `list` | `MyApp.Todo` | `validateListTodos` | `listTodosZodSchema` | `listTodosChannel` |
-| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `createTodoZodSchema` | `createTodoChannel` |
+| Function | Action Type | Ash Action | Resource | Validation | Zod Schema | Valibot Schema | Channel | Validation Channel |
+|----------|-------------|------------|----------|------------|------------|----------------|---------|--------------------|
+| `listTodos` | read | `list` | `MyApp.Todo` | `validateListTodos` | `listTodosZodSchema` | `listTodosValibotSchema` | `listTodosChannel` | `validateListTodosChannel` |
+| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `createTodoZodSchema` | `createTodoValibotSchema` | `createTodoChannel` | `validateCreateTodoChannel` |
 
 - **`listTodos`**: Fetch all todos for the current user
 - **`createTodo`**: Create a new Todo | **See also:** `listTodos`
@@ -470,10 +483,10 @@ Generated: 2025-01-15
 
 ## Typed Controller Routes
 
-| Method | Path | Function | Input Type | Zod Schema |
-|--------|------|----------|------------|------------|
-| GET | /auth | `authPath` | - | - |
-| POST | /auth/login | `login` | LoginInput | `loginZodSchema` |
+| Method | Path | Function | Input Type | Result Type | Zod Schema | Valibot Schema |
+|--------|------|----------|------------|-------------|------------|----------------|
+| GET | /auth | `authPath` | - | - | - | - |
+| POST | /auth/login | `login` | LoginInput | LoginResult | `loginZodSchema` | `loginValibotSchema` |
 ```
 
 Un-namespaced actions appear under `## Default (No Namespace)`, sorted first.

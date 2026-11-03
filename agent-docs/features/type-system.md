@@ -324,7 +324,7 @@ A type module the manifest reaches (a `manifest.types` definition, or an
 `:unknown` node of `AshTypescript.Manifest.TypeUses.nodes/1`, which walks
 `VerifyMappableTypes`' positions plus route inputs/returns and publication
 returns) that still exports `typescript_type_name/0` or
-`typescript_alias_name/0`, the names before the ash-rpc release, is a
+`typescript_alias_name/0`, the names before v0.20, is a
 `DslError` naming `typescript_type/0` / `typescript_type_alias/0`
 (`CustomTypes.check_renamed_callbacks/2`, from `DecorateManifest` before
 `check_alias_names/2`); a declared custom type or an aliased field-bearing
@@ -411,7 +411,7 @@ in `codegen/shared_types_generator.ex` and `rpc/codegen/typescript_static.ex`):
 ```elixir
 config :ash_typescript,
   import_into_generated: [
-    %{import_name: "CustomTypes", file: "./customTypes"}
+    %{import_name: "CustomTypes", file: "assets/js/customTypes.ts"}
   ]
 ```
 

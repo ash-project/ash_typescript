@@ -90,7 +90,7 @@ Dispatch is on manifest `kind`, so a custom type resolving to a **concrete kind*
 (e.g. a string-backed `Ash.Type.NewType`) gets that kind's structural schema. There is
 no blanket `is_custom_type? → any` short-circuit (removed in 0.18).
 
-Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/3`. **An
+Only `kind: :unknown` reaches the private `map_unknown_module/3` in `SchemaCore`. **An
 `Ash.Type.NewType` never lands here** — it resolves to its subtype's kind (or a
 `:type_ref`) and carries its declared constraints through the normal dispatch.
 What reaches this path is a hand-rolled `use Ash.Type` module, whose shape lives

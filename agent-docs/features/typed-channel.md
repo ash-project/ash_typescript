@@ -18,7 +18,7 @@ The `AshTypescript.TypedChannel` DSL generates typed TypeScript event subscripti
 
 ## Requirements
 
-Typed channels rely on `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms — all introduced in **Ash 3.21.1**. AshTypescript 0.18 requires `~> 3.27` regardless (see `mix.exs`).
+Typed channels rely on `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms — all introduced in **Ash 3.21.1**. AshTypescript requires Ash `~> 3.27` regardless (see `mix.exs`).
 
 ## Architecture
 
@@ -207,6 +207,8 @@ export type OrgChannel = {
   readonly __channelType: "OrgChannel";
   on(event: string, callback: (payload: unknown) => void): number;
   off(event: string, ref: number): void;
+  join(timeout?: number): unknown;
+  leave(timeout?: number): unknown;
 };
 
 // Payload type aliases (deduplicated across channels)

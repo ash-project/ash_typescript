@@ -40,7 +40,8 @@ For create, update, and destroy actions, metadata is returned as a separate `met
 ```typescript
 const created = await createTask({
   fields: ["id", "title"],
-  input: { title: "New Task" }
+  input: { title: "New Task" },
+  metadataFields: ["operationId", "createdAt"]  // Typed only for the requested names
 });
 
 if (created.success) {
@@ -166,7 +167,7 @@ end
 ```
 
 **Values must be strings.** The DSL schema is
-`type: {:list, {:tuple, [:atom, :string]}}` (`lib/ash_typescript/rpc.ex:162-166`) —
+`type: {:list, {:tuple, [:atom, :string]}}` (`lib/ash_typescript/rpc.ex:164-168`) —
 atom values are a schema violation and fail at compile time.
 
 ### Generated TypeScript
@@ -189,7 +190,8 @@ if (tasks.success) {
 // Mutations - metadata as separate field with mapped names
 const created = await createTask({
   fields: ["id", "title"],
-  input: { title: "New Task" }
+  input: { title: "New Task" },
+  metadataFields: ["field1", "isCached"]
 });
 
 if (created.success) {
@@ -202,18 +204,18 @@ if (created.success) {
 
 ## Verification System
 
-### One Verifier
+### One Verifier, One Check
 
 `AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames`
-(`lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex`) performs
-**both** checks:
+(`lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex`) checks one
+thing: each metadata field listed in a `show_metadata` list, *after* applying
+`metadata_field_names`, must contain no `?` and no underscore before a digit. With the
+default `show_metadata: nil` (every field exposed), `false` or `[]`, no names are
+checked.
 
-1. **Invalid names** — each exposed metadata field, *after* applying
-   `metadata_field_names`, must be a valid TypeScript identifier (no `?`, no
-   underscore-before-digit).
-2. **Conflicts** — the resulting client name must not collide with a public
-   resource field (attribute, relationship, calculation, or aggregate), checked
-   against the **manifest's** resource field set.
+A collision between a read action's metadata client name and a public resource field
+is not this verifier's: ash_rpc rejects it when it decorates the manifest (see Error
+Messages below).
 
 **Where it runs (0.18):** at *manifest-module* compile time, registered in
 `lib/ash_typescript/manifest/dsl.ex`, not at domain compile time. The pre-0.18
@@ -223,17 +225,17 @@ separate `VerifyMetadataFieldConflicts` module.
 ### Error Messages
 
 All parts are wrapped in one `Spark.Error.DslError`
-(`verify_metadata_field_names.ex:102-158`):
+(`verify_metadata_field_names.ex:63-98`):
 
 ```
 Invalid metadata field names found in show_metadata configuration.
 
 <one or more parts, joined by blank lines>
 
-Metadata field names must be valid TypeScript identifiers and cannot conflict with resource fields.
+Metadata field names must be valid TypeScript identifiers.
 ```
 
-There are four part variants:
+There are two part variants:
 
 **Invalid metadata field name** (no mapping applied):
 
@@ -256,7 +258,7 @@ Invalid metadata field name mapping in RPC action:
   - Reason: The mapped name still contains question marks or numbers preceded by underscores
 ```
 
-**Metadata client name collides with a resource field** (read actions only, mapped or not). ash_rpc raises `AshRpc.Manifest.NameCollisionError` while decorating the manifest, so it surfaces as an exception in the `DecorateManifest` transformer, not from `VerifyMetadataFieldNames`:
+A separate error, not one of the parts above: **a metadata client name collides with a resource field** (read actions only, mapped or not). ash_rpc raises `AshRpc.Manifest.NameCollisionError` while decorating the manifest, so it surfaces as an exception in the `DecorateManifest` transformer, not from `VerifyMetadataFieldNames`:
 
 ```
 Client name collision in metadata of entrypoint "read_data": metadata :meta_title and field :title of MyApp.Todo both map to "title"
@@ -271,7 +273,7 @@ Mutation metadata is returned under its own `metadata` key and isn't checked.
 Metadata mapping affects:
 
 1. **RPC Client Generation** (`lib/ash_typescript/rpc/codegen.ex`)
-   - Generates `metadataFields` parameter for read actions
+   - Generates the `metadataFields` parameter for read and mutation actions (mutation metadata is typed only for the selected names)
    - Uses mapped names in TypeScript types
    - Different return types for read vs mutation actions
 
@@ -310,7 +312,7 @@ end
 # test/ash_typescript/rpc/rpc_metadata_test.exs
 test "read action with metadata - all fields" do
   result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-    "action" => "read_with_metadata",
+    "action" => "read_tasks_with_metadata_all",
     "fields" => ["id", "title"],
     "metadataFields" => ["someString", "someNumber"]
   })
@@ -323,13 +325,13 @@ end
 
 test "create action with metadata - separate field" do
   result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-    "action" => "create_task",
+    "action" => "create_task_metadata_all",
     "input" => %{"title" => "New"},
     "fields" => ["id", "title"]
   })
 
   assert result["success"] == true
-  assert result["metadata"]["operationId"]
+  assert result["metadata"]["someString"] == "created"
 end
 ```
 
@@ -412,9 +414,9 @@ end
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/rpc.ex` | DSL definition for show_metadata and metadata_field_names |
-| `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name **and** conflict verification (runs at manifest-module compile) |
+| `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name verification (runs at manifest-module compile; collisions are ash_rpc's) |
 | `lib/ash_typescript/manifest/custom.ex` | Codegen-side accessors: `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
-| `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `get_exposed_metadata_fields/2`, `metadata_enabled?/1`, metadata TS types |
+| `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `exposed_metadata_fields/2`, `generate_action_metadata_type/4`, metadata TS types |
 | `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
 | `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |

@@ -15,9 +15,9 @@ list them (`ls test/ts/shouldPass/*.ts`); the set grows regularly.
 
 | Kind | Files |
 |------|-------|
-| **Type-level entry points** | `shouldPass.ts` (~38 files in `shouldPass/`), `shouldFail.ts` (~15 files in `shouldFail/`) |
+| **Type-level entry points** | `shouldPass.ts` (~43 files in `shouldPass/`), `shouldFail.ts` (~21 files in `shouldFail/`) |
 | **Runtime entry points** | `runZodTests.ts`, `runValibotTests.ts` (compiled *and executed*) |
-| **Generated artifacts** | `generated.ts`, `ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `generated_routes.ts`, `generated_typed_channels.ts`, `MANIFEST.md`, `ash_rpc_manifest.json`, `namespace/`, `account.ts`, `auth.ts` |
+| **Generated artifacts** | `generated.ts`, `ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `generated_routes.ts`, `generated_typed_channels.ts`, `MANIFEST.md`, `ash_rpc_manifest.json`, `account.ts`, `auth.ts` |
 | **Hand-written support** | `customTypes.ts`, `rpcHooks.ts`, `channelHooks.ts`, `routeHooks.ts` |
 
 `shouldPass/` covers CRUD, calculations, relationships, custom types, embedded

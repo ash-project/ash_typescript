@@ -80,7 +80,7 @@ and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 
 | Callback | Reads | Effect |
 |---|---|---|
-| `output_formatter/0` | `Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)` | Fixed into the manifest at compile time; client input is matched against its names exactly. See [Compile-Time Config](#compile-time-config) |
+| `output_formatter/0` | `Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)` | Fixed into the manifest at compile time; wire (string) input keys are matched against its names exactly, atom keys are internal names. See [Compile-Time Config](#compile-time-config) |
 | `exposed_resource?/1` | The module is an Ash resource with the `AshTypescript.Resource` extension | Strict exposure: selecting through a relationship to a non-extended resource is `unknown_field`, and codegen emits no such relationship. A non-extended resource used as a struct argument (or embedded) is still decorated, with formatter-only names and `exposed: false`: it gets an input schema but no filter/sort types (and, unless embedded, no `ResourceSchema` / `AttributesOnlySchema`) |
 | `field_names/1` | The resource's `typescript` `field_names` (a `typescript_field_names/0` function on a resource is ignored) | Client names for attributes, calculations, aggregates and relationships |
 | `argument_names/2` | The resource's `typescript` `argument_names` for that action (`%{}` if none) | Client names for action arguments |
@@ -284,8 +284,9 @@ config :ash_typescript,
   not_found_error?: true               # Global default for get-style actions
 ```
 
-There is no input formatter: request keys must be the output formatter's client names
-exactly (another casing is `unknown_input` / `unknown_field`).
+There is no input formatter: wire (string) request keys must be the output formatter's client
+names exactly (another casing is `unknown_input` / `unknown_field`). Atom keys, as in
+Elixir-side `run_typed_query/4` input, are taken as internal names (`AshRpc.InputFormatter`).
 
 These two are read once, when the manifest compiles. `RpcMappingSource` returns them
 to the decorator, and `AshTypescript.Manifest.handle_opts/1` tracks them with
