@@ -124,12 +124,12 @@ mix ash_typescript.codegen --output myfolder/client.ts
 | `--validate-endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path (alias: `-v`) |
 | `--check` | `boolean` | `false` | Raise `Ash.Error.Framework.PendingCodegen` if generated code is out of date. Covers every generated artifact, including the Markdown and JSON manifests (the JSON manifest's `generatedAt` stamp is ignored, so a date-only difference is not a diff). Only bypassed when `--dev` is also passed and `always_regenerate: true` is configured. |
 | `--dev` | `boolean` | `false` | Marks a development-plug invocation (`AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check`); combined with `always_regenerate: true`, files are written instead of raising |
-| `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `# <path>` headers) without writing them — manifests included |
+| `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `#<path>:` headers) without writing them — manifests included |
 | `--output PATH` | `string` | — | Override the `output_file` config for this run (alias: `-o`). See [Overriding the output location](#overriding-the-output-location) |
 
 Output file locations are otherwise controlled by configuration (`output_file` and friends) — see the [Configuration Reference](configuration.md#multi-file-output).
 
-#### Overriding the output location
+### Overriding the output location
 
 `--output` overrides the `output_file` config, which is the path every other
 generated file auto-derives from. A path ending in `.ts` is used verbatim as the
@@ -175,7 +175,7 @@ When run, this task generates:
    - Schema for each resource
    - Nested validation support
 
-5. **Form Validation Functions**
+5. **Form Validation Functions** (when `generate_validation_functions: true`)
    - Client-side validation helpers
    - Error message handling
    - Field-level validation
@@ -348,9 +348,9 @@ MIX_ENV=test mix ash_typescript.codegen
 **Solution:** Check for:
 1. Invalid field names (use field name mapping)
 2. Custom types not defined in imported modules
-3. Missing type mapping overrides for dependency types
+3. Dependency types without a TypeScript mapping: declare them in the manifest module's `custom_types` section
 
-See [Configuration Reference](configuration.md) for field name mapping and type overrides.
+See [Custom Types](../advanced/custom-types.md) and [Field Name Mapping](../advanced/field-name-mapping.md).
 
 #### Changes not reflected
 

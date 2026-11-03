@@ -52,7 +52,7 @@ This guide covers common issues you may encounter when using AshTypescript and h
 
 **Cause:** The RPC runtime moved to `AshRpc`. These functions were removed.
 
-**Solution:** Use `AshRpc.Plug.run(conn, AshTypescript.RpcProfile)` / `AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)` in controllers, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in channels, and `AshTypescript.run_typed_query(name, params, conn)` for typed queries. See [Upgrading to the AshRpc runtime](../upgrading/ash-rpc.md).
+**Solution:** Use `AshRpc.Plug.run(conn, AshTypescript.RpcProfile)` / `AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)` in controllers, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in channels, and `AshTypescript.run_typed_query(name, params, conn)` for typed queries. See [Server endpoints](../upgrading/upgrading-to-0.20.md#server-endpoints) in the upgrade guide.
 
 #### Changing a field formatter has no effect
 
@@ -103,7 +103,7 @@ defmodule MyApp.Task do
 end
 ```
 
-#### Error: "Invalid field names in map/keyword/tuple"
+#### Error: "Invalid field names found in map/keyword/tuple type constraints"
 
 **Cause:** Map constraints or tuple type definitions contain invalid TypeScript field names.
 
@@ -242,13 +242,13 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A map-like custom type, or one with declared fields, exports `typescript_type/0` or is covered by a `scalar` entry. Its TypeScript type is generated from its fields, so it can't be declared.
 
-**Solution:** Remove `typescript_type/0` (or turn the `scalar` entry into a `map` one) and declare the fields. For more precise member types, use scalar custom types with their own TypeScript mapping as field types. See [Migrating from `typescript_type_name/0`](../advanced/custom-types.md#migrating-from-typescript_type_name-0).
+**Solution:** Remove `typescript_type/0` (or turn the `scalar` entry into a `map` one) and declare the fields. For more precise member types, use scalar custom types with their own TypeScript mapping as field types. To upgrade a v0.19 type that named its TypeScript type, see [Map-like custom types declare fields](../upgrading/upgrading-to-0.20.md#map-like-custom-types-declare-fields).
 
 #### Warning: "config :ash_typescript, :type_mapping_overrides is no longer read and is ignored"
 
 **Cause:** `type_mapping_overrides`, `zod_mapping_overrides` or `valibot_mapping_overrides` is still set in config. Their entries have no effect.
 
-**Solution:** Move the entries to the manifest module's `custom_types` section and remove the keys. See the [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest).
+**Solution:** Move the entries to the manifest module's `custom_types` section and remove the keys. See the [upgrade guide](../upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types).
 
 #### Error: `requires_field_selection` for a custom type field
 
@@ -290,7 +290,7 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Cause:** A type module the manifest reaches still exports a callback under its v0.19 name. `typescript_type_name/0` is now `typescript_type/0` (and the alias callback is `typescript_type_alias/0`). A map-like custom type with declared fields, or an `Ash.Type.NewType` with fields that has an alias, gets its TypeScript from its fields, so it is told to remove the callback instead.
 
-**Solution:** Rename the function, or remove it where the message says so. See the [upgrade guide](../upgrading/ash-rpc.md#typescript_type_name-0-is-now-typescript_type-0).
+**Solution:** Rename the function, or remove it where the message says so. See the [upgrade guide](../upgrading/upgrading-to-0.20.md#typescript_type_name-0-is-now-typescript_type-0).
 
 #### Error: "The map … needs at least one field (a field-less `map` entry is only for an `Ash.Type.NewType` with fields …)"
 
@@ -388,13 +388,13 @@ See [Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-typ
 **Solutions:**
 - Use unified field format: `["field", {"relation": ["field"]}]`
 - Verify calculation is properly configured and public
-- Debug with RequestedFieldsProcessor if needed
+- Debug with `AshRpc.RequestedFieldsProcessor` if needed
 - Check for invalid field format or pipeline issues
 - `unknown_field` for a field reached through a relationship: the destination resource must use the `AshTypescript.Resource` extension — fields of resources without it are not exposed over RPC
 
 ### Embedded Resources
 
-#### Error: "should not be listed in domain"
+#### Error: "Embedded resources should not be listed in the domain"
 
 **Cause:** Embedded resource incorrectly added to domain resources list.
 
@@ -404,7 +404,7 @@ See [Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-typ
 
 **Cause:** Embedded resource not properly defined.
 
-**Solution:** Ensure embedded resource uses `Ash.Resource` with proper attributes and the `embedded?: true` option.
+**Solution:** Ensure the embedded resource uses `use Ash.Resource, data_layer: :embedded` with public attributes.
 
 ### Union Types
 

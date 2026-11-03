@@ -235,7 +235,9 @@ config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 
 By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time. Editing a resource or domain recompiles the manifest automatically, so incremental codegen never goes stale.
 
-`output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen.
+`output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen. To run with another formatter in a test, see [Testing with another formatter](../advanced/field-name-mapping.md#testing-with-another-formatter).
+
+There is no input formatter: request keys must be the client names `output_field_formatter` produces (see [Automatic Field Formatting](../advanced/field-name-mapping.md#automatic-field-formatting)). `config :ash_typescript, input_field_formatter: ...` isn't read; compiling the manifest warns while it is set.
 
 The runtime RPC endpoint is served by `AshTypescript.RpcProfile`, the `AshRpc.Profile` that points the `AshRpc` runtime at this manifest. Use it with `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in your controller, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in a channel, or `AshRpc.run_action/4` / `AshRpc.validate_action/4` directly.
 
@@ -261,7 +263,7 @@ end
 - The manifest depends on the listed modules at compile time, so they must not read the manifest at compile time.
 - In an umbrella app, the manifest module must live in an app that compiles after the listed modules (usually the web app).
 - Codegen generates nothing for a typed controller or channel that isn't listed, and warns about it (see [Unlisted Typed Module Warning](#unlisted-typed-module-warning)). At runtime, an unlisted typed controller answers every request with a 500, and an unlisted typed channel pushes its payloads unformatted and logs a warning.
-- `config :ash_typescript, typed_controllers: ...` and `typed_channels: ...` are no longer read. If either key is still set, compiling the manifest prints a warning.
+- `config :ash_typescript, typed_controllers: ...` and `typed_channels: ...` aren't read. Compiling the manifest warns while either key is set.
 
 ### Custom types
 
@@ -285,9 +287,9 @@ defmodule MyApp.AshTypescriptManifest do
 end
 ```
 
-`config :ash_typescript, type_mapping_overrides: ...`, `zod_mapping_overrides: ...` and `valibot_mapping_overrides: ...` are no longer read. If one is still set, compiling the manifest prints a warning (see the [upgrade guide](../upgrading/ash-rpc.md#custom-types-are-declared-on-the-manifest)).
+`config :ash_typescript, type_mapping_overrides: ...`, `zod_mapping_overrides: ...` and `valibot_mapping_overrides: ...` aren't read. Compiling the manifest warns while one is set (see the [upgrade guide](../upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types)).
 
-For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list instead of `otp_app:`:
+For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list. The manifest is then built from exactly those domains instead of walking `Ash.Info.domains(otp_app)`, and it declares its own `custom_types`:
 
 ```elixir
 defmodule MyTest.ScopedManifest do
@@ -341,11 +343,11 @@ end
 | `enable_filter?` | `boolean` | `true` | Enable client-side filtering |
 | `enable_sort?` | `boolean` | `true` | Enable client-side sorting |
 | `get?` | `boolean` | `false` | Return single record |
-| `get_by` | `list(atom)` | `nil` | Fields for single-record lookup |
+| `get_by` | `list(atom)` | `[]` | Fields for single-record lookup |
 | `not_found_error?` | `boolean` | `nil` | Override global not_found_error? |
 | `identities` | `list(atom)` | `[:_primary_key]` | Allowed identity lookups |
 | `show_metadata` | `list(atom) \| false \| nil` | `nil` | Metadata fields to expose |
-| `metadata_field_names` | `keyword` | `nil` | Metadata field name mappings |
+| `metadata_field_names` | `keyword` | `[]` | Metadata field name mappings |
 
 See [RPC Action Options](../features/rpc-action-options.md) for complete documentation.
 
@@ -401,8 +403,8 @@ config :ash_typescript,
 ```
 
 A publication without `returns` is a compile error when the manifest compiles (see
-the typed channels guide); the former `warn_on_missing_channel_returns` setting is no
-longer read and warns if it is still set.
+the typed channels guide). `config :ash_typescript, warn_on_missing_channel_returns: ...`
+isn't read; compiling the manifest warns while it is set.
 
 ## Unlisted Typed Module Warning
 
@@ -468,7 +470,7 @@ config :ash_typescript,
   typed_controller_after_request_hook: "RouteHooks.afterRequest",
   typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
   typed_controller_import_into_generated: [
-    %{import_name: "RouteHooks", file: "./routeHooks"}
+    %{import_name: "RouteHooks", file: "assets/js/routeHooks.ts"}
   ],
 
   # Error handling (optional)
@@ -488,7 +490,7 @@ config :ash_typescript,
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
 | `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
-| `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports (`%{import_name: "Name", file: "./path"}`) |
+| `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports (`%{import_name: "Name", file: "assets/js/path.ts"}`) |
 | `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
 | `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages and unexpected handler return values in 500 responses |
 
