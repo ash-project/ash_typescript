@@ -33,14 +33,17 @@ to the page that documents the current behaviour where there is one.
    `required` errors, `unknown_*` errors, the `tenant` param, untyped data,
    `typed_query_action`, validation without AshPhoenix
    ([Requests and errors](#requests-and-errors)).
-5. Fix typed controller request keys, route arguments and publication
+5. Check client code that reads `nextPage` after a page with only `limit`,
+   and `beforeChannelPush` hooks that return a new config
+   ([Generated client](#generated-client)).
+6. Fix typed controller request keys, route arguments and publication
    `returns` that aren't plain data, structured route arguments sent in the
    URL, and reserved route, action and typed query names
    ([Typed controllers](#typed-controllers), [Typed channels](#typed-channels)).
-6. Rename `typescript_type_name/0`, declare the fields of map-like custom types,
+7. Rename `typescript_type_name/0`, declare the fields of map-like custom types,
    update client field selections and filter values, and check the Money,
    ULID, Ltree and AshUUID changes ([Custom types](#custom-types)).
-7. If you call internal modules or implement a schema formatter, see
+8. If you call internal modules or implement a schema formatter, see
    [For library and extension authors](#for-library-and-extension-authors).
 
 ## Server endpoints
@@ -301,10 +304,21 @@ See [Untyped Map Type Configuration](../advanced/custom-types.md#untyped-map-typ
 
 ### Client names must be TypeScript identifiers
 
-Compiling the manifest fails for a `custom_types` `field` whose `client_name`
-isn't a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`), and for a field of
-an action's argument or return type that `typescript_field_names/0` maps to a
-name that isn't one. Pick an identifier. See
+Every field name the client gets must be a TypeScript identifier
+(`[A-Za-z_$][A-Za-z0-9_$]*`):
+
+- Compiling the manifest fails for a `custom_types` `field` whose
+  `client_name` isn't one.
+- A type field that `typescript_field_names/0` maps to a name that isn't one,
+  or a `custom_types` `map` entry field without `client_name` whose formatted
+  name isn't one (`:is_on?` becomes `isOn?`), is reported wherever the
+  manifest reaches the type: action arguments and results, resource fields,
+  embedded resources, routes and channel payloads. Compiling the manifest
+  warns, and codegen fails. Before, only action arguments and results were
+  checked, and the others generated TypeScript and zod/valibot schemas that
+  don't compile.
+
+Pick an identifier (`client_name: "isOn"` for `:is_on?`). See
 [Declaring Fields in the Manifest](../advanced/custom-types.md#declaring-fields-in-the-manifest)
 and [Map Type Field Mapping](../advanced/field-name-mapping.md#map-type-field-mapping).
 
@@ -446,6 +460,48 @@ ash_typescript pulled it in (for example for
   errors from the real call too.
 
 See [Validation Functions](../guides/form-validation.md#validation-functions).
+
+## Generated client
+
+### A page with only `limit` follows `default_page_type`
+
+On a read action that supports both offset and keyset pagination, a page with
+only `limit` (`page: { limit: 20 }`) was always typed as a keyset page, while
+Ash returns an offset page unless `config :ash, default_page_type: :keyset` is
+set. Codegen now reads `default_page_type` when it runs (`:offset` when unset)
+and types such a page accordingly. Actions with one pagination mode are
+unaffected.
+
+- If your app doesn't set `default_page_type`, code that reads `nextPage` or
+  `previousPage` after a `{ limit }` page no longer type-checks: it was
+  reading fields the server never sent. Read the offset page's fields, pass
+  `after` / `before` to page by keyset, or set
+  `config :ash, default_page_type: :keyset`.
+- Set `default_page_type` in `config/config.exs`, not only in
+  `config/runtime.exs`, so codegen and the server agree.
+
+See [Keyset (Cursor-based) Pagination](../guides/querying-data.md#keyset-cursor-based-pagination).
+
+### `beforeChannelPush` sets the push timeout and handlers
+
+The config a `beforeChannelPush` hook returns used to reach only
+`afterChannelResponse`. The generated channel functions now push with its
+`timeout` and send the response to its `resultHandler`, `errorHandler` and
+`timeoutHandler`. The payload is still built from the caller's config.
+
+A hook that returns a config without the caller's handlers now drops them.
+Return `{ ...config, … }`:
+
+```typescript
+export async function beforeChannelPush(
+  actionName: string,
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
+  return { ...config, timeout: config.timeout ?? 10000 };
+}
+```
+
+See [What beforeChannelPush Can Change](../features/lifecycle-hooks.md#what-beforechannelpush-can-change).
 
 ## Typed controllers
 
