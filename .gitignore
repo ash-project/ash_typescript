@@ -40,7 +40,6 @@ test/ts/account.ts
 test/ts/auth.ts
 test/ts/**/*.js
 test/ts/MANIFEST.md
-test/ts/namespace/
 test/ts/generated_routes.ts
 test/ts/generated_typed_channels.ts
 test/ts/account.ts
