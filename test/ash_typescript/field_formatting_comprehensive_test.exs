@@ -649,6 +649,12 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert String.contains?(typescript_output, "hook_ctx?: ActionChannelHookContext;")
       assert String.contains?(typescript_output, "hook_ctx?: ValidationChannelHookContext;")
 
+      # The channel push helpers read the handlers from the config the
+      # beforeChannelPush hook returns, under the formatted names.
+      assert String.contains?(typescript_output, "processedConfig.result_handler(result);")
+      assert String.contains?(typescript_output, "(processedConfig.error_handler\n")
+      assert String.contains?(typescript_output, "(processedConfig.timeout_handler\n")
+
       refute String.contains?(typescript_output, "fetchOptions?:")
       refute String.contains?(typescript_output, "customFetch?:")
       refute String.contains?(typescript_output, "hookCtx?:")

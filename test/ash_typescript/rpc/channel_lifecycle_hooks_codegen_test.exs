@@ -284,6 +284,71 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
     end
   end
 
+  describe "push settings from the config beforeChannelPush returns" do
+    test "the action helper pushes with the returned config's timeout and handlers" do
+      Application.put_env(
+        :ash_typescript,
+        :rpc_action_before_channel_push_hook,
+        "ChannelHooks.beforeChannelPush"
+      )
+
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+      helper = channel_push_helper(typescript, "executeActionChannelPush")
+
+      assert_uses_processed_config(helper)
+    end
+
+    test "the validation helper pushes with the returned config's timeout and handlers" do
+      Application.put_env(
+        :ash_typescript,
+        :rpc_validation_before_channel_push_hook,
+        "ChannelHooks.beforeValidationChannelPush"
+      )
+
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+      helper = channel_push_helper(typescript, "executeValidationChannelPush")
+
+      assert_uses_processed_config(helper)
+    end
+
+    test "without beforeChannelPush the helpers push with the caller's timeout and handlers" do
+      Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
+      Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
+
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      for name <- ["executeActionChannelPush", "executeValidationChannelPush"] do
+        helper = channel_push_helper(typescript, name)
+
+        assert helper =~ "const effectiveTimeout = timeout;"
+        assert helper =~ "config.resultHandler(result);"
+        assert helper =~ "(config.errorHandler\n        ? config.errorHandler"
+        assert helper =~ "(config.timeoutHandler\n        ? config.timeoutHandler"
+        refute helper =~ "processedConfig.resultHandler"
+      end
+    end
+  end
+
+  defp channel_push_helper(typescript, name) do
+    [_, rest] = String.split(typescript, "export async function #{name}<T>(", parts: 2)
+    [helper | _] = String.split(rest, "\n}\n", parts: 2)
+    helper
+  end
+
+  defp assert_uses_processed_config(helper) do
+    assert helper =~ "const effectiveTimeout = processedConfig.timeout;"
+    assert helper =~ "processedConfig.resultHandler(result);"
+
+    assert helper =~
+             "(processedConfig.errorHandler\n        ? processedConfig.errorHandler"
+
+    assert helper =~
+             "(processedConfig.timeoutHandler\n        ? processedConfig.timeoutHandler"
+
+    refute helper =~ ~r/\bconfig\.(resultHandler|errorHandler|timeoutHandler)/
+    refute helper =~ "const effectiveTimeout = timeout;"
+  end
+
   describe "TypeScript generation with mixed channel hook configurations" do
     test "can have action channel hooks without validation channel hooks" do
       Application.put_env(

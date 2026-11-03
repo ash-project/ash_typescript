@@ -11,6 +11,9 @@ export interface ActionChannelHookContext {
   trackPerformance?: boolean;
   startTime?: number;
   correlationId?: string;
+  // Set by tests: the hook replaces the handlers with ones that record the
+  // response type here before calling the caller's handler.
+  hookHandled?: Array<"ok" | "error" | "timeout">;
 }
 
 export interface ValidationChannelHookContext {
@@ -32,11 +35,27 @@ export async function beforeChannelPush(
     correlationId: ctx?.correlationId,
   });
 
-  // Can modify config (e.g., set default timeout)
+  // The returned config sets the push timeout and handlers
   const modifiedConfig: ActionChannelConfig = {
     ...config,
     timeout: config.timeout ?? 10000, // Default 10s timeout
   };
+
+  const handled = ctx?.hookHandled;
+  if (handled) {
+    modifiedConfig.resultHandler = (result: any) => {
+      handled.push("ok");
+      config.resultHandler(result);
+    };
+    modifiedConfig.errorHandler = (error: any) => {
+      handled.push("error");
+      config.errorHandler?.(error);
+    };
+    modifiedConfig.timeoutHandler = () => {
+      handled.push("timeout");
+      config.timeoutHandler?.();
+    };
+  }
 
   return modifiedConfig;
 }

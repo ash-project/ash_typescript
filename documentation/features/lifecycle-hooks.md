@@ -745,6 +745,7 @@ Channel lifecycle hooks provide a centralized way to:
 - **Measure performance** - Time channel operations and track latency
 - **Send telemetry** - Report metrics to monitoring services
 - **Handle errors globally** - Track channel errors in Sentry, Datadog, etc.
+- **Set defaults** - Set a default timeout, or wrap the result, error and timeout handlers
 - **Carry context** - Set `hookCtx` values (such as a start time) for `afterChannelResponse`
 
 ### Key Differences from HTTP Hooks
@@ -944,15 +945,15 @@ export interface ActionChannelConfig {
 
 **Key Points:**
 - Channel hooks support async operations (Promise-based)
-- `beforeChannelPush` receives action name and config, returns a config that is passed to `afterChannelResponse`
+- `beforeChannelPush` receives action name and config, and returns the config the push uses for its timeout and handlers; it is also passed to `afterChannelResponse`
 - `afterChannelResponse` receives action name, response type, data, and config
 - Response type distinguishes between three channel outcomes: "ok", "error", "timeout"
-- The payload, `timeout` and handlers come from the caller's config: changing them in `beforeChannelPush` has no effect on the push (see [What beforeChannelPush Can Change](#what-beforechannelpush-can-change))
+- The payload is built from the caller's config before the hook runs, so changing `input`, `fields` and the other request data in `beforeChannelPush` has no effect (see [What beforeChannelPush Can Change](#what-beforechannelpush-can-change))
 - Your custom `hookCtx` type is automatically included when you configure context type settings
 
 ### beforeChannelPush Hook
 
-The `beforeChannelPush` hook runs **before the channel.push()** call. The message payload is already built and the timeout and handlers are read from the caller's config, so the hook is for side effects and for setting `hookCtx` values that `afterChannelResponse` reads. Common use cases:
+The `beforeChannelPush` hook runs **before the channel.push()** call. The message payload is already built, but the push takes its timeout and its `resultHandler`, `errorHandler` and `timeoutHandler` from the config the hook returns. Use it for side effects, defaults, and `hookCtx` values that `afterChannelResponse` reads. Common use cases:
 
 #### Logging Channel Messages
 
@@ -981,6 +982,18 @@ export async function beforeChannelPush(
   });
 
   return config;
+}
+```
+
+#### Setting a Default Timeout
+
+```typescript
+export async function beforeChannelPush(
+  actionName: string,
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
+  // The caller's timeout wins; pushes without one wait 10 seconds
+  return { ...config, timeout: config.timeout ?? 10000 };
 }
 ```
 
@@ -1122,13 +1135,28 @@ export async function afterChannelResponse(
 
 ### What beforeChannelPush Can Change
 
-Unlike `beforeRequest`, whose returned `headers`, `fetchOptions` and `customFetch` are applied to the request, nothing `beforeChannelPush` returns changes the push:
+Like `beforeRequest`, whose returned `headers`, `fetchOptions` and `customFetch` are applied to the request, `beforeChannelPush` can change how the message is pushed, but not the message:
 
-- The message payload (`input`, `fields`, `filter`, `sort`, `page`, `tenant`, …) is built before the hook runs
-- The timeout is the caller's `timeout`
-- `resultHandler`, `errorHandler` and `timeoutHandler` are the caller's
+- The push uses the returned config's `timeout`
+- The response goes to the returned config's `resultHandler`, `errorHandler` and `timeoutHandler`
+- The message payload (`input`, `fields`, `filter`, `sort`, `page`, `tenant`, …) is built before the hook runs, so changing it has no effect
 
-The config the hook returns is passed to `afterChannelResponse`, so use it to carry `hookCtx` values. To set a default timeout, pass `timeout` in the call, or wrap the generated channel function.
+The returned config is also passed to `afterChannelResponse`, so use it to carry `hookCtx` values. Spread the caller's config and only fill in what's missing (`timeout: config.timeout ?? 10000`) so the caller's own values win. A wrapped handler should call the caller's:
+
+```typescript
+export async function beforeChannelPush(
+  actionName: string,
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
+  return {
+    ...config,
+    errorHandler: (error) => {
+      console.error(`[Channel] ${actionName} failed:`, error);
+      config.errorHandler?.(error);
+    }
+  };
+}
+```
 
 ### Complete Channel Working Example
 
@@ -1323,9 +1351,13 @@ if (ctx?.trackPerformance) {
 
 ### Channel Hooks
 
-**Hook changes to the channel config have no effect:**
+**Hook changes to the channel request data have no effect:**
 
-The payload, `timeout` and handlers come from the caller's config, so set them in the call. Only `hookCtx` (and anything else in the returned config) reaches `afterChannelResponse`.
+The payload is built from the caller's config before `beforeChannelPush` runs, so set `input`, `fields` and the other request data in the call. The hook can change `timeout`, the handlers and `hookCtx`.
+
+**A timeout or handler set in the call is ignored:**
+
+The push uses the config `beforeChannelPush` returns. Return `{ ...config, ... }` so the caller's values are kept, and only default the ones that are missing.
 
 **Hook not executing:**
 - Verify channel hook functions are exported from the configured module

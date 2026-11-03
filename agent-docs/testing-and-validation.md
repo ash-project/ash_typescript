@@ -40,6 +40,9 @@ npm run compileShouldFail     # Invalid patterns (must fail)
 npm run testZod
 npm run testValibot
 
+# Execute the generated channel push helpers against a fake channel
+npm run testChannelHooks
+
 # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 mix test
 ```
@@ -48,6 +51,12 @@ mix test
 behavior. Always run them after touching custom-type schemas (`custom_types`
 entries, built-ins), constraint generation, or any other validation codegen. Root-level equivalents:
 `mix test.test_zod`, `mix test.test_valibot`.
+
+`testChannelHooks` (`runChannelHookTests.ts`) runs the generated
+`executeActionChannelPush` / `executeValidationChannelPush` helpers against a
+fake channel, with the `beforeChannelPush` hooks of `channelHooks.ts`: run it
+after touching the channel push helpers in `rpc/codegen/typescript_static.ex`.
+Root-level equivalent: `mix test.test_channel_hooks`.
 
 ## Test Categories
 
@@ -90,6 +99,7 @@ cd test/ts && npm run compileShouldPass # Valid patterns work
 cd test/ts && npm run compileShouldFail # Invalid patterns rejected
 cd test/ts && npm run testZod          # Zod schemas execute against fixtures
 cd test/ts && npm run testValibot      # Valibot schemas execute against fixtures
+cd test/ts && npm run testChannelHooks # Channel push helpers run with channelHooks.ts
 ```
 
 **If any baseline check fails, STOP and fix before proceeding.**
@@ -466,6 +476,7 @@ inventing fixtures:
 - [ ] `cd test/ts && npm run compileShouldFail` - Invalid patterns fail correctly
 - [ ] `cd test/ts && npm run testZod` - Zod schemas execute against fixtures
 - [ ] `cd test/ts && npm run testValibot` - Valibot schemas execute against fixtures
+- [ ] `cd test/ts && npm run testChannelHooks` - Channel push helpers run with `channelHooks.ts`
 - [ ] `mix format --check-formatted` - Code formatting maintained
 - [ ] `mix credo --strict` - No linting issues
 - [ ] Every generated-output delta classified as intentional

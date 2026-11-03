@@ -633,6 +633,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     error_handler_field = formatted_error_handler_field()
     timeout_handler_field = formatted_timeout_handler_field()
 
+    # The push uses the timeout and handlers of the config beforeChannelPush
+    # returns; the payload was built by the caller. Without the hook, the
+    # caller's own config and timeout are used.
+    {push_config, effective_timeout} =
+      if before_hook,
+        do: {"processedConfig", "processedConfig.#{formatted_timeout_field()}"},
+        else: {"config", "timeout"}
+
     """
     /**
      * Internal helper function for making #{description} requests
@@ -646,18 +654,18 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       config: #{config_type}
     ) {
     #{before_hook_code}
-      const effectiveTimeout = timeout;
+      const effectiveTimeout = #{effective_timeout};
 
       channel
         .push("#{event}", payload, effectiveTimeout)
         .receive("ok", async (result: T) => {
     #{after_ok_hook_code}
-          config.#{result_handler_field}(result);
+          #{push_config}.#{result_handler_field}(result);
         })
         .receive("error", async (error: any) => {
     #{after_error_hook_code}
-          (config.#{error_handler_field}
-            ? config.#{error_handler_field}
+          (#{push_config}.#{error_handler_field}
+            ? #{push_config}.#{error_handler_field}
             : (error: any) => {
                 console.error(
                   \`An error occurred while running action \${payload["#{formatted_action_field()}"]}:\`,
@@ -667,8 +675,8 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         })
         .receive("timeout", async () => {
     #{after_timeout_hook_code}
-          (config.#{timeout_handler_field}
-            ? config.#{timeout_handler_field}
+          (#{push_config}.#{timeout_handler_field}
+            ? #{push_config}.#{timeout_handler_field}
             : () => {
                 console.error(\`Timeout occurred while running action \${payload["#{formatted_action_field()}"]}\`);
               })();
