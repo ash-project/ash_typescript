@@ -15,7 +15,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Breaking Changes:
 
-* rpc: the server-side RPC runtime moved to the `AshRpc` namespace in the new `ash_rpc` dependency, with `AshTypescript.RpcProfile` as ash_typescript's profile. See the [AshRpc upgrade guide](documentation/upgrading/ash-rpc.md) for before/after examples:
+* rpc: the server-side RPC runtime moved to the `AshRpc` namespace in the new `ash_rpc` dependency, with `AshTypescript.RpcProfile` as ash_typescript's profile. See the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md) for before/after examples:
 
   * `AshTypescript.Rpc.run_action/3` / `validate_action/3` → `AshRpc.run_action(AshTypescript.RpcProfile, conn, params)` / `AshRpc.validate_action/4`, or `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in controllers (the installer now generates these)
 
@@ -27,7 +27,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
   * `output_field_formatter` and global `not_found_error?` are read when the manifest compiles; runtime changes have no effect
 
-  * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute` with the message `attribute title is required` / `argument user_id is required` instead of `is required`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
+  * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute` with the message template `attribute %{field} is required` / `argument %{field} is required` (the client name in `vars.field`) instead of `is required`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
 
   * the `typed_query_action` wire param is removed
 
@@ -89,7 +89,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * typed-controller: nested input keys must be client names, and other keys are `unknown_input` with a `path`. Error `fields` / `vars.field` name the argument by its client name (`userId`, not `user_id`). All errors are reported in one 422
 
-* typed-controller, typed-channel: `config :ash_typescript, :typed_controllers` and `:typed_channels` are removed. List the modules on the manifest module instead (`use AshTypescript.Manifest, otp_app: :my_app, typed_controllers: [...], typed_channels: [...]`, default `[]`); see the [AshRpc upgrade guide](documentation/upgrading/ash-rpc.md#typed-controllers-and-channels-are-listed-on-the-manifest-module). A leftover config key is ignored and triggers a compile-time warning. `AshTypescript.typed_controllers/0` and `AshTypescript.typed_channels/0` are removed
+* typed-controller, typed-channel: `config :ash_typescript, :typed_controllers` and `:typed_channels` are removed. List the modules on the manifest module instead (`use AshTypescript.Manifest, otp_app: :my_app, typed_controllers: [...], typed_channels: [...]`, default `[]`); see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#typed-controllers-and-channels-move-to-the-manifest-module). A leftover config key is ignored and triggers a compile-time warning. `AshTypescript.typed_controllers/0` and `AshTypescript.typed_channels/0` are removed
 
 * typed-controller, typed-channel: typed controller and typed channel modules must be listed in those options. Codegen generates nothing for an unlisted module. An unlisted controller answers every request with a 500, and an unlisted channel pushes payloads unformatted and logs a warning. The manifest now depends on the listed modules at compile time, so they must not read the manifest at compile time (in an umbrella app, the manifest module must live in an app that compiles after them)
 
@@ -109,7 +109,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: untyped data (an unconstrained `:map`, `{:array, :map}` or `:term` return, attribute, typed-map field or union member) is sent exactly as the action produced it and encoded by Jason. Nothing converts it any more: keyword lists, tuples, `Duration`s, resource structs, `Ash.TypedStruct`s and other structs are no longer turned into maps or strings, a `ForbiddenField` or `NotLoaded` inside untyped data is no longer turned into `null` (a forbidden or unloaded untyped attribute as a whole is still redacted or skipped), and an `Ash.Union` encodes as its value instead of `{member: value}`. A value Jason can't encode raises when the response is encoded: the RPC controller (`AshRpc.Plug`) answers 500, and an RPC channel crashes. The error message inspects the value, so private attributes not marked `sensitive?: true` show up in server logs. Callers of `AshRpc.run_action/4` that encode the result themselves get the raw structs. Convert the data in the action, or declare the type (the resource, an `Ash.TypedStruct`, a typed map). A resource selected whole as a typed field is still normalized
 
-* rpc: `AshRpc.ResultProcessor.normalize_value_for_json/2` is removed. `AshRpc.ResultProcessor.normalize_primitive/2` does the same conversion
+* rpc: `AshTypescript.Rpc.ResultProcessor.normalize_value_for_json/1` is removed. `AshRpc.ResultProcessor.normalize_primitive/2` does the same conversion
 
 * rpc, codegen: every top-level request key goes through the `output_field_formatter`, `action`, `input` and `identity` included, and so do the filter connectives (`and`/`or`/`not`). Under `:pascal_case` or a custom formatter the generated clients send `Action`, `Input`, `Identity` and `And` (lifecycle hooks still receive the action name as their first argument). `AshTypescript.run_typed_query/4` sends formatted keys too. Under `:camel_case` and `:snake_case` nothing changes
 
@@ -120,6 +120,28 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 * rpc: an identity with an extra key next to a valid identity's keys is `invalid_identity`, and `unknown_field` no longer names the resource (`Unknown field %{field}`, no `vars.resource`)
 
 * codegen: manifest compilation fails for a `custom_types` `field` whose `client_name` isn't a TypeScript identifier, and for an action type field mapped (with `typescript_field_names/0`) to a name that isn't one. A typed controller route whose formatted name is a JavaScript reserved word fails manifest compilation with the current formatter. Codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
+
+* codegen: `type_mapping_overrides`, `zod_mapping_overrides` and `valibot_mapping_overrides` are removed. Declare the types in the manifest module's `custom_types` section (`scalar Mod, :string`, with `ts_type`, `zod` or `valibot` where needed); see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types). A leftover config key is ignored and triggers a compile-time warning
+
+* typed-channel: `warn_on_missing_channel_returns` and `AshTypescript.warn_on_missing_channel_returns?/0` are removed. Every publication a typed channel declares needs a `returns` that is a typed map, checked when the manifest compiles; a missing `returns` is a compile error instead of a warning and an `unknown` payload type (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#publications-need-a-typed-map-returns))
+
+* codegen: the `typescript_type_name/0` type callback is renamed `typescript_type/0`. Manifest compilation fails while a reachable type still exports the old name (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#typescript_type_name-0-is-now-typescript_type-0))
+
+* codegen, rpc: map-like custom types (`storage_type :map`, or composite) must declare their fields (`typescript_fields/0`, a `custom_types` `map` entry, or `composite_types/1`); manifest compilation fails until they do, and they can't declare a TypeScript type. Clients select their sub-fields (a bare selection is `requires_field_selection`), only declared keys are sent and accepted, and each is exported as an alias (plus `<Name>Input`) with a named zod/valibot schema (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#map-like-custom-types-declare-fields) and [Declared custom types are exported](documentation/upgrading/upgrading-to-0.20.md#declared-custom-types-are-exported))
+
+* typed-controller, typed-channel: route arguments, route `returns` and publication `returns` must be plain data: a resource, embedded resource, union or recursive type is rejected at any depth, through NewTypes and declared custom types, when the manifest compiles. Route results and channel payloads send each typed map's declared fields only, under their client names (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#arguments-and-results-are-plain-data))
+
+* rpc: an `rpc_action` whose generated function, or a `typed_query` whose fields const, is a JavaScript reserved word fails manifest compilation; rename it, or set another `ts_fields_const_name` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#reserved-function-names-are-rejected))
+
+* codegen, rpc: `AshMoney.Types.Money`, `AshDoubleEntry.ULID` and the Ltree types are built-in declarations: Money is a map of `currency` and `amount`, selected by sub-field, and its alias is `{currency: string, amount: Decimal}`; the `ULID` and Ltree aliases are exported only when used. `AshUUID.UUID` is no longer built in: declare `scalar AshUUID.UUID, :string` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#money-ulid-ltree-and-ashuuid))
+
+* codegen: an `AshTypescript.Codegen.SchemaFormatter` implementation drops `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0` and `ltree_union/0` and gains `library/0` and `wrap_lazy/1`. `AshTypescript.ErrorFormatter` is now `AshRpc.ErrorFormatter` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#for-library-and-extension-authors))
+
+* codegen: identity and `getBy` values, and action metadata of typed maps, are typed as plain objects and no longer carry `__type` / `__primitiveFields` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#declared-custom-types-are-exported))
+
+* codegen: a project with typed controllers or typed channels and no `output_file` gets the shared types file (`types_output_file`, by default `assets/js/ash_types.ts`) when the routes or channels file uses a shared name, instead of re-exporting a file that was never generated (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#a-types-file-for-routes-only-projects))
+
+* rpc: `validate_action` loads the record of an update or destroy action with the RPC action's `read_action`, so records that action hides are `not_found` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#validation-no-longer-uses-ashphoenix))
 
 ### Improvements:
 
