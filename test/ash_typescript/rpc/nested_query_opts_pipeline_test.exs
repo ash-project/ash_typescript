@@ -191,7 +191,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
                    "id",
                    %{
                      "comments" => %{
-                       # bare limit on a mixed-pagination read yields a keyset page
+                       # bare limit on a mixed-pagination read follows default_page_type (:keyset in test)
                        "page" => %{"limit" => 5},
                        "sort" => "content",
                        "fields" => ["id"]

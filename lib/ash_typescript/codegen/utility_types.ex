@@ -431,12 +431,13 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       false;
 
     // Infer which pagination type is being used from the page config.
-    // A limit-only page resolves to keyset — when an action supports both
-    // strategies, Ash paginates limit-only requests with keyset.
+    // A limit-only page resolves to `config :ash, :default_page_type`, read at
+    // codegen — when an action supports both strategies, Ash paginates
+    // limit-only requests with that page type.
     export type InferPaginationType<Page> =
       Page extends { offset: any } ? "offset" :
       Page extends { after: any } | { before: any } ? "keyset" :
-      Page extends { limit: any } ? "keyset" :
+      Page extends { limit: any } ? "#{AshTypescript.default_page_type()}" :
       never;
 
     // Returns either non-paginated (array) or paginated result based on page params

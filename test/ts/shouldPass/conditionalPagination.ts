@@ -5,7 +5,7 @@
 // Conditional Pagination Tests - shouldPass
 // Tests for optional pagination behavior where types match runtime behavior
 
-import { listTodos } from "../generated";
+import { getTodo, listTodos } from "../generated";
 
 // Test 1: List without page parameter - should return Array<T>
 export const listWithoutPage = await listTodos({
@@ -190,9 +190,9 @@ if (listWithInputNoPage.success) {
   const todoId: string = firstTodo.id;
 }
 
-// Test 9b: Limit-only page (first keyset page) - should return keyset paginated structure
-// Runtime rule: when an action supports both strategies, Ash paginates
-// limit-only requests with keyset.
+// Test 9b: Limit-only page on an action supporting both strategies.
+// Ash returns `config :ash, :default_page_type`, which codegen reads; the
+// test config sets :keyset, so the result is a keyset page.
 export const listWithLimitOnly = await listTodos({
   input: {},
   fields: ["id", "title"],
@@ -204,10 +204,23 @@ if (listWithLimitOnly.success) {
   const results: Array<any> = listWithLimitOnly.data.results;
   const nextPage: string | null = listWithLimitOnly.data.nextPage;
   const previousPage: string | null = listWithLimitOnly.data.previousPage;
+  const pageType: "keyset" = listWithLimitOnly.data.type;
 
   // Should NOT be directly an array
   // @ts-expect-error - data should be paginated structure, not array
   const directAccess = listWithLimitOnly.data[0];
+}
+
+// Test 9c: Limit-only page on a nested relationship whose read action supports
+// both strategies follows the same default_page_type.
+export const nestedLimitOnly = await getTodo({
+  input: { id: "00000000-0000-0000-0000-000000000001" },
+  fields: ["id", { comments: { page: { limit: 5 }, fields: ["id"] } }],
+});
+
+if (nestedLimitOnly.success && nestedLimitOnly.data) {
+  const nestedPageType: "keyset" = nestedLimitOnly.data.comments.type;
+  const nestedNextPage: string | null = nestedLimitOnly.data.comments.nextPage;
 }
 
 // Test 9: List with input parameters and pagination

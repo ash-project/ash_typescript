@@ -122,6 +122,8 @@ config :ash_typescript,
   policies: [show_policy_breakdowns?: false]
 ```
 
+Codegen also reads one Ash setting: `config :ash, default_page_type` (`:offset` by default). On an action that supports both offset and keyset pagination, a page with only `limit` is typed as that page type, as Ash returns it. Codegen reads it when it runs, so set it in `config/config.exs`, not only in `config/runtime.exs`. See [Querying Data](../guides/querying-data.md#keyset-cursor-based-pagination).
+
 ## Multi-File Output
 
 AshTypescript generates multiple TypeScript files, each with a specific responsibility:

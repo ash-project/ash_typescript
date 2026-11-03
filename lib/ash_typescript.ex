@@ -399,6 +399,32 @@ defmodule AshTypescript do
   end
 
   @doc """
+  The page type Ash returns for a page with only a `limit` on an action that
+  supports both offset and keyset pagination.
+
+  This is Ash's own setting, read with Ash's default. Codegen reads it when it
+  runs, so set it in `config/config.exs` (not only `config/runtime.exs`) to keep
+  the generated types and the runtime in agreement.
+
+  ## Configuration
+
+      config :ash, default_page_type: :keyset
+
+  ## Returns
+  `:offset` or `:keyset`, defaulting to `:offset`.
+  """
+  def default_page_type do
+    case Application.get_env(:ash, :default_page_type, :offset) do
+      type when type in [:offset, :keyset] ->
+        type
+
+      other ->
+        raise ArgumentError,
+              "config :ash, :default_page_type must be :offset or :keyset, got: #{inspect(other)}"
+    end
+  end
+
+  @doc """
   Gets the configured Phoenix router module.
 
   Used to introspect actual URL paths for generated controller actions.

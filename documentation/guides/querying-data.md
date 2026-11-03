@@ -46,7 +46,7 @@ const page2 = await listTodos({
 
 ### Keyset (Cursor-based) Pagination
 
-For better performance with large datasets. On an action that supports both offset and keyset, a page with only `limit` uses Ash's `default_page_type`, which is `:offset` unless you set `config :ash, default_page_type: :keyset`; once you pass `after` or `before`, the page is keyset:
+For better performance with large datasets. On an action that supports both offset and keyset, a page with only `limit` uses Ash's `default_page_type`, which is `:offset` unless you set `config :ash, default_page_type: :keyset`; once you pass `after` or `before`, the page is keyset. The generated types follow the same rule: codegen reads `default_page_type` when it runs and types a page with only `limit` as that page type, so set it in `config/config.exs`, not only in `config/runtime.exs`. The example below assumes `:keyset`:
 
 ```typescript
 // First page
