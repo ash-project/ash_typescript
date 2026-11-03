@@ -155,7 +155,7 @@ defmodule AshTypescript.MixProject do
         "documentation/reference/troubleshooting.md",
 
         # Upgrading
-        "documentation/upgrading/ash-rpc.md",
+        "documentation/upgrading/upgrading-to-0.20.md",
 
         # DSLs
         {"documentation/dsls/DSL-AshTypescript.Rpc.md",

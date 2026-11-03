@@ -112,8 +112,8 @@ Has two roles:
 with `storage_type :map`, or composite). Its TypeScript is
 generated from its fields, so a map has no `ts_type` option: a
 map-like type that only names a TypeScript type declares its fields
-instead (see "Migrating from `typescript_type_name/0`" in the Custom
-Types guide);
+instead (see "Map-like custom types declare fields" in the
+Upgrading to v0.20 guide);
 * without fields, opts a field-bearing `Ash.Type.NewType` (an
 `Ash.TypedStruct`, or a NewType over `:map`, `:keyword`, `:tuple` or
 `:struct` with `fields`) into an exported alias, named by `ts_alias`,
