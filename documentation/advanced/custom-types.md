@@ -376,10 +376,11 @@ Filter values of every typed map (a custom type or not) take the type's input
 shape (client keys, nullable fields optional), with no `__type` /
 `__primitiveFields` keys; the server maps the keys back and rejects unknown
 ones as `unknown_input`. Typed-map values in action metadata are plain objects.
-Union filter values are `{ member: value }` objects, one per member. Ordering
-operators (`lessThan`, `greaterThan`, …) are only offered on structured values
-that are declared custom types (which may define their own ordering), not on
-other typed maps, structs, embedded resources or unions.
+Union filter values are `{ member: value }` objects, one per member that isn't
+an embedded resource. Ordering operators (`lessThan`, `greaterThan`, …) are only
+offered on structured values that are declared custom types (which may define
+their own ordering), not on other typed maps, structs or unions. A value that
+is or contains a record (an embedded resource included) only offers `isNil`.
 
 An embedded-resource field of a declared type is rendered in the type's alias
 as a plain object of the resource's public attributes

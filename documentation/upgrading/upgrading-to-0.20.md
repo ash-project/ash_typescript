@@ -842,13 +842,19 @@ becomes `MyAppColorPalette`). See
 
 ### Structured filter values take the input shape
 
-Filter values on embedded resources, typed maps and structs, and unions take
-the type's input shape and client keys, which the server maps back to
-attribute names. Before, the keys were passed to Ash as sent, so client names
-failed or were silently dropped. An unknown key is now `unknown_input`.
+Filter values on typed maps and structs, keywords, tuples and unions take the
+type's input shape and client keys, which the server maps back to attribute
+names and casts as the same action input would be stored. Before, the keys
+were passed to Ash as sent, so client names failed or were silently dropped,
+and `eq` and `has` on a union, keyword or tuple matched nothing. An unknown key
+is now `unknown_input`, and a value the type rejects is `invalid_filter_value`.
 Ordering operators (`lessThan`, `greaterThan`, …) are gone from these values
-unless the type is a declared custom type, and a value that reaches a
-non-embedded resource (a calculation returning a record) only offers `isNil`.
+unless the type is a declared custom type, and the server rejects them as
+`unknown_filter_operator`. A value that is or contains a record (an embedded
+resource, an array of them, or a calculation returning a record) only offers
+`isNil`, and union filter values leave out members that are embedded
+resources: a record sent over the wire gets its own generated id and defaults,
+so it never equals a stored one.
 See
 [Filtering on Structured Values](../guides/querying-data.md#filtering-on-structured-values).
 

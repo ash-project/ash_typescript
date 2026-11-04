@@ -217,7 +217,7 @@ const overdueTodos = await listTodos({
 
 The exact operator set per field is derived from the field's type and generated into each resource's `FilterInput` type — your editor's autocomplete shows what's available. Note that `isNil` is not offered on fields that can never be nil, such as `count`/`exists`/`list` aggregates.
 
-A field whose value is a record of a non-embedded resource, such as a calculation returning a `Todo`, only offers `isNil`. Ash's filter input can compare such a value only as a whole, which never matches, and can't reach the fields inside it. To filter on one of them, expose it as an expression calculation of its own that reaches the field through a relationship (`calculate :author_name, :string, expr(author.name)`), or filter through the relationship directly; an expression can't read fields through a calculation's returned record. Module calculations without an `expression/2` callback can only be filtered on by data layers that run them in Elixir, such as ETS; see Ash's [calculations guide](https://hexdocs.pm/ash/calculations.html).
+A field whose value is a record, such as an embedded resource, an array of them, or a calculation returning a `Todo`, only offers `isNil`. A record sent in a filter is a new record, with its own generated id and defaults, so it never equals a stored one. Filter on an embedded resource's fields through an expression calculation (`calculate :category, :string, expr(metadata[:category])`). For a non-embedded resource, Ash's filter input can compare such a value only as a whole, which never matches, and can't reach the fields inside it. To filter on one of them, expose it as an expression calculation of its own that reaches the field through a relationship (`calculate :author_name, :string, expr(author.name)`), or filter through the relationship directly; an expression can't read fields through a calculation's returned record. Module calculations without an `expression/2` callback can only be filtered on by data layers that run them in Elixir, such as ETS; see Ash's [calculations guide](https://hexdocs.pm/ash/calculations.html).
 
 ### Logical Operators
 
@@ -301,13 +301,17 @@ const johnsTodos = await listTodos({
 
 ### Filtering on Structured Values
 
-The value of `eq`, `notEq` and `in` on an embedded resource, a typed map or
-struct, or a map-like custom type takes the type's input shape: its fields'
-client names, with nullable fields optional. These values are plain objects,
-without the `__type` / `__primitiveFields` keys of result types. The server
-maps the keys back to the attribute names, and an unknown key is an
-`unknown_input` error. A union's value is a `{ member: value }` object, as in
-union input.
+The value of `eq`, `notEq`, `in` and `has` on a typed map or struct, a
+keyword, a tuple, a union or a map-like custom type takes the type's input
+shape: its fields' client names, with nullable fields optional. These values
+are plain objects, without the `__type` / `__primitiveFields` keys of result
+types. The server maps the keys back to the attribute names and casts the
+value as the same action input would be stored, so it matches the records
+created with it. An unknown key is an `unknown_input` error, and a value the
+type rejects (a constraint it breaks, a required field it lacks) is
+`invalid_filter_value`. A union's value is a `{ member: value }` object, as in
+union input; members that are embedded resources are left out, since a record
+never equals a stored one.
 
 ```typescript
 const todos = await listTodos({
@@ -321,7 +325,8 @@ const todos = await listTodos({
 
 Ordering operators (`lessThan`, `greaterThan`, …) are only offered on map-like
 custom types with declared fields (which can define their own ordering), not on
-other typed maps, structs, embedded resources or unions.
+other typed maps, structs, keywords, tuples or unions. The server enforces the
+same rules: an operator the type doesn't offer is `unknown_filter_operator`.
 
 ### Disabling Client-Side Filtering
 
