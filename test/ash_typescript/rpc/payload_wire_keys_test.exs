@@ -114,28 +114,24 @@ defmodule AshTypescript.Rpc.PayloadWireKeysTest do
 
   describe "structured filter values" do
     # Codegen types these values with their input shape and client keys
-    # (`TaskMetadataInputSchema`, `TaskStatsInput`); ash_rpc maps them back.
-    # ETS never matches a structured value, so the statement is asserted, not
-    # the rows.
+    # (`TaskStatsInput`); ash_rpc maps them back and casts them to the field's
+    # type. An embedded resource value only takes isNil.
     defp parse_filter(filter) do
       runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
       AshRpc.FilterInput.parse(runtime, AshTypescript.Test.Task, filter)
     end
 
-    test "client keys of an embedded resource value become internal names" do
-      assert {%{metadata: %{eq: value}}, []} =
+    test "an embedded resource value takes isNil only" do
+      assert {%{metadata: %{}}, [%Ash.Error.Query.NoSuchFilterPredicate{key: "eq"}]} =
                parse_filter(%{"metadata" => %{"eq" => %{"createdBy" => "a", "isPublic" => true}}})
-
-      assert value[:created_by?] == "a"
-      assert value[:is_public?] == true
     end
 
     test "client keys of a typed struct value become internal names" do
       assert {%{stats: %{in: [value]}}, []} =
                parse_filter(%{"stats" => %{"in" => [%{"totalCount" => 3, "completed" => true}]}})
 
-      assert value[:total_count] == 3
-      assert value[:completed?] == true
+      assert value.total_count == 3
+      assert value.completed? == true
     end
 
     test "an unknown key in a filter value is unknown_input" do
@@ -143,12 +139,12 @@ defmodule AshTypescript.Rpc.PayloadWireKeysTest do
         AshRpc.run_action(AshTypescript.RpcProfile, TestHelpers.build_rpc_conn(), %{
           "action" => "list_tasks",
           "fields" => ["id"],
-          "filter" => %{"metadata" => %{"eq" => %{"created_by" => "a"}}}
+          "filter" => %{"stats" => %{"eq" => %{"total_count" => 3}}}
         })
 
       assert %{"success" => false, "errors" => [error]} = result
       assert error["type"] == "unknown_input"
-      assert error["path"] == ["filter", "metadata", "eq"]
+      assert error["path"] == ["filter", "stats", "eq"]
     end
   end
 
