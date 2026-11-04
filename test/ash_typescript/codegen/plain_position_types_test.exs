@@ -23,28 +23,45 @@ defmodule AshTypescript.Codegen.PlainPositionTypesTest do
   end
 
   describe "filter values" do
-    test "an embedded resource value takes its input schema", %{content: content} do
-      metadata = filter_field(content, "TaskFilterInput", "metadata")
+    # A record sent over the wire gets its own generated keys and defaults, so
+    # it never equals a stored one (AshRpc.Introspection.filter_value_kind/2).
+    test "an embedded resource value, or an array of them, only has isNil", %{content: content} do
+      assert filter_field(content, "TaskFilterInput", "metadata") == "\n    isNil?: boolean;"
+      assert filter_field(content, "TodoFilterInput", "metadata") == "\n    isNil?: boolean;"
 
-      assert metadata =~ "    eq?: TaskMetadataInputSchema;"
-      assert metadata =~ "    in?: Array<TaskMetadataInputSchema>;"
-      refute metadata =~ "ResourceSchema"
+      assert filter_field(content, "TodoFilterInput", "metadataHistory") ==
+               "\n    isNil?: boolean;"
     end
 
-    test "a union value is a { member: input } object per member", %{content: content} do
+    test "a typed map reaching an embedded resource only has isNil", %{content: content} do
+      assert filter_field(content, "TodoFilterInput", "metadataReport") ==
+               "\n    isNil?: boolean;"
+    end
+
+    test "a union value is a { member: input } object per member that isn't a record", %{
+      content: content
+    } do
       union = filter_field(content, "TodoFilterInput", "content")
 
-      assert union =~ "    eq?: { text: AshTypescriptTestTodoContentTextContentInputSchema } | "
-      assert union =~ " | { checklist: TodoContentChecklistInputSchema } | "
-      assert union =~ " | { note: string } | { priorityValue: number };"
+      assert union =~ "    eq?: { note: string } | { priorityValue: number };"
+      assert union =~ "    in?: Array<{ note: string } | { priorityValue: number }>;"
+      refute union =~ "text:"
+      refute union =~ "checklist:"
       refute union =~ "__type"
+    end
+
+    test "an array of unions keeps its members that aren't records", %{content: content} do
+      attachments = filter_field(content, "TodoFilterInput", "attachments")
+      assert attachments =~ "    has?: { file: {filename: string, "
+      assert attachments =~ " | { url: string };"
     end
 
     test "structured values have no ordering operators", %{content: content} do
       for {filter_type, field} <- [
-            {"TaskFilterInput", "metadata"},
             {"TaskFilterInput", "stats"},
-            {"TodoFilterInput", "content"}
+            {"TodoFilterInput", "content"},
+            {"TodoFilterInput", "options"},
+            {"TodoFilterInput", "coordinates"}
           ] do
         block = filter_field(content, filter_type, field)
 

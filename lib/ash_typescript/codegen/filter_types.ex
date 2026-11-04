@@ -20,17 +20,18 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   Operator values are typed with the field's input rendering: ash_rpc reads
   them as input, so a structured value takes the same client keys (optional
-  ones optional) as an action input of that type. Ordering operators are
-  dropped for structured values (embedded resources, unions, typed maps and
-  structs that aren't declared custom types), where they mean nothing. A value
-  that reaches a non-embedded resource (a calculation returning a record) has
-  no input shape and comparing whole records means nothing, so it keeps
-  `isNil` only.
+  ones optional) as an action input of that type. Which operators a field
+  gets is ash_rpc's rule (`AshRpc.Introspection.filter_operator_allowed?/3`),
+  the one its runtime enforces: a value that is or reaches a resource or
+  embedded resource (a record sent over the wire never equals a stored one)
+  has `isNil` only, and a structured value (typed maps and structs, keywords,
+  tuples and unions that aren't declared custom types) has no ordering
+  operators. A union value leaves out the members that are records.
 
   Fields/relationships whose `filterable?` is `false` are skipped entirely.
   """
-  alias AshTypescript.Codegen.{ClientNames, CustomTypeAliases, Helpers, TypeMapper}
-  alias AshTypescript.TypeSystem.Introspection
+  alias Ash.Info.Manifest.Type
+  alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
 
   # Mapping from canonical operator names (`%ApplicableOperator{}.name`, the
   # symbols that appear in `Ash.Query.filter` expressions) to the TS filter
@@ -190,13 +191,15 @@ defmodule AshTypescript.Codegen.FilterTypes do
   end
 
   defp spec_field_filter(%Ash.Info.Manifest.Field{} = field, api_resource) do
+    lookups = type_lookups()
+
+    base_type =
+      if AshRpc.Introspection.filter_value_kind(field.type, lookups) == :record,
+        do: "never",
+        else: comparable_type(field.type, lookups)
+
     lines =
-      if CustomTypeAliases.reaches_resource?(field.type) do
-        manifest_operations(%{field | filter_operators: nil_check_operators(field)}, "never")
-      else
-        base_type = TypeMapper.map_plain_type(field.type, :input)
-        manifest_operations(field, base_type) ++ manifest_function_operations(field, base_type)
-      end
+      manifest_operations(field, base_type) ++ manifest_function_operations(field, base_type)
 
     formatted_name = ClientNames.resource_field(api_resource, field.name)
 
@@ -216,36 +219,64 @@ defmodule AshTypescript.Codegen.FilterTypes do
     field.filter_operators
     |> Enum.filter(fn %{name: name} -> Map.has_key?(@operator_atom_to_key, name) end)
     |> Enum.reject(fn %{name: name} -> name == :is_nil and not field.allow_nil? end)
-    |> reject_ordering_for_structured(field.type)
+    |> Enum.filter(&allowed?(field, &1))
     |> Enum.map(&format_operation(&1, base_type))
   end
 
-  defp nil_check_operators(%Ash.Info.Manifest.Field{filter_operators: operators}),
-    do: Enum.filter(operators, &(&1.name == :is_nil))
+  defp allowed?(field, %{name: name}),
+    do: AshRpc.Introspection.filter_operator_allowed?(field.type, name, type_lookups())
 
-  @ordering_operators [:<, :>, :<=, :>=]
+  defp type_lookups,
+    do: %{
+      resource_lookup: AshTypescript.resource_lookup(),
+      type_lookup: AshTypescript.type_lookup()
+    }
 
-  defp reject_ordering_for_structured(operators, type) do
-    if structured?(type) do
-      Enum.reject(operators, &(&1.name in @ordering_operators))
-    else
-      operators
+  # The TS type of a value a filter can compare. A union (or an array of
+  # them) leaves out its members that are records, whose values ash_rpc
+  # rejects; its members are named against the manifest's union node.
+  defp comparable_type(%Type{} = type, lookups) do
+    case AshRpc.Introspection.resolve_named_type(type, lookups) do
+      %Type{kind: :array, item_type: %Type{} = item} ->
+        if record_members?(item, lookups),
+          do: "Array<#{comparable_type(item, lookups)}>",
+          else: TypeMapper.map_plain_type(type, :input)
+
+      %Type{kind: :union} = union ->
+        if record_members?(union, lookups),
+          do:
+            TypeMapper.build_union_input_type_from_members(
+              union,
+              &(not record?(&1.type, lookups))
+            ),
+          else: TypeMapper.map_plain_type(type, :input)
+
+      _ ->
+        TypeMapper.map_plain_type(type, :input)
     end
   end
 
-  # A declared custom type (`Money`) may define its own ordering, so only
-  # undeclared structured types count.
-  defp structured?(type) do
-    resolved = Introspection.resolve_named_type(type)
-    Introspection.structured?(resolved) and not AshRpc.Manifest.Custom.custom_type?(resolved)
+  defp record_members?(%Type{} = type, lookups) do
+    case AshRpc.Introspection.resolve_named_type(type, lookups) do
+      %Type{kind: :union, members: members} ->
+        Enum.any?(members || [], &record?(&1.type, lookups))
+
+      _ ->
+        false
+    end
   end
+
+  defp record?(type, lookups),
+    do: AshRpc.Introspection.filter_value_kind(type, lookups) == :record
 
   # Translates the field's `%ApplicableFunction{}` records into TS lines for
   # the whitelisted predicate functions (`contains`, `stringStartsWith`,
   # `stringEndsWith`, `has`). Same `rhs`-driven type derivation as operators.
   defp manifest_function_operations(%Ash.Info.Manifest.Field{} = field, base_type) do
     field.filter_functions
-    |> Enum.filter(fn %{name: name} -> Map.has_key?(@function_atom_to_key, name) end)
+    |> Enum.filter(fn %{name: name} = function ->
+      Map.has_key?(@function_atom_to_key, name) and allowed?(field, function)
+    end)
     |> Enum.map(&format_function(&1, base_type))
   end
 

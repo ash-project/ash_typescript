@@ -177,12 +177,12 @@ defmodule AshTypescript.FilterMappedFieldsTest do
         |> String.split("\n  };")
         |> Enum.at(0)
 
-      # Embedded resource values take the resource's input shape
-      assert metadata_section =~ "eq?: TaskMetadataInputSchema;"
-      assert metadata_section =~ "notEq?: TaskMetadataInputSchema;"
-      assert metadata_section =~ "in?: Array<TaskMetadataInputSchema>;"
+      # An embedded resource value can only be checked for nil: one sent over
+      # the wire never equals a stored one
+      assert metadata_section =~ "isNil?: boolean;"
+      refute metadata_section =~ "eq?:"
+      refute metadata_section =~ "in?:"
       refute metadata_section =~ "greaterThan"
-      refute metadata_section =~ "TaskMetadataResourceSchema"
     end
   end
 

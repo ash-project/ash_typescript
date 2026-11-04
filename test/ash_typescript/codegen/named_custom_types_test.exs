@@ -176,11 +176,15 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
       refute types =~ ~r/^    eq\?: \{totalCount1.*__type/m
     end
 
-    test "union filter values are { member: input } objects", %{types: types} do
+    test "union filter values are { member: input } objects, records left out", %{
+      types: types
+    } do
       content = filter_block(types, "InputParsingResourceFilterInput", "content")
 
       assert content =~
-               ~s(    eq?: { text: InputParsingTextContentInputSchema } | { data: {itemCount: number, isCached?: boolean | null} } | { simpleValue: string };)
+               ~s(    eq?: { data: {itemCount: number, isCached?: boolean | null} } | { simpleValue: string };)
+
+      refute content =~ "text:"
 
       refute content =~ "__type"
     end

@@ -871,10 +871,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @doc """
   Builds a union input type (discriminated union syntax) from a decorated union
   `%Ash.Info.Manifest.Type{}`. Member keys are the union's decorated member names.
+  `keep?` selects the members to render (every member by default).
   """
-  def build_union_input_type_from_members(%Type{} = union) do
+  def build_union_input_type_from_members(%Type{} = union, keep? \\ fn _member -> true end) do
     member_objects =
       (union.members || [])
+      |> Enum.filter(keep?)
       |> Enum.map_join(" | ", fn %{name: name, type: type} ->
         formatted_name = ClientNames.union_member(union, name)
         ts_type = map_union_member_from_spec(type, :input)
