@@ -38,7 +38,9 @@ defmodule AshTypescript.Manifest.TypedRouteCollector do
       controller_module: controller_module,
       name: dsl_route.name,
       inputs: Enum.map(dsl_route.arguments, &argument/1),
-      returns: dsl_route.returns && resolve(dsl_route.returns, dsl_route.constraints)
+      returns: dsl_route.returns && resolve(dsl_route.returns, dsl_route.constraints),
+      zod_schema_name: dsl_route.zod_schema_name,
+      valibot_schema_name: dsl_route.valibot_schema_name
     }
   end
 

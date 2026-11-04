@@ -20,7 +20,9 @@ defmodule AshTypescript.Manifest.Route do
           inputs: [RouteArgument.t()],
           client_input_names: %{String.t() => atom()},
           path_input_names: %{String.t() => atom()},
-          returns: Ash.Info.Manifest.Type.t() | nil
+          returns: Ash.Info.Manifest.Type.t() | nil,
+          zod_schema_name: String.t() | nil,
+          valibot_schema_name: String.t() | nil
         }
 
   defstruct [
@@ -28,6 +30,8 @@ defmodule AshTypescript.Manifest.Route do
     :controller_module,
     :name,
     :returns,
+    zod_schema_name: nil,
+    valibot_schema_name: nil,
     inputs: [],
     client_input_names: %{},
     path_input_names: %{}

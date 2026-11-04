@@ -17,6 +17,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   alias AshRpc.RequestedFieldsProcessor
   alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
+  alias AshTypescript.Rpc.Codegen.FunctionNames
 
   @doc """
   Generates the typed queries section for TypeScript output.
@@ -94,14 +95,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
         # The type and the const are the same selection, named with the decorated client names
         selection = format_typed_query_fields(atomized_fields, resource)
 
-        # Type names are always PascalCase in TypeScript
-        type_name =
-          typed_query.ts_result_type_name ||
-            "#{snake_to_pascal_case(typed_query.name)}Result"
-
-        # Const names use the configured field formatter
-        const_name =
-          typed_query.ts_fields_const_name || format_output_field(typed_query.name)
+        type_name = FunctionNames.typed_query_result_type(typed_query)
+        const_name = FunctionNames.typed_query_const(typed_query)
 
         is_array = action.type == :read && !action.get?
 

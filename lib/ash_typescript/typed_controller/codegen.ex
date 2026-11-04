@@ -413,7 +413,7 @@ defmodule AshTypescript.TypedController.Codegen do
       input_args =
         Enum.reject(info.manifest_route.inputs, &MapSet.member?(path_param_set, &1.name))
 
-      path_name = build_export_function_name(route.name, scope_prefix, :path)
+      path_name = route_function_name(route, scope_prefix, :path)
       exports = [{path_name, :value}]
 
       # Fetch functions exist per `fetch_function?/1`. The named input type
@@ -424,7 +424,7 @@ defmodule AshTypescript.TypedController.Codegen do
       # terms — see `RouteRenderer.render_validation_schema/3`.
       exports =
         if fetch_function?(info) do
-          action_name = build_export_function_name(route.name, scope_prefix, :action)
+          action_name = route_function_name(route, scope_prefix, :action)
           exports = exports ++ [{action_name, :value}]
 
           if is_mutation and input_args != [] do
@@ -446,13 +446,14 @@ defmodule AshTypescript.TypedController.Codegen do
 
       exports =
         if AshTypescript.Rpc.generate_zod_schemas?() and input_args != [] do
-          exports ++ [{route_zod_schema_name(route, scope_prefix), :zod_value}]
+          exports ++ [{route_zod_schema_name(info.manifest_route, scope_prefix), :zod_value}]
         else
           exports
         end
 
       if AshTypescript.Rpc.generate_valibot_schemas?() and input_args != [] do
-        exports ++ [{route_valibot_schema_name(route, scope_prefix), :valibot_value}]
+        exports ++
+          [{route_valibot_schema_name(info.manifest_route, scope_prefix), :valibot_value}]
       else
         exports
       end
@@ -461,29 +462,49 @@ defmodule AshTypescript.TypedController.Codegen do
   end
 
   @doc """
-  Returns the exported Zod schema name for a route, honoring the route's
-  `zod_schema_name` override.
+  Returns the exported Zod schema name for a manifest route
+  (`%AshTypescript.Manifest.Route{}`), honoring its `zod_schema_name`
+  override. `formatter` defaults to the configured output formatter.
 
   Single source of truth for the name — used by `RouteRenderer.render_zod_schema/1`
   (the export itself), `collect_route_exports/1` (namespace re-exports), and
-  `JsonManifestGenerator` (the advertised name), so they cannot drift.
+  both manifest generators (the advertised name), so they cannot drift.
   """
-  def route_zod_schema_name(route, scope_prefix) do
-    route.zod_schema_name ||
-      build_route_schema_name(route, scope_prefix, AshTypescript.Rpc.zod_schema_suffix())
+  def route_zod_schema_name(
+        manifest_route,
+        scope_prefix,
+        formatter \\ AshTypescript.output_field_formatter()
+      ) do
+    manifest_route.zod_schema_name ||
+      route_schema_name(
+        manifest_route,
+        scope_prefix,
+        AshTypescript.Rpc.zod_schema_suffix(),
+        formatter
+      )
   end
 
   @doc """
-  Returns the exported Valibot schema name for a route, honoring the route's
-  `valibot_schema_name` override.
+  Returns the exported Valibot schema name for a manifest route
+  (`%AshTypescript.Manifest.Route{}`), honoring its `valibot_schema_name`
+  override. `formatter` defaults to the configured output formatter.
 
   Single source of truth for the name — used by `RouteRenderer.render_valibot_schema/1`
   (the export itself), `collect_route_exports/1` (namespace re-exports), and
-  `JsonManifestGenerator` (the advertised name), so they cannot drift.
+  both manifest generators (the advertised name), so they cannot drift.
   """
-  def route_valibot_schema_name(route, scope_prefix) do
-    route.valibot_schema_name ||
-      build_route_schema_name(route, scope_prefix, AshTypescript.Rpc.valibot_schema_suffix())
+  def route_valibot_schema_name(
+        manifest_route,
+        scope_prefix,
+        formatter \\ AshTypescript.output_field_formatter()
+      ) do
+    manifest_route.valibot_schema_name ||
+      route_schema_name(
+        manifest_route,
+        scope_prefix,
+        AshTypescript.Rpc.valibot_schema_suffix(),
+        formatter
+      )
   end
 
   @doc """
@@ -493,7 +514,36 @@ defmodule AshTypescript.TypedController.Codegen do
   """
   def route_function_name(route_info) do
     kind = if fetch_function?(route_info), do: :action, else: :path
-    build_export_function_name(route_info.route.name, route_info.scope_prefix, kind)
+
+    route_function_name(route_info.route, route_info.scope_prefix, kind)
+  end
+
+  @doc """
+  Returns the exported name of a route's fetch function (`kind` `:action`) or
+  path helper (`:path`), under `formatter`. `route_or_name` is a route name
+  or anything with a `:name`. `formatter` defaults to the configured output
+  formatter.
+
+  Single source of truth for the name — used by `RouteRenderer`,
+  `collect_route_exports/1` and `route_function_name/1`.
+  """
+  def route_function_name(
+        route_or_name,
+        scope_prefix,
+        kind,
+        formatter \\ AshTypescript.output_field_formatter()
+      )
+      when kind in [:action, :path] do
+    name = if is_atom(route_or_name), do: route_or_name, else: route_or_name.name
+
+    base =
+      case scope_prefix do
+        nil -> "#{name}"
+        prefix -> "#{prefix}_#{name}"
+      end
+
+    suffix = if kind == :path, do: "_path", else: ""
+    AshTypescript.FieldFormatter.format_field_name(:"#{base}#{suffix}", formatter)
   end
 
   @doc """
@@ -519,14 +569,14 @@ defmodule AshTypescript.TypedController.Codegen do
   def route_result_type_name(route, scope_prefix),
     do: Macro.camelize("#{scope_prefix}_#{route.name}_result")
 
-  defp build_route_schema_name(route, scope_prefix, suffix) do
-    case scope_prefix do
-      nil ->
-        AshTypescript.Helpers.format_output_field(:"#{route.name}#{suffix}")
+  defp route_schema_name(route, scope_prefix, suffix, formatter) do
+    name =
+      case scope_prefix do
+        nil -> :"#{route.name}#{suffix}"
+        prefix -> :"#{prefix}_#{route.name}#{suffix}"
+      end
 
-      prefix ->
-        AshTypescript.Helpers.format_output_field(:"#{prefix}_#{route.name}#{suffix}")
-    end
+    AshTypescript.FieldFormatter.format_field_name(name, formatter)
   end
 
   @doc """
@@ -555,21 +605,5 @@ defmodule AshTypescript.TypedController.Codegen do
       zod_file_path,
       valibot_file_path
     )
-  end
-
-  defp build_export_function_name(action_name, nil, :path) do
-    AshTypescript.Helpers.format_output_field(:"#{action_name}_path")
-  end
-
-  defp build_export_function_name(action_name, scope_prefix, :path) do
-    AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}_path")
-  end
-
-  defp build_export_function_name(action_name, nil, :action) do
-    AshTypescript.Helpers.format_output_field(action_name)
-  end
-
-  defp build_export_function_name(action_name, scope_prefix, :action) do
-    AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}")
   end
 end

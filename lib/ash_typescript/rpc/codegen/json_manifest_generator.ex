@@ -507,7 +507,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "zod",
         fn ->
           AshTypescript.TypedController.Codegen.route_zod_schema_name(
-            info.route,
+            info.manifest_route,
             info.scope_prefix
           )
         end
@@ -517,7 +517,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "valibot",
         fn ->
           AshTypescript.TypedController.Codegen.route_valibot_schema_name(
-            info.route,
+            info.manifest_route,
             info.scope_prefix
           )
         end

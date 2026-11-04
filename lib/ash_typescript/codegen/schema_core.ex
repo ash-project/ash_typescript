@@ -23,8 +23,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
 
-  import AshTypescript.Helpers
-
   # Ash.Info.Manifest.Type kinds → corresponding Ash type module, used to look up
   # static primitive schemas in `formatter.simple_primitives()`. Only listed
   # for kinds that have a 1:1 module correspondence and don't need
@@ -338,10 +336,18 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   Single source of truth for the name — used by `generate_action_schema/4` (the
   export itself), the namespace re-export collection, and both manifests, so
-  they cannot drift from the configured `*_schema_suffix`.
+  they cannot drift from the configured `*_schema_suffix`. `output_formatter`
+  defaults to the configured `AshTypescript.output_field_formatter()`.
   """
-  def action_schema_name(formatter, rpc_action_name) do
-    format_output_field("#{rpc_action_name}#{formatter.schema_suffix()}")
+  def action_schema_name(
+        formatter,
+        rpc_action_name,
+        output_formatter \\ AshTypescript.output_field_formatter()
+      ) do
+    AshTypescript.FieldFormatter.format_field_name(
+      "#{rpc_action_name}#{formatter.schema_suffix()}",
+      output_formatter
+    )
   end
 
   @doc """

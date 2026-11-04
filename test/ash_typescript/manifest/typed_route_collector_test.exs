@@ -72,6 +72,18 @@ defmodule AshTypescript.Manifest.TypedRouteCollectorTest do
              )
     end
 
+    test "the collector copies zod_schema_name and valibot_schema_name" do
+      {routes, []} = TypedRouteCollector.collect([AshTypescript.Test.Session], [])
+
+      create_task = Enum.find(routes, &(&1.name == :create_task))
+      assert create_task.zod_schema_name == "createTaskRouteZodSchema"
+      assert create_task.valibot_schema_name == "createTaskRouteValibotSchema"
+
+      login = Enum.find(routes, &(&1.name == :login))
+      assert login.zod_schema_name == nil
+      assert login.valibot_schema_name == nil
+    end
+
     test "skips modules that don't use the DSLs" do
       assert TypedRouteCollector.collect([String], [String]) == {[], []}
     end

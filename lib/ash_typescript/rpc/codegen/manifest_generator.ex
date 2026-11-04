@@ -18,7 +18,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
-  alias AshTypescript.Helpers
   alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
@@ -469,13 +468,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     items =
       typed_queries
       |> Enum.map_join("\n", fn typed_query ->
-        const_name =
-          typed_query.ts_fields_const_name || Helpers.format_output_field(typed_query.name)
-
-        # Type names are always PascalCase in TypeScript
-        type_name =
-          typed_query.ts_result_type_name ||
-            "#{Helpers.snake_to_pascal_case(typed_query.name)}Result"
+        const_name = FunctionNames.typed_query_const(typed_query)
+        type_name = FunctionNames.typed_query_result_type(typed_query)
 
         description = Map.get(typed_query, :description)
 
@@ -586,7 +580,9 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       end
 
     schema_cell = fn name_fun ->
-      if input_args == [], do: "-", else: "`#{name_fun.(info.route, info.scope_prefix)}`"
+      if input_args == [],
+        do: "-",
+        else: "`#{name_fun.(info.manifest_route, info.scope_prefix)}`"
     end
 
     "| #{method} | #{path} | `#{function_name}` | #{input_type} | #{result_type} |"
