@@ -51,6 +51,7 @@ import "./shouldPass/typedChannelOperations";
 import "./shouldPass/sortFields";
 import "./shouldPass/nestedQueryOpts";
 import "./shouldPass/hoistedSatisfiesFields";
+import "./shouldPass/structuredFilters";
 import "./rpcHooks";
 
 // Import Zod schema validation tests

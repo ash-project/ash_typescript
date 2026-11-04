@@ -38,6 +38,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "argsWithFieldConstraints.ts",
     "get.ts",
     "getBy.ts",
+    "structuredFilters.ts",
     "structArguments.ts",
     "identities.ts",
     "compositePrimaryKey.ts"
