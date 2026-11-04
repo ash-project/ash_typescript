@@ -346,9 +346,8 @@ MIX_ENV=test mix ash_typescript.codegen
 **Problem:** TypeScript compilation fails after generation.
 
 **Solution:** Check for:
-1. Invalid field names (use field name mapping)
-2. Custom types not defined in imported modules
-3. Dependency types without a TypeScript mapping: declare them in the manifest module's `custom_types` section
+1. Custom types not defined in imported modules
+2. Dependency types without a TypeScript mapping: declare them in the manifest module's `custom_types` section
 
 See [Custom Types](../advanced/custom-types.md) and [Field Name Mapping](../advanced/field-name-mapping.md).
 

@@ -31,11 +31,6 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
       module with a `scalar` entry is checked against the scalar's base type,
       with its constraints merged over the scalar's (`Keyword.merge/2`, the
       field winning per key). A field typed by a `map` entry isn't checked;
-    * a `field` `client_name` that isn't a TypeScript identifier;
-    * a `ts_alias` string (`map` or `scalar`) that isn't a TypeScript
-      identifier, or is a reserved word (`string`, `object`, `default`, …;
-      `AshTypescript.CustomTypes.check_name/2`), or is a global TypeScript
-      name the generated code uses (`Array`, `Promise`, …);
     * a `scalar` string `ts_alias` equal to its string `ts_type` (the alias
       would alias itself);
     * a `scalar` with an MFA `ts_alias` and a `ts_type` that isn't an MFA
@@ -123,7 +118,6 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   defp normalize(%MapType{fields: []} = map, _by_module) do
     if CustomTypes.field_bearing_new_type_module?(map.module) do
       with :ok <- check_no_schemas(map),
-           :ok <- check_ts_alias(map),
            :ok <- check_no_type_callback(map) do
         {:ok, map}
       end
@@ -138,8 +132,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   defp normalize(%MapType{} = map, by_module) do
     with :ok <- check_fields_not_from_type(map),
          :ok <- check_duplicate_fields(map),
-         {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)),
-         :ok <- check_ts_alias(map) do
+         {:ok, fields} <- map_ok(map.fields, &normalize_field(map, &1, by_module)) do
       {:ok, %{map | fields: fields}}
     end
   end
@@ -215,12 +208,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
         "or give it another name."}}
   end
 
-  defp check_scalar_ts_alias(%Scalar{ts_alias: name} = scalar) when is_binary(name) do
-    subject = "The ts_alias #{inspect(name)} of #{inspect(scalar.module)}"
-
-    with {:error, message} <- CustomTypes.check_name(name, subject),
-         do: {:error, {scalar, [:scalar, scalar.module, :ts_alias], message}}
-  end
+  # A string `ts_alias` is checked with the other generated names
+  # (`AshTypescript.Manifest.NameCheck`), where the manifest reaches it.
+  defp check_scalar_ts_alias(%Scalar{ts_alias: name}) when is_binary(name), do: :ok
 
   defp check_scalar_ts_alias(%Scalar{ts_type: {_m, _f, _a}}), do: :ok
 
@@ -271,15 +261,6 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   defp exports_type?(module),
     do: Code.ensure_loaded?(module) and function_exported?(module, :typescript_type, 0)
 
-  defp check_ts_alias(%MapType{ts_alias: nil}), do: :ok
-
-  defp check_ts_alias(%MapType{ts_alias: name} = map) do
-    subject = "The ts_alias #{inspect(name)} of #{inspect(map.module)}"
-
-    with {:error, message} <- CustomTypes.check_name(name, subject),
-         do: {:error, {map, [:map, map.module, :ts_alias], message}}
-  end
-
   defp check_duplicate_fields(%MapType{} = map) do
     map.fields
     |> Enum.group_by(& &1.name)
@@ -299,22 +280,7 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
     path = [:map, map.module, :field, field.name]
     subject = "field #{inspect(field.name)} of #{inspect(map.module)}"
 
-    with :ok <- check_client_name(field, path, subject) do
-      normalize_field_type(field, path, subject, by_module)
-    end
-  end
-
-  defp check_client_name(%Field{client_name: nil}, _path, _subject), do: :ok
-
-  defp check_client_name(%Field{client_name: name} = field, path, subject) do
-    if AshTypescript.NameValidation.identifier?(name) do
-      :ok
-    else
-      {:error,
-       {field, path,
-        "The client_name #{inspect(name)} of #{subject} is not a TypeScript identifier " <>
-          "([A-Za-z_$][A-Za-z0-9_$]*)."}}
-    end
+    normalize_field_type(field, path, subject, by_module)
   end
 
   defp normalize_field_type(field, path, subject, by_module) do

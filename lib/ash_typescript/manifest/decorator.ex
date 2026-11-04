@@ -143,7 +143,8 @@ defmodule AshTypescript.Manifest.Decorator do
     end
   end
 
-  # `CustomTypes.check_alias_names/2` has rejected invalid names before.
+  # `CustomTypes.check_alias_names/2` has rejected a callback result that
+  # isn't a string before; `NameCheck` checks the name after decoration.
   defp new_type_alias_names(type, custom_types) do
     with true <- CustomTypes.field_bearing_new_type?(type),
          {:ok, name} when is_binary(name) <-

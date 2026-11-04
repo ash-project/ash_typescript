@@ -13,7 +13,8 @@ defmodule AshTypescript.VerifierChecker do
   Manifest-level verifiers are *not* run here — they're a property of the
   `AshTypescript.Manifest` module and are checked at compile time by Spark, and
   re-checked at codegen time via `AshTypescript.Manifest.run_verifiers/1` (or
-  `verify_for_domains/2` for inline test manifests).
+  `verify_for_domains/2` for inline test manifests). Generated names are
+  checked while the manifest module compiles (`AshTypescript.Manifest.NameCheck`).
   """
 
   @doc """

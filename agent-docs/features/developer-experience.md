@@ -371,10 +371,10 @@ have no `types` key at all.
 
 The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` /
 `valibot_schema_name` overrides; the single sources of truth are
-`TypedController.Codegen.route_zod_schema_name/2` and `route_valibot_schema_name/2`,
-shared by the renderer, namespace re-exports, and the manifests, so they cannot
-drift. Each key appears only when the corresponding `generate_*_schemas` config
-is enabled. (The Markdown manifest adds a Valibot Schema column for actions and
+`TypedController.Codegen.route_zod_schema_name/3` and `route_valibot_schema_name/3`
+(called with the manifest route, which carries the overrides), shared by the
+renderer, namespace re-exports, and the manifests, so they cannot drift. Each
+key appears only when the corresponding `generate_*_schemas` config is enabled. (The Markdown manifest adds a Valibot Schema column for actions and
 routes when `generate_valibot_schemas` is on.)
 
 ### Action Entry Fields

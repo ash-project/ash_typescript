@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
+defmodule AshTypescript.Manifest.NameCheck.ArgumentTypeFieldNamesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - argument type field names" do
@@ -53,15 +53,16 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainMapArg])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn -> silent_verify_for_domains([TestDomainMapArg]) end
 
-      assert {:error, error_message} = result
+      assert error_message =~ "Invalid generated names found."
 
       assert error_message =~
-               ~r/Invalid field names found in action return types or argument types/
+               ~s{- field :data.field_1 of action :process_data (RPC actions process_data) → "field1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
 
-      assert error_message =~ "field_1"
-      assert error_message =~ "is_valid?"
+      assert error_message =~
+               ~s{- field :data.is_valid? of action :process_data (RPC actions process_data) → "isValid?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects invalid field names in union argument type" do
@@ -117,14 +118,15 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainUnionArg])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainUnionArg])
+        end
 
-      assert {:error, error_message} = result
+      assert error_message =~ "Invalid generated names found."
 
       assert error_message =~
-               ~r/Invalid field names found in action return types or argument types/
-
-      assert error_message =~ "value_1"
+               ~s{- field :input.option_a.value_1 of action :handle_input (RPC actions handle_input) → "value1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects invalid field names in array of maps argument type" do
@@ -175,14 +177,15 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainArrayMapArg])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainArrayMapArg])
+        end
 
-      assert {:error, error_message} = result
+      assert error_message =~ "Invalid generated names found."
 
       assert error_message =~
-               ~r/Invalid field names found in action return types or argument types/
-
-      assert error_message =~ "item_1"
+               ~s{- field :items[].item_1 of action :process_items (RPC actions process_items) → "item1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
   end
 

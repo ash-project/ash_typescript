@@ -24,9 +24,12 @@ rpc_action :function_name, :ash_action_name, options
 | Options | Keyword list of configuration options |
 
 The function name is the first argument under the `output_field_formatter`, so it
-can't be a JavaScript reserved word: `rpc_action :delete, :destroy` is a compile error
-("generates the function `delete`, a JavaScript reserved word"). Use a name like
-`:delete_todo`. Names that only contain a reserved word (`:import_users`) are fine.
+must be a TypeScript identifier and can't be a JavaScript reserved word, and the first
+argument can't contain a `?` or an underscore before a digit. Compiling the manifest
+fails otherwise: `rpc_action :delete, :destroy` gives "Invalid generated names found."
+with the line `- function "delete", a JavaScript reserved word: rename the rpc_action,
+for example :delete_item`. Use a name like `:delete_todo`. Names that only contain a
+reserved word (`:import_users`) are fine.
 
 ## Load Restrictions
 

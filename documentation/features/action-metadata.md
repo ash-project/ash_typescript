@@ -257,19 +257,25 @@ if (result.success) {
 
 ## Compile-time Verification
 
-AshTypescript includes compile-time verification that detects invalid metadata field names:
+Compiling the manifest checks the client name of every metadata field an RPC
+action exposes (all of them when `show_metadata` isn't set), with every other
+generated name. A formatted name from a field with a `?` or an underscore before a
+digit, or any name that isn't a TypeScript identifier, fails the compile:
 
 ```
-Invalid metadata field names found in show_metadata configuration.
+Invalid generated names found.
 
-Invalid metadata field name in RPC action:
-  - RPC action: read_with_metadata (action: read_with_metadata)
-  - Field: field_1
-  - Suggested: field1
-  - Reason: Contains question marks or numbers preceded by underscores
+Client names (keys of generated objects) must be TypeScript identifiers
+([A-Za-z_$][A-Za-z0-9_$]*). A name the formatter makes from a raw name with an underscore
+before a digit (line_1) is rejected too, since its client name (line1) doesn't tell line_1
+from line1.
 
-Metadata field names must be valid TypeScript identifiers.
+  Resource MyApp.Task:
+    - metadata :field_1 of RPC action :read_tasks → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"
 ```
+
+A `metadata_field_names` value is used as written, so it only has to be an
+identifier (`field_1: "field_1"` is accepted).
 
 ## Next Steps
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
+defmodule AshTypescript.Manifest.NameCheck.ReturnTypeFieldNamesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - return type field names" do
@@ -51,12 +51,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainMapReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainMapReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "field_1"
-      assert error_message =~ "is_valid?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns.field_1 of action :get_data (RPC actions get_data) → "field1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns.is_valid? of action :get_data (RPC actions get_data) → "isValid?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects a typescript_field_names mapping that isn't a TypeScript identifier" do
@@ -105,11 +111,15 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      assert {:error, error_message} = silent_verify_for_domains([TestDomainDashedMapping])
-      assert error_message =~ ~r/Invalid field names found in action return types/
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainDashedMapping])
+        end
+
+      assert error_message =~ "Invalid generated names found."
 
       assert error_message =~
-               ~s(field hex_code -> a TypeScript identifier ("hex-code" is not one\))
+               ~s{- field :hex_code → "hex-code" (typescript_field_names/0), not an identifier: change AshTypescript.Manifest.NameCheck.ReturnTypeFieldNamesTest.DashedSwatch.typescript_field_names/0}
     end
 
     test "detects invalid field names in keyword return type" do
@@ -157,12 +167,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainKeywordReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainKeywordReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "setting_1"
-      assert error_message =~ "enabled?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns.enabled? of action :get_options (RPC actions get_options) → "enabled?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns.setting_1 of action :get_options (RPC actions get_options) → "setting1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects invalid field names in tuple return type" do
@@ -210,12 +226,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainTupleReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainTupleReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "value_1"
-      assert error_message =~ "value_2"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns.value_1 of action :get_coords (RPC actions get_coords) → "value1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns.value_2 of action :get_coords (RPC actions get_coords) → "value2" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects invalid field names in union return type members" do
@@ -277,12 +299,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainUnionReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainUnionReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "result_1"
-      assert error_message =~ "error_code?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns.error.error_code? of action :get_result (RPC actions get_result) → "errorCode?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns.success.result_1 of action :get_result (RPC actions get_result) → "result1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "detects invalid field names in array of maps return type" do
@@ -332,12 +360,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainArrayMapReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainArrayMapReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "item_1"
-      assert error_message =~ "active?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns[].active? of action :list_items (RPC actions list_items) → "active?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns[].item_1 of action :list_items (RPC actions list_items) → "item1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
   end
 

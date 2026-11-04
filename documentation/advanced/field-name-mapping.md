@@ -11,9 +11,27 @@ TypeScript has stricter identifier rules than Elixir. AshTypescript provides bui
 
 ## Invalid Name Patterns
 
-AshTypescript detects and requires mapping for these patterns:
-- **Underscores before digits**: `field_1`, `address_line_2`, `item__3`
-- **Question marks**: `is_active?`, `enabled?`
+Every client name must be a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`).
+AshTypescript requires a mapping for names whose formatted client name breaks that,
+or doesn't map back to one Elixir name:
+- **Question marks**: `is_active?`, `enabled?` (`isActive?` isn't an identifier)
+- **Underscores before digits**: `field_1`, `address_line_2`, `item__3` (`field1`
+  could come from `field1` or from `field_1`)
+
+Names with other characters an identifier can't hold (`:"due-at"`, `:"1st"`) are
+rejected too. Map a resource field like that with `field_names` (`"due-at": "dueAt"`),
+or rename it:
+
+```
+- field :"due-at" → "due-at" (formatted), not an identifier: add it to field_names in the resource's typescript block, e.g. "due-at": "dueAt"
+```
+
+A field whose name is already usable (`:title`) can't be mapped: `field_names` only
+takes names with a `?`, an underscore before a digit, or a character an identifier
+can't hold.
+
+A name you map is used as written, so it only has to be an identifier:
+`field_names line_1: "line_1"` is accepted.
 
 ## Resource Field Mapping
 
@@ -205,46 +223,34 @@ const tasks = await readWithMetadata({
 
 ## Verification and Error Messages
 
-AshTypescript checks names at compile time. The most common errors:
-
-### Resource Field Verification Error
-
-```
-Invalid field names found that contain question marks, or numbers preceded by underscores.
-
-Invalid field names in resource MyApp.User:
-  - attribute address_line_1 → address_line1
-  - attribute is_active? → is_active
-
-You can use field_names in the typescript section to provide valid alternatives.
-```
-
-### Map Constraint Verification Error
+Compiling the manifest checks every client name the generated code uses, for the
+resources, actions, routes and types the manifest reaches, and fails with one error
+that lists each problem with its fix:
 
 ```
-Invalid field names found in map/keyword/tuple type constraints.
+Invalid generated names found.
 
-Invalid constraint field names in attribute :metadata on resource MyApp.Resource:
-    - field_1 → field1
-    - is_active? → is_active
+Client names (keys of generated objects) must be TypeScript identifiers
+([A-Za-z_$][A-Za-z0-9_$]*). A name the formatter makes from a raw name with an underscore
+before a digit (line_1) is rejected too, since its client name (line1) doesn't tell line_1
+from line1.
 
-To fix this, create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
-and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
+  Resource MyApp.Task:
+    - field :address_line_1 → "addressLine1" (formatted), underscore before a digit: add it to field_names in the resource's typescript block, e.g. address_line_1: "addressLine1"
+    - metadata :field_1 of RPC action :read_tasks → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"
+    - field :settings.field_1 → "field1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0
+    - argument :field_2 of action :update (RPC actions update_task) → "field2" (formatted), underscore before a digit: add it to argument_names for the action, e.g. update: [field_2: "field2"]
+    - field :is_active? → "isActive?" (formatted), not an identifier: add it to field_names in the resource's typescript block, e.g. is_active?: "isActive"
 ```
 
-### Metadata Field Verification Error
-
-```
-Invalid metadata field names found in show_metadata configuration.
-
-Invalid metadata field name in RPC action:
-  - RPC action: read_with_metadata (action: read_with_metadata)
-  - Field: field_1
-  - Suggested: field1
-  - Reason: Contains question marks or numbers preceded by underscores
-
-Metadata field names must be valid TypeScript identifiers.
-```
+The same error reports function, const, type and schema names generated for RPC
+actions, typed queries, routes and typed channels, and type aliases. Under a custom
+(MFA) `output_field_formatter` it also checks the generated code's own keys
+(`hasMore`, `fetchOptions`, …), and a name your formatter makes from a usable raw
+name is reported as the formatter's: `- key :has_more → "has-more" (formatted), not
+an identifier: the output_field_formatter turns it into "has-more": change the
+formatter`. See
+[Troubleshooting](../reference/troubleshooting.md#error-invalid-generated-names-found).
 
 On a read action, a metadata client name equal to a public resource field's
 client name fails the manifest with `AshRpc.Manifest.NameCollisionError`.
@@ -289,11 +295,13 @@ always take precedence over the formatter: those names are used exactly as writt
 never reformatted.
 
 A mapped name must be a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). A
-`field_names` value that isn't one fails the resource's compilation ("Invalid
-field_names configuration found"). A `typescript_field_names/0` value that isn't
-one fails the manifest wherever the manifest reaches the type. So does a
-`client_name` in a `custom_types` `map` entry (see
-[Declaring Fields in the Manifest](custom-types.md#declaring-fields-in-the-manifest)).
+`field_names`, `argument_names`, `metadata_field_names` or `typescript_field_names/0`
+value that isn't one, or a `client_name` in a `custom_types` `map` entry (see
+[Declaring Fields in the Manifest](custom-types.md#declaring-fields-in-the-manifest)),
+fails the manifest ("Invalid generated names found.") wherever the manifest reaches
+it. A `field_names` value that isn't a string, or a key that isn't a field or doesn't
+need a mapping, fails the resource's compilation ("Invalid field_names configuration
+found").
 
 The generated TypeScript and the RPC runtime read these names from the same place, so
 every name in the generated client is one the server accepts and sends: resource

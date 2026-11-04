@@ -204,61 +204,42 @@ if (created.success) {
 
 ## Verification System
 
-### One Verifier, One Check
+### One Check, With Every Other Name
 
-`AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames`
-(`lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex`) checks one
-thing: each metadata field listed in a `show_metadata` list, *after* applying
-`metadata_field_names`, must contain no `?` and no underscore before a digit. With the
-default `show_metadata: nil` (every field exposed), `false` or `[]`, no names are
-checked.
+`AshTypescript.Manifest.NameCheck`
+(`lib/ash_typescript/manifest/name_check.ex`) checks the client name of each metadata
+field an entrypoint exposes (`AshRpc.Manifest.Custom.entrypoint_metadata_field_names/1`),
+*after* applying `metadata_field_names`, with every other generated name when the
+manifest compiles (`DecorateManifest`). With the default `show_metadata: nil` every
+declared field is exposed and checked; with `false` or `[]` none is. A formatter-made
+name must be an identifier and its raw name can't have an underscore before a digit;
+a `metadata_field_names` value is only checked for being an identifier
+(`NameValidation.check_client_name/3`).
 
 A collision between a read action's metadata client name and a public resource field
-is not this verifier's: ash_rpc rejects it when it decorates the manifest (see Error
+is not this check's: ash_rpc rejects it when it decorates the manifest (see Error
 Messages below).
 
-**Where it runs (0.18):** at *manifest-module* compile time, registered in
-`lib/ash_typescript/manifest/dsl.ex`, not at domain compile time. The pre-0.18
+**Where it runs:** at *manifest-module* compile time, in the `DecorateManifest`
+transformer, not at domain compile time. The pre-0.18
 `lib/ash_typescript/rpc/verifiers/` directory no longer exists, and there is no
 separate `VerifyMetadataFieldConflicts` module.
 
 ### Error Messages
 
-All parts are wrapped in one `Spark.Error.DslError`
-(`verify_metadata_field_names.ex:63-98`):
+A metadata problem is one line of the "Invalid generated names found." report
+(`Spark.Error.DslError` at path `[:names]`), under the action's resource:
 
 ```
-Invalid metadata field names found in show_metadata configuration.
-
-<one or more parts, joined by blank lines>
-
-Metadata field names must be valid TypeScript identifiers.
+  Resource MyApp.Task:
+    - metadata :field_1 of RPC action :read_tasks → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"
 ```
 
-There are two part variants:
+A mapped name that isn't an identifier reads `- metadata :field_a of RPC action
+:read_data → "field-a" (metadata_field_names), not an identifier: change the
+metadata_field_names value`.
 
-**Invalid metadata field name** (no mapping applied):
-
-```
-Invalid metadata field name in RPC action:
-  - RPC action: read_data (action: read_with_metadata)
-  - Field: field_1
-  - Suggested: field1
-  - Reason: Contains question marks or numbers preceded by underscores
-```
-
-**Invalid metadata field name mapping** (mapping applied but still invalid):
-
-```
-Invalid metadata field name mapping in RPC action:
-  - RPC action: read_data (action: read_with_metadata)
-  - Original field: field_1
-  - Mapped to: field_1_new
-  - Suggested: field_1new
-  - Reason: The mapped name still contains question marks or numbers preceded by underscores
-```
-
-A separate error, not one of the parts above: **a metadata client name collides with a resource field** (read actions only, mapped or not). ash_rpc raises `AshRpc.Manifest.NameCollisionError` while decorating the manifest, so it surfaces as an exception in the `DecorateManifest` transformer, not from `VerifyMetadataFieldNames`:
+A separate error: **a metadata client name collides with a resource field** (read actions only, mapped or not). ash_rpc raises `AshRpc.Manifest.NameCollisionError` while decorating the manifest, so it surfaces as an exception in the `DecorateManifest` transformer, before the name check:
 
 ```
 Client name collision in metadata of entrypoint "read_data": metadata :meta_title and field :title of MyApp.Todo both map to "title"
@@ -291,9 +272,10 @@ Metadata mapping affects:
 
 ### Test Levels
 
-**1. Verifier Tests**
+**1. Name Check Tests** (end to end through the manifest compile; the file keeps its
+pre-0.20 name; rule rows are in `test/ash_typescript/name_validation_test.exs`)
 ```elixir
-# test/ash_typescript/rpc/verify_metadata_field_names_test.exs
+# test/ash_typescript/manifest/name_check/metadata_field_names_test.exs
 test "detects metadata fields with underscores followed by digits" do
   # Test invalid pattern detection
 end
@@ -414,12 +396,12 @@ end
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/rpc.ex` | DSL definition for show_metadata and metadata_field_names |
-| `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name verification (runs at manifest-module compile; collisions are ash_rpc's) |
+| `lib/ash_typescript/manifest/name_check.ex` | Metadata name check, with every other client name (runs at manifest-module compile; collisions are ash_rpc's) |
 | `lib/ash_typescript/manifest/custom.ex` | Codegen-side accessors: `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
 | `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `exposed_metadata_fields/2`, `generate_action_metadata_type/4`, metadata TS types |
 | `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
-| `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |
+| `test/ash_typescript/manifest/name_check/metadata_field_names_test.exs` | Metadata name check and collision tests, end to end |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |
 | `test/ts/shouldPass/metadata.ts` | TypeScript compilation tests |
 
@@ -545,9 +527,9 @@ if (tasks.success) {
 
 ## Troubleshooting
 
-### Verifier Errors Won't Clear
+### Name Errors Won't Clear
 
-**Problem**: Added metadata mapping but still get verifier errors
+**Problem**: Added metadata mapping but still get "Invalid generated names found."
 
 **Solution**: Ensure mapping is in correct DSL section:
 ```elixir

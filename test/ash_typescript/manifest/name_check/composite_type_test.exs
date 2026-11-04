@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
+defmodule AshTypescript.Manifest.NameCheck.CompositeTypeTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - custom composite Ash.Type" do
@@ -80,13 +80,21 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCompositeReturn])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainCompositeReturn])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "field_1"
-      assert error_message =~ "is_active?"
-      assert error_message =~ "value_2"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :field_1 → "field1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.CompositeTypeWithInvalidFields, e.g. field_1: "field1"}
+
+      assert error_message =~
+               ~s{- field :is_active? → "isActive?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.CompositeTypeWithInvalidFields, e.g. is_active?: "isActive"}
+
+      assert error_message =~
+               ~s{- field :value_2 → "value2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.CompositeTypeWithInvalidFields, e.g. value_2: "value2"}
     end
 
     test "accepts composite type with typescript_field_names callback" do
@@ -250,12 +258,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCompositeArg])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainCompositeArg])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "arg_1"
-      assert error_message =~ "is_valid?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :arg_1 → "arg1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.CompositeArgTypeWithInvalidFields, e.g. arg_1: "arg1"}
+
+      assert error_message =~
+               ~s{- field :is_valid? → "isValid?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.CompositeArgTypeWithInvalidFields, e.g. is_valid?: "isValid"}
     end
 
     test "detects invalid field names in nested composite types" do
@@ -337,13 +351,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainNestedComposite])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainNestedComposite])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      # Should detect nested invalid field names
-      assert error_message =~ "inner_1"
-      assert error_message =~ "is_nested?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :nested_data.inner_1 → "inner1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :nested_data.is_nested? → "isNested?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     # ash_rpc walks a composite type's composite_types/1, so a :struct entry
@@ -739,49 +758,41 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         body:
           quote do
             custom_types do
-              map AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest.EntryDeclared do
+              map AshTypescript.Manifest.NameCheck.CompositeTypeTest.EntryDeclared do
                 unquote(field)
               end
             end
           end
       ]
 
-      AshTypescript.Test.InlineManifest.build!(opts)
-
-      assert {:error, message} =
-               opts
-               |> AshTypescript.Test.InlineManifest.module_for()
-               |> AshTypescript.Manifest.run_verifiers()
-
-      message
+      error = assert_raise RuntimeError, fn -> AshTypescript.Test.InlineManifest.build!(opts) end
+      error.message
     end
 
-    defp context(message, rpc_name) do
-      [_, rest] =
-        String.split(message, "Invalid field names in return type of RPC action #{rpc_name} ",
-          parts: 2
-        )
-
-      rest |> String.split("\n\n") |> hd()
-    end
-
+    # An explicit client name with an underscore before a digit is only
+    # checked for validity, so `label_1` (from typescript_field_names/0 or a
+    # client_name) is accepted; only BadPoint's formatter-made x1 is reported.
     test "a bad field name from typescript_field_names/0 in declared fields", %{message: message} do
-      assert context(message, "get_badly_named") =~ "field label -> label"
+      refute message =~ inspect(BadlyNamedFields)
+      refute message =~ inspect(EntryDeclared)
     end
 
     test "a bad client_name in a manifest map entry", %{message: message} do
-      assert context(message, "get_entry") =~ "field label -> label"
+      refute message =~ inspect(BadlyNamedFields)
+      refute message =~ inspect(EntryDeclared)
     end
 
     test "a TypedStruct inside a composite-derived field is name-checked", %{message: message} do
-      assert context(message, "get_point") =~ "struct_field x_1 -> x1"
+      assert message =~ "Invalid generated names found."
+
+      assert message =~
+               ~s{- field :x_1 → "x1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CompositeTypeTest.BadPoint, e.g. x_1: "x1"}
     end
 
     test "a valid client_name in a manifest map entry passes" do
       message = verify_with_entry!(quote(do: field(:label, :string, client_name: "label")))
 
-      refute message =~ "get_entry"
-      assert message =~ "get_badly_named"
+      refute message =~ inspect(EntryDeclared)
     end
   end
 

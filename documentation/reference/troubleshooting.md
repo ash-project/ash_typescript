@@ -74,43 +74,89 @@ This guide covers common issues you may encounter when using AshTypescript and h
 - Check `__type` metadata in generated schemas
 - Ensure resource schema structure matches expected format
 
-### Invalid Field Name Errors
+### Invalid Generated Names
 
-AshTypescript validates that all field names are valid TypeScript identifiers.
+#### Error: "Invalid generated names found."
 
-#### Error: "Invalid field names found"
+**Cause:** A name the generated TypeScript would use isn't valid there. When the manifest compiles, AshTypescript checks every name codegen emits for what the manifest reaches (the resources and actions in `typescript_rpc` blocks, typed queries, the typed controllers and channels listed on the manifest module, and the custom types they use), and fails with one error that lists every problem, grouped by owner, one line each with its fix. There are three kinds of names:
 
-**Cause:** Resource attributes or action arguments use invalid TypeScript patterns:
-- Underscore before digit: `field_1`, `address_line_2`
-- Question mark suffix: `is_active?`, `verified?`
+- **Client names**, the keys of generated objects: resource fields, action and calculation arguments, metadata fields, fields of maps, structs and custom types, union members, route arguments. Each must be a TypeScript identifier (`[A-Za-z_$][A-Za-z0-9_$]*`). A name the `output_field_formatter` makes from a raw name with an underscore before a digit is rejected too (`field_1` becomes `field1`, which doesn't tell `field_1` from `field1`). A name you set yourself (`field_names`, `argument_names`, `metadata_field_names`, `typescript_field_names/0`, a `custom_types` field's `client_name`) only has to be an identifier. Under a custom (MFA) `output_field_formatter`, the generated code's own keys (`hasMore`, `results`, `fetchOptions`, …) are checked too; the built-in formatters always give identifiers.
+- **Function, const, type and schema names** generated for RPC actions, typed queries, routes and typed channels. Each must be an identifier that isn't a JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, `:class`, …, strict-mode words such as `:let` and `:static` included), and a type name (an input or result type, `ts_result_type_name`, a channel's `<Event>Payload` type) can't be a predefined TypeScript type name (`string`, `any`, `never`, …). This holds for names you set too (`ts_fields_const_name`, `ts_result_type_name`, `zod_schema_name`, `valibot_schema_name`). An `rpc_action`, `typed_query` or route name can't contain `?` or an underscore before a digit. Names that only contain a reserved word (`:import_users`) are accepted. A typed channel event is a key of the generated `<Channel>Events` type and names its payload type, so it must be an identifier too (`"post_created"`, not `"post-created"`); as a key, it may be a reserved word.
+- **Type aliases**: a `map` or `scalar` entry's string `ts_alias`, and a type's `typescript_type_alias/0` (see the `ts_alias` entry below).
 
-**Solution:** Add `field_names` or `argument_names` mapping in your resource's `typescript` block:
+For example:
+
+```
+Invalid generated names found.
+
+Client names (keys of generated objects) must be TypeScript identifiers
+([A-Za-z_$][A-Za-z0-9_$]*). A name the formatter makes from a raw name with an underscore
+before a digit (line_1) is rejected too, since its client name (line1) doesn't tell line_1
+from line1.
+
+  Resource MyApp.Task:
+    - field :address_line_1 → "addressLine1" (formatted), underscore before a digit: add it to field_names in the resource's typescript block, e.g. address_line_1: "addressLine1"
+    - metadata :field_1 of RPC action :read_tasks → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"
+    - field :settings.field_1 → "field1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0
+    - argument :field_2 of action :update (RPC actions update_task) → "field2" (formatted), underscore before a digit: add it to argument_names for the action, e.g. update: [field_2: "field2"]
+    - field :is_active? → "isActive?" (formatted), not an identifier: add it to field_names in the resource's typescript block, e.g. is_active?: "isActive"
+
+Function, const, type and schema names must be TypeScript identifiers that aren't
+JavaScript reserved words, and a type name can't be a predefined TypeScript type name
+(string, any, …).
+
+  RPC action :delete in MyApp.Domain:
+    - function "delete", a JavaScript reserved word: rename the rpc_action, for example :delete_item
+
+  Typed query :keyword_page in MyApp.Domain:
+    - const "default" (ts_fields_const_name), a JavaScript reserved word: change ts_fields_const_name
+    - result type "string" (ts_result_type_name), a predefined TypeScript type name: change ts_result_type_name
+
+  Route :sign_in of MyApp.Session:
+    - zod schema "class" (zod_schema_name), a JavaScript reserved word: change zod_schema_name
+
+  Publication "post-created" of MyApp.OrgChannel:
+    - event "post-created" (and 1 derived names), not an identifier: rename the event, e.g. :post_created
+```
+
+Two client-name fixes depend on where the name comes from. A field of a resource without the `AshTypescript.Resource` extension (an embedded resource or a struct argument's target) can only be mapped once the resource has the extension:
+
+```
+- field :is_done? → "isDone?" (formatted), not an identifier: add the AshTypescript.Resource extension and a field_names entry, e.g. is_done?: "isDone", or rename it
+```
+
+And when the raw name could be used as is but your `output_field_formatter` turns it into something that isn't an identifier, the line says so; action arguments and metadata can also be mapped:
+
+```
+- key :has_more → "has-more" (formatted), not an identifier: the output_field_formatter turns it into "has-more": change the formatter
+```
+
+**Solution:** Do what each line says. For resource fields and action arguments, add a mapping in the resource's `typescript` block; for metadata, add `metadata_field_names` to the `rpc_action`:
 
 ```elixir
 defmodule MyApp.Task do
-  use Ash.Resource
+  use Ash.Resource, extensions: [AshTypescript.Resource]
 
   typescript do
     field_names [
-      field_1: "field1",
+      address_line_1: "addressLine1",
       is_active?: "isActive"
     ]
 
     argument_names [
-      some_action: [field_2: "field2"]
+      update: [field_2: "field2"]
     ]
   end
 end
+
+# In the domain
+rpc_action :read_tasks, :read_with_metadata, metadata_field_names: [field_1: "field1"]
 ```
 
-#### Error: "Invalid field names found in map/keyword/tuple type constraints"
-
-**Cause:** Map constraints or tuple type definitions contain invalid TypeScript field names.
-
-**Solution:** Create a custom `Ash.Type.NewType` with `typescript_field_names/0` callback:
+For fields of a map, keyword or tuple constraint, create an `Ash.Type.NewType` with a `typescript_field_names/0` callback:
 
 ```elixir
-defmodule MyApp.Types.CustomMap do
+defmodule MyApp.Types.Settings do
   use Ash.Type.NewType,
     subtype_of: :map,
     constraints: [
@@ -129,36 +175,11 @@ defmodule MyApp.Types.CustomMap do
 end
 ```
 
-#### Error: "generates the function `delete`, a JavaScript reserved word" / "generates the const `delete`"
+Rename an RPC action, typed query or route with a reserved or invalid name, for example `:delete_item` (the client calls `deleteItem`); for a typed query, another `ts_fields_const_name` also works. A name you set (`ts_fields_const_name`, `ts_result_type_name`, `zod_schema_name`, `valibot_schema_name`) is changed where you set it. Rename a typed channel event in the publication's `event:` and the channel's `publish`. Typed controller route arguments and result fields have no mapping, since route bodies are sent as they are: rename them.
 
-**Cause:** A typed controller route, an `rpc_action` or a `typed_query` is named after a JavaScript reserved word (`:delete`, `:new`, `:import`, `:default`, `:class`, …, strict-mode words such as `:let` and `:static` included), or a typed query's `ts_fields_const_name` is one. Its generated function would be `export async function delete(` (a typed query's fields const `export const delete`), which TypeScript rejects in an ES module. Routes are checked whatever their method or mode; the message names the controller or domain.
-
-**Solution:** Rename the route, action or typed query, for example `:delete_item` (the client calls `deleteItem`); for a typed query, setting another `ts_fields_const_name` also works. Names that only contain a reserved word (`:import_users`) and TypeScript type keywords (`:string`) are accepted.
+The `field_names` mapping also works for a field whose name isn't an identifier at all (`attribute :"attr-dash"` with `field_names "attr-dash": "attrDash"`).
 
 ### Metadata Field Errors
-
-#### Error: "Invalid metadata field name"
-
-**Cause:** Action metadata fields use invalid TypeScript patterns.
-
-**Solution:** Use `metadata_field_names` DSL option in `rpc_action`:
-
-```elixir
-defmodule MyApp.Domain do
-  use Ash.Domain, extensions: [AshTypescript.Rpc]
-
-  typescript_rpc do
-    resource MyApp.Task do
-      rpc_action :read_tasks, :read do
-        metadata_field_names [
-          field_1: "field1",
-          is_cached?: "isCached"
-        ]
-      end
-    end
-  end
-end
-```
 
 #### Error: "show_metadata contains unknown metadata fields"
 
@@ -264,7 +285,16 @@ See [Custom Types](../advanced/custom-types.md).
 
 #### Error: "The ts_alias … is not a TypeScript identifier" / "The typescript_type_alias/0 result … is a TypeScript reserved word" / "… is a global TypeScript name the generated code uses"
 
-**Cause:** A `map` or `scalar` entry's string `ts_alias`, or a type's `typescript_type_alias/0`, isn't a name the types file can export: not an identifier (`Geo-Point`), a reserved word (`string`, `default`, `class`, `await`, …), or a global the generated code uses (`Array`, `Record`, `Promise`, `Partial`, `Date`, `Response`, …), which the alias would shadow. A `typescript_type_alias/0` that returns anything but a string fails with "must return a string". The manifest fails to compile; the message names the module.
+**Cause:** A `map` or `scalar` entry's string `ts_alias`, or a type's `typescript_type_alias/0`, isn't a name the types file can export: not an identifier (`Geo-Point`), a reserved word (`string`, `default`, `class`, `await`, …), or a global the generated code uses (`Array`, `Record`, `Promise`, `Partial`, `Date`, `Response`, …), which the alias would shadow. The manifest fails to compile with "Invalid generated names found." (see above), which lists these under "Type aliases:", one line per type:
+
+```
+Type aliases:
+
+  MyApp.Types.GeoPoint:
+    - The ts_alias "Geo-Point" of MyApp.Types.GeoPoint is not a TypeScript identifier.
+```
+
+Only aliases the manifest uses are checked: an entry for a type no action, route or publication reaches generates nothing. A `typescript_type_alias/0` that returns anything but a string fails on its own, with "The typescript_type_alias/0 of MyApp.Types.GeoPoint must return a string".
 
 **Solution:** Return or set a TypeScript identifier that is none of these. A `map`'s `ts_alias` is a string; a `scalar`'s may also be an MFA, whose results are checked at codegen (see "The result … of the `ts_alias` MFA" below).
 

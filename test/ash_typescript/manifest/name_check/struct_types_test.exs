@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
+defmodule AshTypescript.Manifest.NameCheck.StructTypesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - Struct types with typed_struct_fields" do

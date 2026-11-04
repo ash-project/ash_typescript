@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
+defmodule AshTypescript.Manifest.NameCheck.CustomAshTypeTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - Truly custom Ash.Type (use Ash.Type)" do
@@ -239,13 +239,19 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCompositeType])
-
       # Composite types are now verified - invalid field names should be detected
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "x_1"
-      assert error_message =~ "y_2"
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainCompositeType])
+        end
+
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :x_1 → "x1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CustomAshTypeTest.CustomCompositePointType, e.g. x_1: "x1"}
+
+      assert error_message =~
+               ~s{- field :y_2 → "y2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.CustomAshTypeTest.CustomCompositePointType, e.g. y_2: "y2"}
     end
 
     test "custom Ash.Type with constraints callback can define field structure" do
@@ -329,13 +335,19 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCustomMapLikeType])
-
       # The :map type with field constraints should be verified
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "setting_1"
-      assert error_message =~ "enabled?"
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainCustomMapLikeType])
+        end
+
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :returns.enabled? of action :get_config (RPC actions get_config) → "enabled?" (formatted), not an identifier: wrap it in an Ash.Type.NewType with typescript_field_names/0}
+
+      assert error_message =~
+               ~s{- field :returns.setting_1 of action :get_config (RPC actions get_config) → "setting1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0}
     end
 
     test "array of custom primitive Ash.Type passes verification" do

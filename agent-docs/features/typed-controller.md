@@ -284,7 +284,7 @@ Typed controllers are validated at compile time with these constraints:
 - **Unique route names** — no duplicate names within a module
 - **Handlers required** — every route must have a `run` handler
 - **Valid argument types** — all argument types must be valid Ash types
-- **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `AshTypescript.NameValidation`, the same helper the resource verifiers use)
+- **Valid names for TypeScript** — not a typed-controller verifier: `AshTypescript.Manifest.NameCheck` checks route names (raw name without `?` or `_<digit>`; every generated function, path helper, type and schema name, `zod_schema_name` / `valibot_schema_name` values included, an identifier and not a JS reserved word; input and result type names not a predefined TS type name like `string`), argument names and `returns` / argument field names when the manifest compiles, with the manifest's formatter (rules in `AshTypescript.NameValidation`)
 - **Valid argument/`returns` types** — `FoldArgumentConstraints` rejects types that aren't Ash types (`Ash.Type.ash_type?/1`) with a DslError
 - **Valid argument constraints** — constraints are validated and folded against the type's constraint schema by the `FoldArgumentConstraints` transformer, so invalid constraints are compile errors exactly as in Ash. Folding also makes type defaults explicit (`allow_empty?: false`, `trim?: true` for strings), which is what drives the derived `min(1)` in route Zod/Valibot schemas and the runtime trimming/nulling behavior.
 
@@ -432,6 +432,12 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   `query`) plus `config`, and calls the path helper for the URL. Path/query
   serialization and `_basePath` therefore live in one place, and the base path is
   never applied twice. GET routes without `returns` stay path-helper only.
+- Under `:args`, a path param whose client name is a JS reserved word (`new`) is
+  bound as `<name>Param` (`showItemPath(newParam: string)`), in the parameter, the
+  URL interpolation and the GET fetch function's call to the path helper
+  (`RouteRenderer.path_param_local/1`). It isn't a name check: the manifest can't
+  tell path params from body arguments (path params come from the router at
+  codegen), and positional names aren't API. `:object` keeps the key (`path: { new }`).
 - `Codegen.fetch_function?/1` is the single rule for "has a fetch function" (full
   mode and mutation, or GET with `returns`). It's used by the renderer,
   `collect_route_exports/1` and both manifests (`functionName` / Function column).
@@ -459,13 +465,22 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   `custom_types`, which the old DSL-time check (removed) couldn't see. Scalars, enums,
   arrays and untyped values stay allowed at the top level. A controller not listed in
   the manifest isn't checked, but it isn't generated or served either.
-- **Field names must be valid TS names.** `VerifyTypedController` walks `returns` and
-  every argument type (same shape as `map_route_result_type/1`) and rejects field names
-  with `?` or `_<digit>`, or that fail `NameValidation.identifier?/1`, with a path in the
-  error. There is deliberately no route-level name mapping: handlers send/receive bodies
+- **Names are checked when the manifest compiles.** `AshTypescript.Manifest.NameCheck`
+  (run by `DecorateManifest`) takes the route's client-name slots (`:route_argument`,
+  and `:type_field` / `:union_member` slots of `returns` and every argument type, from
+  `TypeUses.positions/1`) and its binding slots (`:route_function` for the fetch
+  function, path helper, input type and result type names, `:route_schema` for the
+  zod/valibot schema names, built with
+  `TypedController.Codegen`'s builders and the manifest's formatter). A failure is
+  `Spark.Error.DslError` at path `[:names]`, "Invalid generated names found.", with
+  lines such as `- argument :remember_me? → "rememberMe?" (formatted), not an
+  identifier: rename it, e.g. :remember_me` under `Route :login of MyApp.Session:`.
+  There is deliberately no route-level name mapping: handlers send/receive bodies
   as-is. A type's own `typescript_field_names/0` is honored, as for RPC; an invalid
-  *mapped* name is reported against the mapping.
-- **Enforcement.** Spark reports verifier failures as compile warnings only.
+  *mapped* name is reported against the mapping. A controller not listed in
+  `typed_controllers:` isn't checked.
+- **Enforcement.** Spark reports verifier failures (`VerifyTypedController`'s
+  duplicate-route, handler and argument-type checks) as compile warnings only.
   `Orchestrator.generate/2` re-runs them through `VerifierChecker` for every configured
   typed controller and typed channel (independent of RPC output), so codegen fails.
 - **Route-only named types.** Named types referenced only by routes are generator
@@ -824,7 +839,7 @@ cd test/ts && npm run compileGenerated            # Verify TS compilation
 | 500 error from controller | Handler doesn't return `%Plug.Conn{}` | Ensure handler returns `%Plug.Conn{}` directly |
 | 500 "is not in the AshTypescript manifest", routes missing from codegen, or codegen warning "not listed in the manifest" | Controller not in the manifest module's `typed_controllers:` | Add it: `use AshTypescript.Manifest, ..., typed_controllers: [MyApp.Session]` |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
-| Invalid names for TypeScript | Route or argument names contain `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
+| "Invalid generated names found." (manifest compile) naming a route | A route name with `_1` or `?`, a generated name that isn't an identifier, a reserved fetch function name (`:delete`), or an argument or `returns` field name that isn't an identifier once formatted | Do what the line says: rename the route, argument or field, or change `zod_schema_name` / `valibot_schema_name` |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
 | Error handler not called | `typed_controller_error_handler` not configured | Add MFA tuple or module to config |

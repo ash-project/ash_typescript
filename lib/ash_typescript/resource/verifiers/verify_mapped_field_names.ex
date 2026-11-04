@@ -8,12 +8,15 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
 
   Ensures that:
   1. All keys in field_names reference existing fields on the resource
-  2. All keys in field_names are invalid names (contain _+\\d or ?)
+  2. All keys in field_names need a mapping (contain _+\\d or ?, or aren't
+     TypeScript identifiers)
   3. All values in field_names are strings (the exact client name to use)
-  4. All values are valid TypeScript identifiers
+
+  Whether a value is a TypeScript identifier is checked with every other
+  client name when the manifest compiles (`AshTypescript.Manifest.NameCheck`).
   """
   use Spark.Dsl.Verifier
-  import AshTypescript.NameValidation, only: [invalid_name?: 1]
+  import AshTypescript.NameValidation, only: [field_names_key?: 1]
   alias Spark.Dsl.Verifier
 
   @impl true
@@ -95,30 +98,18 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   end
 
   defp validate_field_is_invalid(errors, field_name) do
-    if invalid_name?(field_name) do
+    if field_names_key?(field_name) do
       errors
     else
       [{:field_not_invalid, field_name} | errors]
     end
   end
 
-  defp validate_replacement_is_valid(errors, replacement_name) do
-    cond do
-      not is_binary(replacement_name) ->
-        [{:replacement_not_string, replacement_name} | errors]
+  defp validate_replacement_is_valid(errors, replacement_name) when is_binary(replacement_name),
+    do: errors
 
-      not valid_typescript_identifier?(replacement_name) ->
-        [{:replacement_invalid_identifier, replacement_name} | errors]
-
-      true ->
-        errors
-    end
-  end
-
-  defp valid_typescript_identifier?(name) when is_binary(name) do
-    # Valid TypeScript identifier: starts with letter/underscore/$, followed by letters/digits/underscores/$
-    Regex.match?(~r/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, name)
-  end
+  defp validate_replacement_is_valid(errors, replacement_name),
+    do: [{:replacement_not_string, replacement_name} | errors]
 
   defp format_validation_errors(errors) do
     message_parts = Enum.map_join(errors, "\n", &format_error_part/1)
@@ -132,9 +123,8 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
 
        Requirements:
        - Keys must reference existing fields on the resource
-       - Keys must be invalid names (containing _+digits or ?)
-       - Values must be strings representing the exact TypeScript client name
-       - Values must be valid TypeScript identifiers (e.g., "isActive", "addressLine1")
+       - Keys must need a mapping (containing _+digits or ?, or not an identifier)
+       - Values must be strings representing the exact TypeScript client name (e.g., "isActive", "addressLine1")
        """
      )}
   end
@@ -149,9 +139,5 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
 
   defp format_error_part({:replacement_not_string, replacement_name}) do
     "- Replacement name #{inspect(replacement_name)} must be a string, not an atom. Use \"#{replacement_name}\" instead of :#{replacement_name}"
-  end
-
-  defp format_error_part({:replacement_invalid_identifier, replacement_name}) do
-    "- Replacement name \"#{replacement_name}\" is not a valid TypeScript identifier"
   end
 end

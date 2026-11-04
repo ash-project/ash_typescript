@@ -164,56 +164,6 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
       assert scalar.ts_alias == {T.CodeTs, :ts_alias, []}
     end
 
-    test "an invalid identifier is a DslError" do
-      message =
-        compile_error!(
-          ScalarBadTypeName,
-          quote do
-            custom_types do
-              scalar SomeLib.Email, :string, ts_alias: "E-mail"
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "E-mail" of SomeLib.Email is not a TypeScript identifier.)
-
-      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
-    end
-
-    test "a reserved word is a DslError" do
-      message =
-        compile_error!(
-          ScalarReservedTypeName,
-          quote do
-            custom_types do
-              scalar SomeLib.Email, :string, ts_alias: "string"
-            end
-          end
-        )
-
-      assert message =~ ~s(The ts_alias "string" of SomeLib.Email is a TypeScript reserved word.)
-      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
-    end
-
-    test "a global TypeScript name the generated code uses is a DslError" do
-      message =
-        compile_error!(
-          ScalarGlobalTypeName,
-          quote do
-            custom_types do
-              scalar SomeLib.Email, :string, ts_alias: "Record"
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "Record" of SomeLib.Email is a global TypeScript name the ) <>
-                 "generated code uses."
-
-      assert message =~ "custom_types -> scalar -> Elixir.SomeLib.Email -> ts_alias"
-    end
-
     test "an MFA ts_alias needs an MFA ts_type" do
       for {name, ts_type} <- [{ScalarMfaStringTs, "string"}, {ScalarMfaNoTs, nil}] do
         ts_type_opt = if ts_type, do: [ts_type: ts_type], else: []
@@ -276,23 +226,6 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
       assert %MapType{fields: [], ts_alias: "MapNew"} = declared[T.MapNew]
       assert %MapType{fields: [], ts_alias: nil} = declared[T.KeywordNew]
       assert %MapType{fields: [], ts_alias: nil} = declared[T.TupleNew]
-    end
-
-    test "a field-less entry's ts_alias is checked" do
-      message =
-        compile_error!(
-          FieldlessBadTypeName,
-          quote do
-            custom_types do
-              map T.Typed, ts_alias: "not-a-name"
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "not-a-name" of #{inspect(T.Typed)} is not a TypeScript identifier.)
-
-      assert message =~ "custom_types -> map -> #{T.Typed} -> ts_alias"
     end
 
     test "zod or valibot on a field-less entry is a DslError" do

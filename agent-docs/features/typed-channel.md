@@ -174,6 +174,16 @@ The `VerifyTypedChannel` verifier runs at compile time:
 
 The warning can be silenced via config; the two hard errors cannot.
 
+### Event names (manifest compile)
+
+Not the verifier's: `AshTypescript.Manifest.NameCheck` gives each publication of a
+listed channel two binding slots (owner `{:publication, event, resource, channel}`,
+kind `:channel_event`): the event itself, a key of `<Channel>Events` (bound as
+`:key`: an identifier; reserved words are fine as keys), and its payload type
+`TypedChannel.Codegen.payload_type_name/1` (`<Camelized>Payload`, bound as `:type`). A failing event reports as
+`- event "post-created" (and 1 derived names), not an identifier: rename the event, e.g. :post_created`
+under `Publication "post-created" of <Channel>:`.
+
 ### Payloads are plain data (manifest compile)
 
 `AshTypescript.Manifest.PlainData.check_publication!/2`, run from
@@ -401,6 +411,7 @@ mix test test/ash_typescript/typed_channel/   # Typed channel tests
 |-------|-------|----------|
 | "No publication with event X found" | Event name doesn't match any publication on the resource | Check the `event:` option (or action name fallback) on the resource's `pub_sub` block |
 | "Duplicate event names found" | Same event name used across multiple resources in one channel | Use unique event names per channel |
+| "Invalid generated names found." with `Publication "…" of …` | The event isn't a TypeScript identifier | Rename it in the publication's `event:` and the channel's `publish` |
 | "Payload type name conflict" | Same event name across different channels maps to different TypeScript types | Rename conflicting events or ensure they return the same type |
 | "publication ... has no `returns`" at manifest compile | Publication missing `returns` (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto` map calculation (recommended), or add explicit `returns:` with `constraints` and a `transform:` function |
 | "publication ... returns X, which is not a typed map" / "returns untyped data" | A scalar, enum, array, opaque custom type, `:term` or unconstrained `:map` payload | Return a typed map (`returns: :map` with `fields`) and put the value in a field |

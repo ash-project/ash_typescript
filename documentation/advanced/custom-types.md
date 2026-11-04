@@ -200,10 +200,12 @@ generated schemas.
 
 A `client_name` is used as written, so it must be a TypeScript identifier
 (`[A-Za-z_$][A-Za-z0-9_$]*`): `"accentColour"`, not `"accent-colour"`. The
-manifest fails to compile otherwise ("The client_name … of field … is not a
-TypeScript identifier"). A field without `client_name` is named by the
-`output_field_formatter`, and that name must be a valid identifier too:
-`:is_on?` needs `client_name: "isOn"`.
+manifest fails to compile otherwise, with "Invalid generated names found." and a
+line such as `- field :lat → "la-t" (client_name), not an identifier: change the
+field's client_name in the map entry`. A field without `client_name` is named by
+the `output_field_formatter`, and that name must be a valid identifier too:
+`:is_on?` needs `client_name: "isOn"`. Only entries for types the manifest
+reaches are checked.
 
 ```elixir
 custom_types do
@@ -261,8 +263,7 @@ For each custom type, the first of these that applies supplies its fields:
 
 `typescript_field_names/0` names the fields from steps 2-4. Its names are used
 as written and must be TypeScript identifiers too. A non-identifier name fails
-the manifest ("Invalid field names found in action return types or argument
-types, or in other types the manifest reaches") wherever the manifest reaches
+the manifest ("Invalid generated names found.") wherever the manifest reaches
 the type.
 
 Fields are **per module**, not per use. `typescript_fields/0` takes no
@@ -604,8 +605,12 @@ code uses (`Array`, `ReadonlyArray`, `Record`, `Promise`, `Partial`,
 `ReturnType`, `Parameters`, `Awaited`, `Date`, `Error`, `Map`, `Set`,
 `Object`, `String`, `Number`, `Boolean`, `Function`, `JSON`, `RequestInit`,
 `RequestInfo`, `Response`, `Headers`, `URL`, `URLSearchParams`), which an
-alias would shadow, or the manifest fails to compile; for the callback the
-error names the module, and a result that isn't a string fails the same way.
+alias would shadow, or the manifest fails to compile with "Invalid generated
+names found.", which lists each such alias under "Type aliases:" (`The ts_alias
+"Geo-Point" of MyApp.Types.GeoPoint is not a TypeScript identifier.`). Only
+aliases of types the manifest reaches are checked. A callback result that isn't a
+string fails on its own ("The typescript_type_alias/0 of MyApp.Theme must return
+a string").
 A `scalar`'s string `ts_alias` can't equal its string `ts_type` (the alias
 would alias itself). The callback isn't read when the type's entry has a
 `ts_alias`. Names ash_typescript generates (`UUID`, `InferResult`, …) are

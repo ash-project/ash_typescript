@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
+defmodule AshTypescript.Manifest.NameCheck.MetadataFieldNamesTest do
   use ExUnit.Case, async: false
 
   describe "metadata field name validation - invalid TypeScript names" do
@@ -48,13 +48,15 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([TestDomainWithInvalidMetadataName])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainWithInvalidMetadataName])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid metadata field name/
-      assert error_message =~ ~r/field_1/
-      assert error_message =~ ~r/field1/
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- metadata :field_1 of RPC action :read_data → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"}
     end
 
     test "detects metadata fields with question marks" do
@@ -99,15 +101,15 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([
-          TestDomainWithQuestionMarkMetadata
-        ])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainWithQuestionMarkMetadata])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid metadata field name/
-      assert error_message =~ ~r/is_valid\?/
-      assert error_message =~ ~r/is_valid/
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- metadata :is_valid? of RPC action :read_data → "isValid?" (formatted), not an identifier: add it to the RPC action's metadata_field_names, e.g. is_valid?: "isValid"}
     end
 
     test "detects metadata fields with combined invalid patterns" do
@@ -152,15 +154,18 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([
-          TestDomainWithCombinedInvalidMetadata
-        ])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainWithCombinedInvalidMetadata])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid metadata field name/
-      assert error_message =~ ~r/field_1\?/
-      assert error_message =~ ~r/item__2/
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- metadata :field_1? of RPC action :read_data → "field1?" (formatted), not an identifier: add it to the RPC action's metadata_field_names, e.g. field_1?: "field1"}
+
+      assert error_message =~
+               ~s{- metadata :item__2 of RPC action :read_data → "item2" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. item__2: "item2"}
     end
   end
 
@@ -621,7 +626,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       assert error.message =~ ~s(both map to "title")
     end
 
-    test "detects invalid TypeScript names even after mapping" do
+    test "accepts an explicit metadata_field_names value with an underscore before a digit" do
       defmodule TestResourceWithInvalidMappedName do
         use Ash.Resource,
           domain: nil,
@@ -652,7 +657,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
 
         typescript_rpc do
           resource TestResourceWithInvalidMappedName do
-            # Mapping to an invalid name should still fail
+            # An explicit client name is only checked for validity
             rpc_action :read_data, :read_with_metadata,
               show_metadata: [:field_a],
               metadata_field_names: [field_a: "field_1"]
@@ -667,10 +672,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       result =
         silent_verify_for_domains([TestDomainWithInvalidMappedName])
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid metadata field name/
-      assert error_message =~ ~r/field_a/
-      assert error_message =~ ~r/field_1/
+      assert result == :ok
     end
   end
 

@@ -663,6 +663,46 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
   end
 
+  defmodule ReservedParamSession do
+    @moduledoc false
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.Test.ReservedParamController
+
+      get :show_item do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :new, :string, allow_nil?: false
+        returns :map
+        constraints fields: [id: [type: :string, allow_nil?: false]]
+      end
+
+      patch :update_item do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :new, :string, allow_nil?: false
+        argument :title, :string
+      end
+    end
+  end
+
+  defmodule ReservedParamRouter do
+    @moduledoc false
+    use Phoenix.Router
+
+    scope "/" do
+      get("/items/:new", AshTypescript.Test.ReservedParamController, :show_item)
+      patch("/items/:new", AshTypescript.Test.ReservedParamController, :update_item)
+    end
+  end
+
+  defp reserved_param_content do
+    manifest = AshTypescript.Test.InlineManifest.build!(typed_controllers: [ReservedParamSession])
+
+    AshTypescript.with_manifest(manifest, fn ->
+      CodegenTestHelper.generate_controller_content(router: ReservedParamRouter)
+    end)
+  end
+
   describe "typed_controller_path_params_style: :args" do
     setup do
       previous = Application.get_env(:ash_typescript, :typed_controller_path_params_style)
@@ -733,6 +773,26 @@ defmodule AshTypescript.TypedController.CodegenTest do
       [update_provider_body | _] = String.split(after_update_provider, "\n}\n", parts: 2)
       assert String.contains?(update_provider_body, "${encodeURIComponent(provider)}")
       refute String.contains?(update_provider_body, "${path.provider}")
+    end
+
+    test "a path param named like a reserved word binds a safe local name" do
+      typescript = reserved_param_content()
+
+      assert typescript =~
+               "export function showItemPath(newParam: string): string {\n" <>
+                 "  return `/items/${encodeURIComponent(newParam)}`;"
+
+      assert typescript =~
+               "export async function showItem(newParam: string, config?: TypedControllerConfig)"
+
+      assert typescript =~ "executeTypedControllerRequest(showItemPath(newParam), "
+
+      assert typescript =~
+               "export async function updateItem(newParam: string, input: UpdateItemInput"
+
+      assert typescript =~ "`/items/${encodeURIComponent(newParam)}`, \"PATCH\""
+      refute typescript =~ "(new: string"
+      refute typescript =~ "encodeURIComponent(new)"
     end
 
     test "mutation path helper uses flat positional args", %{typescript: typescript} do

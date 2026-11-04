@@ -230,137 +230,6 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       assert Builtin.by_module()[AshMoney.Types.Money].ts_alias == "Money"
     end
 
-    test "a name that isn't a TypeScript identifier is a DslError" do
-      message =
-        compile_error!(
-          DashedName,
-          quote do
-            custom_types do
-              map SomeLib.Coordinates do
-                ts_alias "Geo-Coordinates"
-                field :lat, :float, allow_nil?: false
-              end
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "Geo-Coordinates" of SomeLib.Coordinates is not a TypeScript identifier)
-
-      assert message =~ "custom_types -> map -> Elixir.SomeLib.Coordinates -> ts_alias"
-
-      message =
-        compile_error!(
-          DigitName,
-          quote do
-            custom_types do
-              map SomeLib.Coordinates do
-                ts_alias "1abc"
-                field :lat, :float, allow_nil?: false
-              end
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "1abc" of SomeLib.Coordinates is not a TypeScript identifier)
-    end
-
-    test "a name with a trailing newline is not an identifier" do
-      message =
-        compile_error!(
-          NewlineName,
-          quote do
-            custom_types do
-              map SomeLib.Coordinates do
-                ts_alias "Shade\n"
-                field :lat, :float, allow_nil?: false
-              end
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "Shade\\n" of SomeLib.Coordinates is not a TypeScript identifier)
-    end
-
-    test "await, eval and arguments are rejected" do
-      for name <- ["await", "eval", "arguments"] do
-        message =
-          compile_error!(
-            Module.concat(StrictName, Macro.camelize(name)),
-            quote do
-              custom_types do
-                map SomeLib.Coordinates do
-                  ts_alias unquote(name)
-                  field :lat, :float, allow_nil?: false
-                end
-              end
-            end
-          )
-
-        assert message =~
-                 ~s(The ts_alias "#{name}" of SomeLib.Coordinates is a TypeScript reserved word)
-      end
-    end
-
-    test "a TypeScript type keyword is rejected" do
-      message =
-        compile_error!(
-          KeywordName,
-          quote do
-            custom_types do
-              map SomeLib.Coordinates do
-                ts_alias "string"
-                field :lat, :float, allow_nil?: false
-              end
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "string" of SomeLib.Coordinates is a TypeScript reserved word)
-    end
-
-    test "a global TypeScript name the generated code uses is rejected" do
-      for name <- ~w(Array Record Promise Partial Date URLSearchParams) do
-        message =
-          compile_error!(
-            Module.concat(GlobalName, name),
-            quote do
-              custom_types do
-                map SomeLib.Coordinates do
-                  ts_alias unquote(name)
-                  field :lat, :float, allow_nil?: false
-                end
-              end
-            end
-          )
-
-        assert message =~
-                 ~s(The ts_alias "#{name}" of SomeLib.Coordinates is a global TypeScript ) <>
-                   "name the generated code uses."
-      end
-    end
-
-    test "a JavaScript reserved word is rejected" do
-      message =
-        compile_error!(
-          ReservedName,
-          quote do
-            custom_types do
-              map SomeLib.Coordinates do
-                ts_alias "default"
-                field :lat, :float, allow_nil?: false
-              end
-            end
-          end
-        )
-
-      assert message =~
-               ~s(The ts_alias "default" of SomeLib.Coordinates is a TypeScript reserved word)
-    end
-
     test "ts_alias false is rejected by Spark" do
       message =
         compile_error!(
@@ -435,26 +304,35 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
     test "a result that isn't a TypeScript identifier is a DslError" do
       message = callback_error!(DashedCallback, "Geo-Aliased")
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
+               "Type aliases:\n\n  #{inspect(T.Configurable)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
                  "is not a TypeScript identifier."
 
-      assert message =~ "custom_types"
+      assert message =~ "names :"
     end
 
     test "a reserved word is a DslError" do
       message = callback_error!(ReservedCallback, "class")
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
+               "Type aliases:\n\n  #{inspect(T.Configurable)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
                  "is a TypeScript reserved word."
     end
 
     test "a global TypeScript name the generated code uses is a DslError" do
       message = callback_error!(GlobalCallback, "Promise")
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "Promise" of #{inspect(T.Configurable)} ] <>
+               "Type aliases:\n\n  #{inspect(T.Configurable)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "Promise" of #{inspect(T.Configurable)} ] <>
                  "is a global TypeScript name the generated code uses."
     end
 
@@ -464,20 +342,6 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
       assert message =~
                "The typescript_type_alias/0 of #{inspect(T.Configurable)} must return a " <>
                  "string, got: :geo."
-    end
-
-    test "names/2 raises on an invalid result" do
-      :persistent_term.put({T.Configurable, :alias}, "class")
-
-      assert_raise ArgumentError,
-                   ~s[The typescript_type_alias/0 result "class" of #{inspect(T.Configurable)} ] <>
-                     "is a TypeScript reserved word.",
-                   fn ->
-                     CustomTypes.names(T.Configurable, %{
-                       declared: %{},
-                       builtin: Builtin.by_module()
-                     })
-                   end
     end
 
     test "an invalid result is ignored when the map entry has a ts_alias" do
@@ -517,8 +381,11 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
           [T.CallbackHolderDomain]
         )
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
+               "Type aliases:\n\n  #{inspect(T.Configurable)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "Geo-Aliased" of #{inspect(T.Configurable)} ] <>
                  "is not a TypeScript identifier."
     end
   end

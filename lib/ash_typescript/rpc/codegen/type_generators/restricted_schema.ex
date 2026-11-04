@@ -19,6 +19,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   import AshTypescript.Helpers
 
   alias AshTypescript.Codegen.{ClientNames, Helpers}
+  alias AshTypescript.NameValidation
 
   @doc """
   Returns the schema reference and optional schema definition for an RPC action.
@@ -193,7 +194,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
        ) do
     nested_resource_name = Helpers.build_resource_type_name(rel.destination)
     nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = "#{schema_name}#{snake_to_pascal_case(rel.name)}"
+    nested_schema_name = nested_schema_name(schema_name, [rel.name])
 
     nested_def =
       generate_deny_schema(
@@ -219,7 +220,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
        ) do
     nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
     nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = "#{schema_name}#{snake_to_pascal_case(attr.name)}"
+    nested_schema_name = nested_schema_name(schema_name, [attr.name])
 
     nested_def =
       generate_deny_schema(
@@ -254,7 +255,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
           nested_base = "#{nested_resource_name}ResourceSchema"
 
           member_schema_name =
-            "#{schema_name}#{snake_to_pascal_case(attr.name)}#{snake_to_pascal_case(member_name)}"
+            nested_schema_name(schema_name, [attr.name, member_name])
 
           nested_def =
             generate_deny_schema(
@@ -532,7 +533,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
        ) do
     nested_resource_name = Helpers.build_resource_type_name(rel.destination)
     nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = "#{schema_name}#{snake_to_pascal_case(rel.name)}"
+    nested_schema_name = nested_schema_name(schema_name, [rel.name])
 
     nested_def =
       generate_allow_only_schema(
@@ -558,7 +559,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
        ) do
     nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
     nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = "#{schema_name}#{snake_to_pascal_case(attr.name)}"
+    nested_schema_name = nested_schema_name(schema_name, [attr.name])
 
     nested_def =
       generate_allow_only_schema(
@@ -593,7 +594,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
           nested_base = "#{nested_resource_name}ResourceSchema"
 
           member_schema_name =
-            "#{schema_name}#{snake_to_pascal_case(attr.name)}#{snake_to_pascal_case(member_name)}"
+            nested_schema_name(schema_name, [attr.name, member_name])
 
           nested_def =
             generate_allow_only_schema(
@@ -666,6 +667,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     do: true
 
   defp api_field_is_array?(%Ash.Info.Manifest.Field{}), do: false
+
+  # A nested schema's type name: the schema's name, then each raw name made
+  # an identifier first (`:best_children?` → `BestChildren`), so a raw name
+  # with a `?` or other non-identifier characters gives a valid type name.
+  defp nested_schema_name(schema_name, raw_names),
+    do:
+      schema_name <>
+        Enum.map_join(raw_names, &snake_to_pascal_case(NameValidation.suggest_name(&1)))
 
   # Unwraps raw Ash array types (used for union member type processing).
   defp unwrap_array_type({:array, inner}), do: inner

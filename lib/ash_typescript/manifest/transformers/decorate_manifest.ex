@@ -34,21 +34,29 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   `AshTypescript.Manifest.Decorator` gets the declarations too, for the
   names of the aliases and schemas of declared custom types and of the
   field-bearing NewTypes that opt into an alias. A `typescript_type_alias/0`
-  that returns no valid alias, and an aliased field-bearing NewType that
-  exports `typescript_type/0` (named by `typescript_type_alias/0`), are a
-  `Spark.Error.DslError`
+  that returns anything but a string, and an aliased field-bearing NewType
+  that exports `typescript_type/0` (named by `typescript_type_alias/0`), are
+  a `Spark.Error.DslError`
   (`AshTypescript.CustomTypes.check_alias_names/2`). So is, checked first, a
   reached type module exporting `typescript_type_name/0` or
   `typescript_alias_name/0`, the callbacks' former names: the error names
   `typescript_type/0` / `typescript_type_alias/0`, or says to remove
   `typescript_type_name/0` from a map-like type whose TypeScript comes from
   its fields (`AshTypescript.CustomTypes.check_renamed_callbacks/2`).
+
+  Last, the fully decorated manifest's client names (the keys of generated
+  objects), binding names (the functions, consts, types and schemas
+  generated for RPC actions, typed queries and routes) and static type
+  aliases are checked (`AshTypescript.Manifest.NameCheck`): every
+  invalid one fails the compile in one `Spark.Error.DslError`, at path
+  `[:names]`, before anything is persisted.
   """
 
   use Spark.Dsl.Transformer
 
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.Decorator
+  alias AshTypescript.Manifest.NameCheck
   alias AshTypescript.Manifest.TypedRoutes
   alias Spark.Dsl.Transformer
 
@@ -86,7 +94,9 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
             |> put_custom_types(custom_types)
             |> AshRpc.Manifest.put_lookups()
 
-          {:ok, persist(dsl_state, decorated, custom_types)}
+          with :ok <- name_check(dsl_state, decorated, custom_types) do
+            {:ok, persist(dsl_state, decorated, custom_types)}
+          end
         end
     end
   end
@@ -112,11 +122,16 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
          do: dsl_error(dsl_state, message)
   end
 
-  defp dsl_error(dsl_state, message) do
+  defp name_check(dsl_state, manifest, custom_types) do
+    with {:error, message} <- NameCheck.check(manifest, custom_types),
+         do: dsl_error(dsl_state, message, [:names])
+  end
+
+  defp dsl_error(dsl_state, message, path \\ [:custom_types]) do
     {:error,
      Spark.Error.DslError.exception(
        module: Transformer.get_persisted(dsl_state, :module),
-       path: [:custom_types],
+       path: path,
        message: message
      )}
   end

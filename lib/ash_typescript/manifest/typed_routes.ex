@@ -45,7 +45,6 @@ defmodule AshTypescript.Manifest.TypedRoutes do
     }
 
     Enum.each(routes, fn route ->
-      reject_reserved_route_name!(route, formatter)
       reject_untyped_route!(route, lookups, hint)
       PlainData.check_route!(route, lookups)
     end)
@@ -125,26 +124,6 @@ defmodule AshTypescript.Manifest.TypedRoutes do
       publication
       | returns: publication.returns && decorate_type(publication.returns, formatter, fields_fun)
     }
-
-  # The typed controller verifier runs this check too, but against the
-  # formatter at the controller's compile time; the manifest tracks the
-  # formatter, so this one can't go stale.
-  defp reject_reserved_route_name!(%Route{} = route, formatter) do
-    function_name = AshRpc.FieldFormatter.format_field_name(route.name, formatter)
-
-    if AshTypescript.NameValidation.reserved_word?(function_name) do
-      raise Spark.Error.DslError,
-        module: route.source_module,
-        path: [:typed_controller, route.name],
-        message:
-          "#{inspect(route.source_module)} route #{inspect(route.name)} " <>
-            AshTypescript.NameValidation.reserved_name_message(
-              route.name,
-              "function",
-              function_name
-            )
-    end
-  end
 
   defp reject_untyped_route!(%Route{} = route, lookups, hint) do
     roots =

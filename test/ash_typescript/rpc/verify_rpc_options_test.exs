@@ -248,11 +248,15 @@ defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
         end
       end
 
-      assert {:error, message} = silent_verify_for_domains([ReservedNameDomain])
+      error =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([ReservedNameDomain])
+        end
 
-      assert message =~
-               "rpc_action :delete in #{inspect(ReservedNameDomain)} generates the function " <>
-                 "`delete`, a JavaScript reserved word → rename it, for example :delete_item"
+      assert Exception.message(error) =~
+               "  RPC action :delete in #{inspect(ReservedNameDomain)}:\n" <>
+                 ~s[    - function "delete", a JavaScript reserved word: rename the rpc_action, ] <>
+                 "for example :delete_item\n"
     end
 
     test "accepts names that contain a reserved word or are TypeScript type keywords" do
@@ -299,17 +303,22 @@ defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
         end
       end
 
-      assert {:error, message} = silent_verify_for_domains([ReservedTypedQueryDomain])
+      error =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([ReservedTypedQueryDomain])
+        end
+
+      message = Exception.message(error)
 
       assert message =~
-               "typed_query :delete in #{inspect(ReservedTypedQueryDomain)} generates the " <>
-                 "const `delete`, a JavaScript reserved word → rename it, for example " <>
-                 ":delete_item, or set `ts_fields_const_name`"
+               "  Typed query :delete in #{inspect(ReservedTypedQueryDomain)}:\n" <>
+                 ~s[    - const "delete", a JavaScript reserved word: rename the typed_query, ] <>
+                 "for example :delete_item, or set ts_fields_const_name\n"
 
       assert message =~
-               "typed_query :list_sources in #{inspect(ReservedTypedQueryDomain)} generates " <>
-                 "the const `default` (its `ts_fields_const_name`), a JavaScript reserved word " <>
-                 "→ change `ts_fields_const_name`"
+               "  Typed query :list_sources in #{inspect(ReservedTypedQueryDomain)}:\n" <>
+                 ~s[    - const "default" (ts_fields_const_name), a JavaScript reserved word: ] <>
+                 "change ts_fields_const_name\n"
     end
 
     test "accepts a reserved typed_query name with a valid ts_fields_const_name" do

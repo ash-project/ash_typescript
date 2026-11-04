@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
+defmodule AshTypescript.Manifest.NameCheck.NewTypeWrappingTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - NewType wrapping Map, Keyword, and Tuple types" do
@@ -59,12 +59,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainMapNewType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainMapNewType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "field_1"
-      assert error_message =~ "is_valid?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :field_1 → "field1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeInvalidFields, e.g. field_1: "field1"}
+
+      assert error_message =~
+               ~s{- field :is_valid? → "isValid?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeInvalidFields, e.g. is_valid?: "isValid"}
     end
 
     test "detects invalid field names in NewType wrapping Keyword" do
@@ -119,12 +125,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainKeywordNewType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainKeywordNewType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "setting_1"
-      assert error_message =~ "enabled?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :enabled? → "enabled?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.KeywordNewTypeInvalidFields, e.g. enabled?: "enabled"}
+
+      assert error_message =~
+               ~s{- field :setting_1 → "setting1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.KeywordNewTypeInvalidFields, e.g. setting_1: "setting1"}
     end
 
     test "detects invalid field names in NewType wrapping Tuple" do
@@ -179,13 +191,21 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainTupleNewType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainTupleNewType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "coord_1"
-      assert error_message =~ "coord_2"
-      assert error_message =~ "is_valid?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :coord_1 → "coord1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.TupleNewTypeInvalidFields, e.g. coord_1: "coord1"}
+
+      assert error_message =~
+               ~s{- field :coord_2 → "coord2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.TupleNewTypeInvalidFields, e.g. coord_2: "coord2"}
+
+      assert error_message =~
+               ~s{- field :is_valid? → "isValid?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.TupleNewTypeInvalidFields, e.g. is_valid?: "isValid"}
     end
 
     test "passes when NewType wrapping Map has typescript_field_names mappings" do
@@ -437,12 +457,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainNewTypeArgument])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainNewTypeArgument])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types or argument/
-      assert error_message =~ "value_1"
-      assert error_message =~ "active?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :active? → "active?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeForArgument, e.g. active?: "active"}
+
+      assert error_message =~
+               ~s{- field :value_1 → "value1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeForArgument, e.g. value_1: "value1"}
     end
 
     test "detects invalid field names in array of NewType" do
@@ -496,12 +522,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainArrayNewType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainArrayNewType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "item_1"
-      assert error_message =~ "is_done?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :is_done? → "isDone?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeForArray, e.g. is_done?: "isDone"}
+
+      assert error_message =~
+               ~s{- field :item_1 → "item1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.MapNewTypeForArray, e.g. item_1: "item1"}
     end
 
     test "detects invalid field names in nested NewTypes within union" do
@@ -569,12 +601,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainUnionWithNewType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainUnionWithNewType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "nested_1"
-      assert error_message =~ "has_value?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :has_value? → "hasValue?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.NestedMapNewType, e.g. has_value?: "hasValue"}
+
+      assert error_message =~
+               ~s{- field :nested_1 → "nested1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeWrappingTest.NestedMapNewType, e.g. nested_1: "nested1"}
     end
   end
 

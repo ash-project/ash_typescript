@@ -261,16 +261,23 @@ a NewType's subtype. A schema name is `nil` when the effective entry
 (`CustomTypes.map_entry/2`, the subtype's for an inheriting NewType) has a
 `zod`/`valibot` replacement, else `:derive`: the alias plus the configured
 suffix at codegen (`SchemaCore.custom_type_schema_name/2`); there is no
-per-type schema name or inline opt-out. `CustomTypes.check_name/2` (used by
-`NormalizeCustomTypes` for `ts_alias`, and by `DecorateManifest` through
-`CustomTypes.check_alias_names/2` for the callback, which also rejects a
-non-string) rejects non-identifiers (anchored with `\A`/`\z`),
-TypeScript/JavaScript reserved words (plus `await`, `eval`, `arguments`) and
-the TS/DOM globals the generated code uses (`@generated_code_globals`: `Array`,
-`Record`, `Promise`, `Partial`, `Date`, `Response`, `URL`, …; in `check_name/2`
-rather than `reserved_names/0` so every name check, MFA results included, gets
-them as a hard error); both are compile errors (`DslError`), not verifier
-warnings. `NormalizeCustomTypes` also rejects a `scalar` string `ts_alias`
+per-type schema name or inline opt-out. `CustomTypes.check_name/2` rejects
+non-identifiers (anchored with `\A`/`\z`), TypeScript/JavaScript reserved
+words (plus `await`, `eval`, `arguments`) and the TS/DOM globals the generated
+code uses (`@generated_code_globals`: `Array`, `Record`, `Promise`, `Partial`,
+`Date`, `Response`, `URL`, …; in `check_name/2` rather than `reserved_names/0`
+so every name check, MFA results included, gets them as a hard error). It is
+the rule behind every alias name check: `NameValidation.check_alias_name/2`,
+which `AshTypescript.Manifest.NameCheck` applies, when `DecorateManifest` runs
+it, to each static alias the manifest reaches (`:map_alias` and `:scalar_alias`
+slots: a `map` or `scalar` entry's string `ts_alias`, a `typescript_type_alias/0`
+result read unchecked through `CustomTypes.callback_alias/1`), reporting each
+as its `check_name/2` sentence under "Type aliases:" in the "Invalid generated
+names found." `DslError` (path `[:names]`); and `ScalarAliases.name/2` for MFA
+results at codegen. An entry for a type the manifest doesn't reach isn't
+checked. `CustomTypes.check_alias_names/2` (from `DecorateManifest`, path
+`[:custom_types]`) only rejects a callback result that isn't a string (and the
+`typescript_type/0` case below). `NormalizeCustomTypes` rejects a `scalar` string `ts_alias`
 equal to its string `ts_type`, and `scalar` entries that can't apply (an enum,
 a field-bearing NewType or a primitive-table module) or have a non-scalar base
 (map/keyword/tuple/struct/union/(embedded) resource kinds, through type refs and
@@ -295,9 +302,10 @@ the entry's `ts_type` at that use) > `typescript_type_alias/0` > the
 built-in entry's `ts_alias` (only without a manifest `scalar` entry, which
 replaces the built-in whole); a scalar has no default name, so without one of
 these it stays inline. `typescript_type/0` doesn't stop a scalar
-from being aliased. `check_alias_names/2` rejects an invalid
+from being aliased. `check_alias_names/2` rejects a non-string
 `typescript_type_alias/0` result wherever the callback names a scalar
-(`ScalarAliases.source/2` is `:callback`). `TypeMapper.map_unclassified/2`
+(`ScalarAliases.source/2` is `:callback`); a string result is checked as a
+`:scalar_alias` slot by `NameCheck`. `TypeMapper.map_unclassified/2`
 renders a named scalar as its name at every position (schema, input, filter,
 plain); `TypeMapper.expand_scalar/2` gives its TypeScript, the alias body.
 `ScalarAliases.aliases/1` walks the alias roots (`TypeAliases.roots/4`: RPC and
@@ -331,6 +339,12 @@ returns) that still exports `typescript_type_name/0` or
 NewType exporting `typescript_type_name/0` is told to remove it instead (its
 TypeScript comes from its fields). A map-like `:unknown` type with the old callback and no
 fields fails ash_rpc's undeclared-type check first.
+
+`TypeUses.positions/1` returns the same nodes with each one's owner (the field,
+argument, action, route, publication or type definition it sits under) and its
+path from there; `nodes/1` is `positions/1` without them. `NameCheck` builds its
+`:type_field` and `:union_member` slots from `positions/1`, so a report line names
+where the field sits (`field :settings.field_1`).
 
 Without RPC output (no `output_file`), the orchestrator writes the types file
 from `SharedTypesGenerator.generate_standalone/1`: header, custom imports, the
@@ -512,7 +526,7 @@ Custom types integrate at multiple levels:
 - **Type not detected**: Ensure `typescript_type/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)
 - **TypeScript compilation fails**: Verify external type definitions exist and are accessible
-- **Invalid field names in map constraints**: See [Field and Argument Name Mapping](./field-argument-name-mapping.md) for using `typescript_field_names/0` callback
+- **`Invalid generated names found.`** (manifest compile, path `names`): a field in map constraints needs a `typescript_field_names/0` callback; see [Field and Argument Name Mapping](./field-argument-name-mapping.md)
 
 ## Unconstrained Map Handling
 

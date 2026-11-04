@@ -12,6 +12,47 @@ defmodule AshTypescript.Manifest.TypeUsesTest do
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.TypeUses
 
+  defmodule PrivateAccept do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "TypeUsesPrivateAccept"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :name, :string, public?: true
+
+      attribute :secret_settings, :map,
+        public?: false,
+        constraints: [fields: [secret_line: [type: :string]]]
+    end
+
+    actions do
+      defaults [:read]
+      create :create, accept: [:name, :secret_settings]
+    end
+  end
+
+  defmodule PrivateAcceptDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource PrivateAccept do
+        rpc_action :create_private_accept, :create
+      end
+    end
+
+    resources do
+      resource PrivateAccept
+    end
+  end
+
   setup_all do
     manifest = AshTypescript.manifest()
     %{manifest: manifest, nodes: TypeUses.nodes(manifest)}
@@ -104,4 +145,163 @@ defmodule AshTypescript.Manifest.TypeUsesTest do
     assert %Type{} = report.returns
     assert report.returns in nodes
   end
+
+  describe "positions/1" do
+    setup %{manifest: manifest} do
+      %{positions: TypeUses.positions(manifest)}
+    end
+
+    test "positions/1 labels a resource attribute's inline map field with the resource",
+         %{manifest: manifest, positions: positions} do
+      options = field_type(manifest, AshTypescript.Test.Todo, :options)
+      assert %Type{kind: :keyword} = options
+
+      owner = {:field, :attribute, :options, AshTypescript.Test.Todo}
+      assert {owner, [], options} in positions
+
+      priority = Enum.find(options.fields, &(&1.name == :priority)).type
+      assert {owner, ["priority"], priority} in positions
+    end
+
+    test "an action shared by several entrypoints is labelled once with every RPC name",
+         %{manifest: manifest, positions: positions} do
+      entrypoints =
+        Enum.filter(
+          manifest.entrypoints,
+          &(&1.resource == AshTypescript.Test.Todo and &1.action.name == :read)
+        )
+
+      rpc_names =
+        entrypoints
+        |> Enum.map(&(Custom.rpc_action(&1) || Custom.typed_query(&1)).name)
+        |> Enum.sort()
+
+      # RPC actions and typed queries alike.
+      assert :list_todos in rpc_names
+      assert :list_todos_user_page in rpc_names
+
+      inputs = hd(entrypoints).action.inputs
+      assert Enum.map(inputs, & &1.name) == [:filter_completed, :priority_filter]
+
+      for input <- inputs do
+        matches =
+          for {{:action_argument, name, :read, AshTypescript.Test.Todo, names}, [], node} <-
+                positions,
+              name == input.name,
+              do: {names, node}
+
+        assert matches == [{rpc_names, input.type}]
+      end
+    end
+
+    test "a private accepted attribute is walked as an action input (it is no resource field)" do
+      manifest = AshTypescript.Test.InlineManifest.build!(domains: [PrivateAcceptDomain])
+      resource = Enum.find(manifest.resources, &(&1.module == PrivateAccept))
+      refute Map.has_key?(resource.fields, :secret_settings)
+
+      assert Enum.any?(
+               TypeUses.positions(manifest),
+               &match?(
+                 {{:action_argument, :secret_settings, :create, PrivateAccept,
+                   [:create_private_accept]}, ["secret_line"], _},
+                 &1
+               )
+             )
+    end
+
+    test "an accepted attribute isn't a separate root", %{
+      manifest: manifest,
+      positions: positions
+    } do
+      create =
+        Enum.find(manifest.entrypoints, &match?(%{name: :create_todo}, Custom.rpc_action(&1)))
+
+      assert Enum.any?(create.action.inputs, &(&1.name == :options))
+      options = field_type(manifest, AshTypescript.Test.Todo, :options)
+
+      assert [{{:field, :attribute, :options, AshTypescript.Test.Todo}, [], ^options}] =
+               Enum.filter(positions, fn {_owner, _path, node} -> node == options end)
+
+      refute Enum.any?(
+               positions,
+               &match?(
+                 {{:action_argument, :options, :create, AshTypescript.Test.Todo, _}, _, _},
+                 &1
+               )
+             )
+    end
+
+    test "a :type_ref is yielded but not descended", %{manifest: manifest, positions: positions} do
+      stats = field_type(manifest, AshTypescript.Test.Task, :stats)
+      assert %Type{kind: :type_ref, module: AshTypescript.Test.TaskStats} = stats
+
+      field_owner = {:field, :attribute, :stats, AshTypescript.Test.Task}
+      assert {field_owner, [], stats} in positions
+      refute Enum.any?(positions, &match?({^field_owner, [_ | _], _}, &1))
+
+      task_stats = definition(manifest, AshTypescript.Test.TaskStats)
+      type_owner = {:type, AshTypescript.Test.TaskStats}
+      assert {type_owner, [], task_stats} in positions
+
+      for field <- task_stats.fields,
+          do: assert({type_owner, [to_string(field.name)], field.type} in positions)
+    end
+
+    test "every unique node of the old walk is a position", %{manifest: manifest, nodes: nodes} do
+      assert MapSet.new(old_nodes(manifest)) == MapSet.new(nodes)
+    end
+
+    test "no inline node is positioned twice", %{positions: positions} do
+      pairs = Enum.map(positions, fn {owner, path, _node} -> {owner, path} end)
+      assert pairs -- Enum.uniq(pairs) == []
+    end
+  end
+
+  # The walk `nodes/1` did before `positions/1`, kept to show the node set is unchanged.
+  defp old_nodes(manifest) do
+    roots =
+      Enum.flat_map(manifest.resources, &old_resource_roots/1) ++
+        Enum.flat_map(manifest.entrypoints, fn %{action: action} ->
+          Enum.map(action.inputs || [], & &1.type) ++
+            Enum.map(action.metadata || [], & &1.type) ++ [action.returns]
+        end) ++
+        Enum.flat_map(manifest.types, fn
+          %Type{kind: :embedded_resource, resource: %Resource{} = r} = t ->
+            [t | old_resource_roots(r)]
+
+          type ->
+            [type]
+        end) ++
+        Enum.flat_map(Custom.routes(manifest), fn route ->
+          Enum.map(route.inputs, & &1.type) ++ [route.returns]
+        end) ++
+        Enum.map(Custom.publications(manifest), & &1.returns)
+
+    roots |> Enum.reject(&is_nil/1) |> Enum.flat_map(&old_walk/1)
+  end
+
+  defp old_resource_roots(resource) do
+    resource
+    |> Resource.all_fields()
+    |> Enum.flat_map(fn field ->
+      [field.type | Enum.map(Map.get(field, :arguments) || [], & &1.type)]
+    end)
+  end
+
+  defp old_walk(%Type{} = type), do: [type | Enum.flat_map(old_children(type), &old_walk/1)]
+  defp old_walk(_other), do: []
+
+  defp old_children(%Type{kind: :array, item_type: item}), do: [item]
+
+  defp old_children(%Type{kind: :union, members: members}) when is_list(members),
+    do: Enum.map(members, & &1.type)
+
+  defp old_children(%Type{kind: kind, fields: fields})
+       when kind in [:map, :keyword, :tuple, :struct] and is_list(fields),
+       do: Enum.map(fields, & &1.type)
+
+  defp old_children(%Type{kind: :tuple, element_types: elements}) when is_list(elements),
+    do: Enum.map(elements, & &1.type)
+
+  defp old_children(_type), do: []
 end

@@ -27,6 +27,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.NameValidation
   alias AshTypescript.TypedController.Codegen
 
   @mutation_methods [:post, :patch, :put, :delete]
@@ -84,7 +85,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     } = route_info
 
     has_base_path = Keyword.get(opts, :has_base_path, false)
-    function_name = build_function_name(route.name, scope_prefix, :path)
+    function_name = Codegen.route_function_name(route, scope_prefix, :path)
     style = AshTypescript.typed_controller_path_params_style()
 
     path_param_args = build_path_param_args(route_info, path_params, style)
@@ -198,7 +199,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     } = route_info
 
     has_base_path = Keyword.get(opts, :has_base_path, false)
-    function_name = build_function_name(route.name, scope_prefix, :action)
+    function_name = Codegen.route_function_name(route, scope_prefix, :action)
     method_upper = method |> to_string() |> String.upcase()
 
     input_fields = build_input_fields(route_info)
@@ -270,7 +271,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       case {style, path_params} do
         {_, []} -> []
         {:object, _} -> [format_output_field(:path)]
-        {:args, _} -> Enum.map(path_params, &format_output_field/1)
+        {:args, _} -> Enum.map(path_params, &path_param_local/1)
       end ++ if(query_param, do: ["query"], else: [])
 
     config_var = format_output_field(:config)
@@ -281,8 +282,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
         ", "
       )
 
-    function_name = build_function_name(route.name, scope_prefix, :action)
-    path_helper_name = build_function_name(route.name, scope_prefix, :path)
+    function_name = Codegen.route_function_name(route, scope_prefix, :action)
+    path_helper_name = Codegen.route_function_name(route, scope_prefix, :path)
     url_expr = "#{path_helper_name}(#{Enum.join(path_helper_args, ", ")})"
     {return_type, default_headers_arg} = response_typing(route, scope_prefix)
 
@@ -314,7 +315,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     if AshTypescript.Rpc.generate_zod_schemas?() do
       schema_name =
         AshTypescript.TypedController.Codegen.route_zod_schema_name(
-          route_info.route,
+          route_info.manifest_route,
           route_info.scope_prefix
         )
 
@@ -334,7 +335,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     if AshTypescript.Rpc.generate_valibot_schemas?() do
       schema_name =
         AshTypescript.TypedController.Codegen.route_valibot_schema_name(
-          route_info.route,
+          route_info.manifest_route,
           route_info.scope_prefix
         )
 
@@ -395,22 +396,6 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     "export type #{type_name} = {\n#{field_defs}\n};"
   end
 
-  defp build_function_name(action_name, nil, :path) do
-    format_output_field(:"#{action_name}_path")
-  end
-
-  defp build_function_name(action_name, scope_prefix, :path) do
-    format_output_field(:"#{scope_prefix}_#{action_name}_path")
-  end
-
-  defp build_function_name(action_name, nil, :action) do
-    format_output_field(action_name)
-  end
-
-  defp build_function_name(action_name, scope_prefix, :action) do
-    format_output_field(:"#{scope_prefix}_#{action_name}")
-  end
-
   defp build_path_param_args(_route_info, [], _style), do: []
 
   defp build_path_param_args(route_info, path_params, :object) do
@@ -426,8 +411,16 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   defp build_path_param_args(route_info, path_params, :args) do
     Enum.map(path_params, fn param ->
       ts_type = get_path_param_type(route_info, param)
-      "#{format_output_field(param)}: #{ts_type}"
+      "#{path_param_local(param)}: #{ts_type}"
     end)
+  end
+
+  # A positional path param's local name: its client name, or, when that is a
+  # JavaScript reserved word a parameter can't be named (`new`), the name
+  # plus `Param`. Positional names aren't API, so this is safe to change.
+  defp path_param_local(param) do
+    name = format_output_field(param)
+    if NameValidation.reserved_word?(name), do: name <> "Param", else: name
   end
 
   defp build_url_template(nil, _path_params, _use_path_prefix, _has_base_path), do: "\"\""
@@ -476,7 +469,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       if use_path_prefix do
         "#{format_output_field(:path)}.#{format_output_field(param)}"
       else
-        format_output_field(param)
+        path_param_local(param)
       end
 
     "${encodeURIComponent(#{var})}"

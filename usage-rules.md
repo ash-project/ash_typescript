@@ -397,7 +397,7 @@ for (const action of manifest.actions) {
 | "These aliased types contain themselves" | Recursive aliased types aren't supported: expand the type to a fixed depth |
 | "exports `typescript_type_name/0`, which is now `typescript_type/0`" | Rename the callback to `typescript_type/0` (the alias callback is `typescript_type_alias/0`) |
 | "exports `typescript_type_name/0`: remove it; its TypeScript is generated from its fields" | A map-like type with declared fields, or an aliased NewType with fields: remove the callback |
-| "is not a TypeScript identifier" / "is a TypeScript reserved word" / "is a global TypeScript name the generated code uses" | An alias name (`ts_alias`, `typescript_type_alias/0`) must be an identifier that isn't reserved and isn't a global the generated code uses (`Array`, `Promise`, `Record`, …) |
+| "is not a TypeScript identifier" / "is a TypeScript reserved word" / "is a global TypeScript name the generated code uses" (under "Type aliases:" in "Invalid generated names found.") | An alias name (`ts_alias`, `typescript_type_alias/0`) must be an identifier that isn't reserved and isn't a global the generated code uses (`Array`, `Promise`, `Record`, …) |
 | "is its ts_type, so the alias would alias itself" | A `scalar`'s `ts_alias` can't equal its `ts_type`: remove `ts_alias` or rename it |
 | "a `scalar` entry never applies to it" / "is not a scalar (a map, keyword, tuple, struct, union or resource)" | `scalar` entries are for scalar modules over scalar bases: remove it, use a field-less `map` entry for a NewType with fields, or a `map` entry with fields |
 | "The result … of the `ts_alias` MFA …" (codegen) | An MFA `ts_alias` returned an invalid, reserved, generated (`UUID`, …) or self-referencing name: return another name or `nil` |
@@ -416,8 +416,8 @@ for (const action of manifest.actions) {
 | "Property 'fields' is missing" | Add `fields: [...]` |
 | "Action not found" | Add `rpc_action` declaration |
 | "403 Forbidden" | Use `buildCSRFHeaders()` |
-| "Invalid field names" | Add mapping (see Field Name Mapping) |
-| "a JavaScript reserved word" | Rename the route, `rpc_action` or `typed_query` (`:delete` → `:delete_item`), or set another `ts_fields_const_name` |
+| "Invalid generated names found." | Each line names a field, argument, action, route or alias and its fix: add a mapping (see Field Name Mapping), rename it, or change the named option |
+| "a JavaScript reserved word" / "a predefined TypeScript type name" | Rename the route, `rpc_action` or `typed_query` (`:delete` → `:delete_item`), or change the option the line names (`ts_fields_const_name`, `ts_result_type_name`, `zod_schema_name`, `valibot_schema_name`) |
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
 | "show_metadata contains unknown metadata fields" | Only list fields the action's `metadata` declarations define |
 | "allowed_loads contains invalid load paths" | Entries must be public relationships/calculations/aggregates/embedded attributes; nested keys checked against the destination resource |

@@ -1106,6 +1106,13 @@ Controls how path parameters are represented in all generated TypeScript functio
   updateProvider(provider: string, input: UpdateProviderInput, config?)
   ```
 
+  A path param whose client name is a JavaScript reserved word can't be a parameter name, so it's bound as the name plus `Param` (`/items/:new`):
+  ```typescript
+  export function showItemPath(newParam: string): string {
+    return `/items/${encodeURIComponent(newParam)}`;
+  ```
+  Positional parameter names aren't part of the API, so callers don't change. Under `:object` the key stays `path: { new: string }`.
+
 ## Compile-Time Validation
 
 AshTypescript validates typed controllers at compile time:
@@ -1114,12 +1121,21 @@ AshTypescript validates typed controllers at compile time:
 - **Handlers present** — every route must have a `run` handler
 - **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
 - **Plain-data arguments and `returns`** — no resources, embedded resources, unions or recursive types, at any depth (checked when the manifest module compiles, which raises)
-- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters, and a route's function name (the route name under the output formatter) can't be a JavaScript reserved word (`:delete`, `:new`, `:import`, … whatever the method or mode; `:delete_item` is fine). The reserved-word check also runs when the manifest module compiles, which raises, using the manifest's formatter
-- **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
+- **Valid names for TypeScript** — checked when the manifest module compiles, with every other generated name, using the manifest's formatter. Route names can't contain `?` or an underscore before a digit, and every name generated for a route (fetch function, path helper, input and result types, schemas, a `zod_schema_name` or `valibot_schema_name` you set included) must be a valid identifier that isn't a JavaScript reserved word, and the input and result type names can't be a predefined TypeScript type name (`string`, `any`, …). So a route's function name (the route name under the output formatter) can't be a reserved word (`:delete`, `:new`, `:import`, … whatever the method or mode; `:delete_item` is fine), nor can a `zod_schema_name "class"`. Argument names and the field names inside `returns` and argument types (`fields` constraints, at any depth) must be valid identifiers once formatted, without `?` or an underscore before a digit. A failure raises "Invalid generated names found." with a line per problem:
 
-Like other Spark verifiers, these checks are reported as warnings when the module
-compiles (so `mix compile --warnings-as-errors` fails), and `mix ash_typescript.codegen`
-fails with the same errors instead of generating code.
+  ```
+    Route :delete of MyApp.Session:
+      - function "delete", a JavaScript reserved word: rename the route, for example :delete_item
+
+    Route :sign_in of MyApp.Session:
+      - zod schema "class" (zod_schema_name), a JavaScript reserved word: change zod_schema_name
+  ```
+
+  Only controllers listed in the manifest module's `typed_controllers:` are checked.
+
+The first three checks are Spark verifiers: like all of them, they are reported as warnings
+when the module compiles (so `mix compile --warnings-as-errors` fails), and
+`mix ash_typescript.codegen` fails with the same errors instead of generating code.
 
 Path parameters are also validated at codegen time:
 

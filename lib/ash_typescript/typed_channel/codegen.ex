@@ -175,7 +175,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
         %{
           event: event_str,
           ts_type: ts_type,
-          payload_type_name: event_to_payload_type_name(event_str)
+          payload_type_name: payload_type_name(event_str)
         }
       end)
       |> Enum.sort_by(fn %{event: event} -> event end)
@@ -354,7 +354,13 @@ defmodule AshTypescript.TypedChannel.Codegen do
     module |> Module.split() |> List.last()
   end
 
-  defp event_to_payload_type_name(event_str) do
+  @doc """
+  The payload type name of a typed channel event (`"item_created"` →
+  `"ItemCreatedPayload"`), which codegen emits and
+  `AshTypescript.Manifest.NameCheck` checks.
+  """
+  @spec payload_type_name(String.t()) :: String.t()
+  def payload_type_name(event_str) do
     event_str
     |> Macro.camelize()
     |> then(&"#{&1}Payload")

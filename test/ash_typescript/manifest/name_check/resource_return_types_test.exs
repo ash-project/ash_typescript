@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
+defmodule AshTypescript.Manifest.NameCheck.ResourceReturnTypesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - regular Ash resource return types" do
-    test "detects invalid field names in regular Ash resource returned by generic action" do
+    test "accepts a regular Ash resource returned by generic action: a returned resource without the extension has no name slots (spec Other failures)" do
       # Referenced resource without AshTypescript.Resource extension
       # to avoid resource-level verifier catching the invalid names first
       defmodule ReferencedResourceNoExt do
@@ -68,12 +68,11 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
         end
       end
 
+      # Codegen renders the return as its resource schema and never emits
+      # these field names, so `field_1` / `is_valid?` aren't checked.
       result = silent_verify_for_domains([TestDomainReturnsResource])
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "field_1"
-      assert error_message =~ "is_valid?"
+      assert result == :ok
     end
 
     test "passes when regular Ash resource has field_names mappings" do
@@ -152,7 +151,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
       assert result == :ok
     end
 
-    test "detects invalid field names in array of regular Ash resources" do
+    test "accepts an array of regular Ash resources: a returned resource without the extension has no name slots (spec Other failures)" do
       # Referenced resource without AshTypescript.Resource extension
       defmodule ReferencedResourceForArrayNoExt do
         use Ash.Resource,
@@ -214,9 +213,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
       result =
         silent_verify_for_domains([TestDomainReturnsArrayOfResources])
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "item_1"
+      assert result == :ok
     end
   end
 

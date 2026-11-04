@@ -146,9 +146,10 @@ defmodule AshTypescript.Codegen.ScalarAliases do
   @doc """
   The alias name of the scalar `node` (see the module doc), or `nil`.
   `custom_types` is the persisted `t:AshTypescript.CustomTypes.custom_types/0`.
-  Raises `ArgumentError` for an invalid `typescript_type_alias/0` result
-  (`AshTypescript.CustomTypes.check_alias_names/2` reports it at compile
-  time) or an MFA `ts_alias` result that isn't a string or `nil`. Throws
+  Raises `ArgumentError` for a `typescript_type_alias/0` result that isn't a
+  string (`AshTypescript.CustomTypes.check_alias_names/2` reports it at
+  compile time; `AshTypescript.Manifest.NameCheck` checks the string) or an
+  MFA `ts_alias` result that isn't a string or `nil`. Throws
   `{:error, message}`, naming the module, the MFA and the result, for an MFA
   result that can't be exported: not a TypeScript identifier, a reserved
   word or a global the generated code uses (`CustomTypes.check_name/2`), a
@@ -171,7 +172,7 @@ defmodule AshTypescript.Codegen.ScalarAliases do
         CustomTypes.mapping(entry, :ts_alias, node.constraints)
 
       :callback ->
-        case CustomTypes.callback_alias_name(module) do
+        case CustomTypes.callback_alias(module) do
           {:ok, name} -> name
           {:error, message} -> raise ArgumentError, message
         end

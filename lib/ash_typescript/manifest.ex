@@ -174,7 +174,9 @@ defmodule AshTypescript.Manifest do
   Runs every manifest verifier against `manifest_module`'s persisted DSL state.
 
   Returns `:ok` when all verifiers pass, or `{:error, formatted_message}`
-  aggregating every failure.
+  aggregating every failure. Generated-name problems aren't among them: they
+  fail the manifest module's compile (`AshTypescript.Manifest.NameCheck`), so
+  a manifest module that compiled has none.
 
   Used by tests to drive the same verifier code path that compile-time runs.
   """
@@ -187,6 +189,8 @@ defmodule AshTypescript.Manifest do
   scoped to `domains`, then runs all manifest verifiers against it.
 
   Returns `:ok` or `{:error, formatted_message}` — same shape as `run_verifiers/1`.
+  Generated-name problems raise `Spark.Error.DslError` (path `[:names]`)
+  instead, while the inline module compiles.
 
   The generated module name is deterministic from the domains list (via
   `:erlang.phash2/1`), so repeated calls with the same arguments reuse the same

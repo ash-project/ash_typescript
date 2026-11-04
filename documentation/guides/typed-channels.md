@@ -240,6 +240,21 @@ Declares a specific PubSub event to subscribe to.
 
 The event name must match the `event:` option (or action name fallback) of a publication in the resource's `pub_sub` block.
 
+The event is an unquoted key of the generated `<Channel>Events` type and names its `<Event>Payload` type, so it must be a TypeScript identifier (`"post_created"`, not `"post-created"`). The manifest module fails to compile otherwise, with the other name problems:
+
+```
+Invalid generated names found.
+
+Function, const, type and schema names must be TypeScript identifiers that aren't
+JavaScript reserved words, and a type name can't be a predefined TypeScript type name
+(string, any, …).
+
+  Publication "post-created" of MyAppWeb.OrgChannel:
+    - event "post-created" (and 1 derived names), not an identifier: rename the event, e.g. :post_created
+```
+
+Only channels listed in the manifest module's `typed_channels:` are checked.
+
 ## Generated TypeScript
 
 ### Types (in `ash_types.ts`)

@@ -14,10 +14,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     * `:get?` and `:get_by` options are coherent (read-only, mutually exclusive,
       `get_by` references real attributes).
     * `:allowed_loads` / `:denied_loads` are mutually exclusive.
-    * RPC action / typed query / argument names are TypeScript-safe.
     * Each public relationship's destination has a public read action.
 
   Also enforces cross-domain uniqueness of RPC action names and typed query names.
+  The names generated for RPC actions and typed queries, and every client name,
+  are checked when the manifest compiles (`AshTypescript.Manifest.NameCheck`).
 
   Reads `rpc_configs` (raw per-resource RPC config including typed_queries) from
   the manifest module's persisted state so resources that are reachability roots
@@ -25,34 +26,22 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   """
   use Spark.Dsl.Verifier
 
-  import AshTypescript.NameValidation,
-    only: [
-      invalid_name?: 1,
-      make_name_better: 1,
-      reserved_name_message: 3,
-      reserved_word?: 1
-    ]
-
   alias Spark.Dsl.Verifier
 
   @impl true
   def verify(dsl) do
-    manifest = Verifier.get_persisted(dsl, :manifest)
-    resource_lookup = Verifier.get_persisted(dsl, :resource_lookup)
-    rpc_configs = Verifier.get_persisted(dsl, :rpc_configs) || []
-    do_verify(manifest, resource_lookup, rpc_configs)
+    case Verifier.get_persisted(dsl, :manifest) do
+      nil -> :ok
+      %Ash.Info.Manifest{} -> do_verify(Verifier.get_persisted(dsl, :rpc_configs) || [])
+    end
   end
 
-  defp do_verify(nil, _resource_lookup, _rpc_configs), do: :ok
-
-  defp do_verify(%Ash.Info.Manifest{} = manifest, _resource_lookup, rpc_configs) do
+  defp do_verify(rpc_configs) do
     with :ok <- verify_unique_names_across_domains(rpc_configs),
          :ok <- verify_typescript_resources(rpc_configs),
          :ok <- verify_rpc_actions(rpc_configs),
-         :ok <- verify_typed_queries(rpc_configs),
-         :ok <- verify_relationship_read_actions(rpc_configs),
-         :ok <- verify_names(rpc_configs) do
-      verify_reserved_names(rpc_configs, AshRpc.Manifest.output_formatter(manifest))
+         :ok <- verify_typed_queries(rpc_configs) do
+      verify_relationship_read_actions(rpc_configs)
     end
   end
 
@@ -500,229 +489,5 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     else
       Ash.Resource.Info.primary_action(relationship.destination, :read)
     end
-  end
-
-  # ─────────────────────────────────────────────────────────────────
-  # Name validation (rpc_action names, typed_query names, argument
-  # / accept-attribute mapped names)
-  # ─────────────────────────────────────────────────────────────────
-
-  defp verify_names(rpc_configs) do
-    errors =
-      Enum.reduce(rpc_configs, [], fn {_domain, resource_config}, acc ->
-        acc
-        |> collect_invalid_rpc_action_names(resource_config.rpc_actions)
-        |> collect_invalid_typed_query_names(resource_config.typed_queries)
-        |> collect_invalid_action_arguments(resource_config)
-      end)
-
-    case errors do
-      [] -> :ok
-      _ -> format_name_validation_errors(Enum.reverse(errors))
-    end
-  end
-
-  # An RPC action's execution function is its formatted name
-  # (`FunctionNames.execution/1`; its other functions carry prefixes or
-  # suffixes), and a typed query's fields const is its `ts_fields_const_name`
-  # or else its formatted name.
-  defp verify_reserved_names(rpc_configs, formatter) do
-    errors =
-      for {domain, resource_config} <- rpc_configs,
-          error <-
-            reserved_rpc_action_errors(resource_config.rpc_actions, domain, formatter) ++
-              reserved_typed_query_errors(resource_config.typed_queries, domain, formatter),
-          do: error
-
-    if errors == [] do
-      :ok
-    else
-      {:error,
-       Spark.Error.DslError.exception(
-         message: """
-         RPC action and typed query names that generate a reserved word found.
-         Generated files are ES modules, which can't declare these names.
-
-         #{Enum.join(errors, "\n")}
-         """
-       )}
-    end
-  end
-
-  defp reserved_rpc_action_errors(rpc_actions, domain, formatter) do
-    for rpc_action <- rpc_actions,
-        function_name =
-          AshTypescript.FieldFormatter.format_field_name(rpc_action.name, formatter),
-        reserved_word?(function_name) do
-      "  - rpc_action #{inspect(rpc_action.name)} in #{inspect(domain)} " <>
-        reserved_name_message(rpc_action.name, "function", function_name)
-    end
-  end
-
-  defp reserved_typed_query_errors(typed_queries, domain, formatter) do
-    for typed_query <- typed_queries,
-        const_name =
-          typed_query.ts_fields_const_name ||
-            AshTypescript.FieldFormatter.format_field_name(typed_query.name, formatter),
-        reserved_word?(const_name) do
-      subject = "  - typed_query #{inspect(typed_query.name)} in #{inspect(domain)} "
-
-      if typed_query.ts_fields_const_name do
-        subject <>
-          "generates the const `#{const_name}` (its `ts_fields_const_name`), a JavaScript " <>
-          "reserved word → change `ts_fields_const_name`"
-      else
-        subject <>
-          reserved_name_message(typed_query.name, "const", const_name) <>
-          ", or set `ts_fields_const_name`"
-      end
-    end
-  end
-
-  defp collect_invalid_rpc_action_names(errors, rpc_actions) do
-    invalid =
-      rpc_actions
-      |> Enum.filter(&invalid_name?(&1.name))
-      |> Enum.map(fn action -> {action.name, make_name_better(action.name)} end)
-
-    if invalid == [], do: errors, else: [{:invalid_rpc_action_names, invalid} | errors]
-  end
-
-  defp collect_invalid_typed_query_names(errors, typed_queries) do
-    invalid =
-      typed_queries
-      |> Enum.filter(&invalid_name?(&1.name))
-      |> Enum.map(fn query -> {query.name, make_name_better(query.name)} end)
-
-    if invalid == [], do: errors, else: [{:invalid_typed_query_names, invalid} | errors]
-  end
-
-  defp collect_invalid_action_arguments(errors, %{resource: resource} = resource_config) do
-    invalid_args = collect_rpc_action_argument_errors(resource, resource_config.rpc_actions)
-    invalid_tq_args = collect_typed_query_argument_errors(resource, resource_config.typed_queries)
-
-    case invalid_args ++ invalid_tq_args do
-      [] -> errors
-      list -> [{:invalid_action_arguments, list} | errors]
-    end
-  end
-
-  defp collect_rpc_action_argument_errors(resource, rpc_actions) do
-    Enum.flat_map(rpc_actions, fn rpc_action ->
-      case Ash.Resource.Info.action(resource, rpc_action.action) do
-        nil ->
-          []
-
-        action ->
-          argument_errors =
-            action.arguments
-            |> Enum.filter(fn arg ->
-              arg.public? and
-                invalid_name?(
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    rpc_action.action,
-                    arg.name
-                  )
-                )
-            end)
-            |> Enum.map(fn arg ->
-              {rpc_action.name, rpc_action.action, :argument, arg.name,
-               make_name_better(arg.name)}
-            end)
-
-          accept_errors =
-            case Map.get(action, :accept) do
-              nil ->
-                []
-
-              accept_list ->
-                accept_list
-                |> Enum.filter(fn attr_name ->
-                  mapped = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr_name)
-                  invalid_name?(mapped)
-                end)
-                |> Enum.map(fn attr_name ->
-                  {rpc_action.name, rpc_action.action, :accepted_attribute, attr_name,
-                   make_name_better(attr_name)}
-                end)
-            end
-
-          argument_errors ++ accept_errors
-      end
-    end)
-  end
-
-  defp collect_typed_query_argument_errors(resource, typed_queries) do
-    Enum.flat_map(typed_queries, fn typed_query ->
-      case Ash.Resource.Info.action(resource, typed_query.action) do
-        nil ->
-          []
-
-        action ->
-          action.arguments
-          |> Enum.filter(fn arg ->
-            arg.public? and
-              if AshTypescript.Resource.Info.typescript_resource?(resource) do
-                invalid_name?(
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    typed_query.action,
-                    arg.name
-                  )
-                )
-              else
-                invalid_name?(arg.name)
-              end
-          end)
-          |> Enum.map(fn arg ->
-            {typed_query.name, typed_query.action, :argument, arg.name,
-             make_name_better(arg.name)}
-          end)
-      end
-    end)
-  end
-
-  defp format_name_validation_errors(errors) do
-    message_parts = Enum.map_join(errors, "\n\n", &format_error_part/1)
-
-    {:error,
-     Spark.Error.DslError.exception(
-       message: """
-       Invalid names found that contain question marks, or numbers preceded by underscores.
-       These patterns are not allowed in TypeScript generation.
-
-       #{message_parts}
-
-       Names should use standard camelCase or snake_case patterns without numbered suffixes.
-       """
-     )}
-  end
-
-  defp format_error_part({:invalid_rpc_action_names, actions}) do
-    suggestions =
-      Enum.map_join(actions, "\n", fn {current, suggested} ->
-        "  - #{current} → #{suggested}"
-      end)
-
-    "Invalid RPC action names:\n#{suggestions}"
-  end
-
-  defp format_error_part({:invalid_typed_query_names, queries}) do
-    suggestions =
-      Enum.map_join(queries, "\n", fn {current, suggested} ->
-        "  - #{current} → #{suggested}"
-      end)
-
-    "Invalid typed query names:\n#{suggestions}"
-  end
-
-  defp format_error_part({:invalid_action_arguments, arguments}) do
-    suggestions =
-      Enum.map_join(arguments, "\n", fn {rpc_name, action_name, type, current, suggested} ->
-        "  - #{rpc_name} (action #{action_name}) #{type} #{current} → #{suggested}"
-      end)
-
-    "Invalid action argument names:\n#{suggestions}"
   end
 end

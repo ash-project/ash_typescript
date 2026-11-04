@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
+defmodule AshTypescript.Manifest.NameCheck.MappedFieldNamesTest do
   use ExUnit.Case, async: false
 
   describe "typescript_field_names/0 values wherever the manifest reaches the type" do
@@ -51,13 +51,15 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
         end
       end
 
-      assert {:error, error_message} = silent_verify_for_domains([TestDomainDashedAttribute])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainDashedAttribute])
+        end
 
       assert error_message =~
-               """
-               Invalid field names in type #{inspect(DashedAttributeSwatch)}:
-                   - field hex_code -> a TypeScript identifier ("hex-code" is not one)
-               """
+               "  Type #{inspect(DashedAttributeSwatch)}:\n" <>
+                 ~s{    - field :hex_code → "hex-code" (typescript_field_names/0), not an identifier: } <>
+                 "change #{inspect(DashedAttributeSwatch)}.typescript_field_names/0\n"
     end
 
     test "accepts a mapping to a TypeScript identifier on a resource attribute" do
@@ -116,7 +118,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
       def typescript_field_names, do: [hex_code: "hex-code"]
     end
 
-    test "is reported under the struct module" do
+    test "is reported under the resource, with a fix naming the struct module" do
       defmodule TestResourceDashedStruct do
         use Ash.Resource,
           domain: nil,
@@ -156,13 +158,14 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
         end
       end
 
-      assert {:error, error_message} = silent_verify_for_domains([TestDomainDashedStruct])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainDashedStruct])
+        end
 
       assert error_message =~
-               """
-               Invalid field names in type #{inspect(DashedStruct)}:
-                   - struct_field hex_code -> a TypeScript identifier ("hex-code" is not one)
-               """
+               ~s{- field :swatch.hex_code → "hex-code" (typescript_field_names/0), not an identifier: } <>
+                 "change #{inspect(DashedStruct)}.typescript_field_names/0\n"
     end
   end
 
@@ -176,49 +179,48 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
     end
 
     test "is reported by the manifest too" do
-      {result, _stderr} =
-        ExUnit.CaptureIO.with_io(:standard_error, fn ->
-          defmodule DashedRouteController do
-            use AshTypescript.TypedController
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          ExUnit.CaptureIO.with_io(:standard_error, fn ->
+            defmodule DashedRouteController do
+              use AshTypescript.TypedController
 
-            typed_controller do
-              module_name AshTypescript.Test.DashedRouteSwatchController
+              typed_controller do
+                module_name AshTypescript.Test.DashedRouteSwatchController
 
-              get :swatch do
-                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-                returns DashedRouteSwatch
+                get :swatch do
+                  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                  returns DashedRouteSwatch
+                end
               end
             end
-          end
 
-          module = Module.concat(__MODULE__, DashedRouteManifest)
+            module = Module.concat(__MODULE__, DashedRouteManifest)
 
-          Module.create(
-            module,
-            quote do
-              use AshTypescript.Manifest,
-                otp_app: :ash_typescript,
-                domains: [],
-                typed_controllers: [DashedRouteController]
-            end,
-            Macro.Env.location(__ENV__)
-          )
+            Module.create(
+              module,
+              quote do
+                use AshTypescript.Manifest,
+                  otp_app: :ash_typescript,
+                  domains: [],
+                  typed_controllers: [DashedRouteController]
+              end,
+              Macro.Env.location(__ENV__)
+            )
 
-          AshTypescript.Manifest.run_verifiers(module)
-        end)
-
-      assert {:error, error_message} = result
+            AshTypescript.Manifest.run_verifiers(module)
+          end)
+        end
 
       assert error_message =~
-               """
-               Invalid field names in type #{inspect(DashedRouteSwatch)}:
-                   - field hex_code -> a TypeScript identifier ("hex-code" is not one)
-               """
+               "  Type #{inspect(DashedRouteSwatch)}:\n" <>
+                 ~s{    - field :hex_code → "hex-code" (typescript_field_names/0), not an identifier: } <>
+                 "change #{inspect(DashedRouteSwatch)}.typescript_field_names/0\n"
     end
   end
 
   describe "a mapping reached through an entrypoint and a resource attribute" do
-    test "is reported once, under the entrypoint" do
+    test "is reported once, under the type definition" do
       defmodule DashedSharedSwatch do
         use Ash.Type.NewType,
           subtype_of: :map,
@@ -268,15 +270,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
         end
       end
 
-      assert {:error, error_message} = silent_verify_for_domains([TestDomainDashedShared])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainDashedShared])
+        end
 
-      assert error_message =~
-               """
-               Invalid field names in return type of RPC action get_swatch (action: get_swatch):
-                   - field hex_code -> a TypeScript identifier ("hex-code" is not one)
-               """
+      line =
+        "  Type #{inspect(DashedSharedSwatch)}:\n" <>
+          ~s{    - field :hex_code → "hex-code" (typescript_field_names/0), not an identifier: } <>
+          "change #{inspect(DashedSharedSwatch)}.typescript_field_names/0\n"
 
-      refute error_message =~ "Invalid field names in type"
+      assert length(String.split(error_message, line)) == 2
+      assert length(String.split(error_message, ~s{"hex-code"})) == 2
     end
   end
 
@@ -330,38 +335,33 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
     test "points to the entry's client_name, not typescript_field_names/0" do
       module = Module.concat(__MODULE__, EntryManifest)
 
-      ExUnit.CaptureIO.with_io(:stderr, fn ->
-        Module.create(
-          module,
-          quote do
-            use AshTypescript.Manifest,
-              otp_app: :ash_typescript,
-              domains: [TestDomainEntrySwatch]
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          ExUnit.CaptureIO.with_io(:stderr, fn ->
+            Module.create(
+              module,
+              quote do
+                use AshTypescript.Manifest,
+                  otp_app: :ash_typescript,
+                  domains: [TestDomainEntrySwatch]
 
-            custom_types do
-              map EntrySwatch do
-                field :is_on?, :boolean
-              end
-            end
-          end,
-          Macro.Env.location(__ENV__)
-        )
-      end)
-
-      assert {:error, error_message} = AshTypescript.Manifest.run_verifiers(module)
-
-      assert error_message =~
-               """
-               Invalid field names in argument swatch of RPC action paint (action: paint):
-                   - field is_on? -> is_on
-               """
+                custom_types do
+                  map EntrySwatch do
+                    field :is_on?, :boolean
+                  end
+                end
+              end,
+              Macro.Env.location(__ENV__)
+            )
+          end)
+        end
 
       assert error_message =~
-               "- For custom types with a `map` entry in the manifest's `custom_types` section " <>
-                 "(#{inspect(EntrySwatch)}): set `client_name` on the entry's fields; " <>
-                 "`typescript_field_names/0` isn't read for them\n"
+               "  Type #{inspect(EntrySwatch)} (custom_types map entry):\n" <>
+                 ~s{    - field :is_on? → "isOn?" (formatted), not an identifier: } <>
+                 ~s{set client_name on the field, e.g. client_name: "isOn"\n}
 
-      refute error_message =~ "Define the `typescript_field_names/0` callback on the custom type"
+      refute error_message =~ "typescript_field_names/0"
     end
 
     test "keeps the typescript_field_names/0 hint for a type without one" do
@@ -409,14 +409,16 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
         end
       end
 
-      assert {:error, error_message} = silent_verify_for_domains([TestDomainNoEntry])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainNoEntry])
+        end
 
       assert error_message =~
-               "- For custom types with declared fields: Define the `typescript_field_names/0` " <>
-                 "callback on the custom type module, or set `client_name` on the fields of its " <>
-                 "`map` entry in the manifest's `custom_types` section\n"
+               ~s{- field :is_on? → "isOn?" (formatted), not an identifier: } <>
+                 ~s{add typescript_field_names/0 to #{inspect(NoEntryOptions)}, e.g. is_on?: "isOn"\n}
 
-      refute error_message =~ "For custom types with a `map` entry"
+      refute error_message =~ "client_name"
     end
   end
 
@@ -485,17 +487,15 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
     end
 
     test "rejects a formatter-made name that isn't valid on a resource attribute" do
-      assert {:error, error_message} =
-               verify_with_entry(UnnamedEntryAttributeManifest, TestDomainUnnamedEntry, [])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          verify_with_entry(UnnamedEntryAttributeManifest, TestDomainUnnamedEntry, [])
+        end
 
       assert error_message =~
-               """
-               Invalid field names in type #{inspect(UnnamedEntryToggle)}:
-                   - field is_on? -> is_on
-               """
-
-      assert error_message =~
-               "(#{inspect(UnnamedEntryToggle)}): set `client_name` on the entry's fields"
+               "  Type #{inspect(UnnamedEntryToggle)} (custom_types map entry):\n" <>
+                 ~s{    - field :is_on? → "isOn?" (formatted), not an identifier: } <>
+                 ~s{set client_name on the field, e.g. client_name: "isOn"\n}
     end
 
     test "accepts the field with a client_name that is a TypeScript identifier" do
@@ -504,17 +504,19 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.MappedFieldNamesTest do
              ) == :ok
     end
 
-    test "is reported once, under the entrypoint, when an action reaches the type too" do
-      assert {:error, error_message} =
-               verify_with_entry(UnnamedEntrySharedManifest, TestDomainUnnamedEntryAction, [])
+    test "is reported once, under the type definition, when an action reaches the type too" do
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          verify_with_entry(UnnamedEntrySharedManifest, TestDomainUnnamedEntryAction, [])
+        end
 
-      assert error_message =~
-               """
-               Invalid field names in return type of RPC action get_toggle (action: get_toggle):
-                   - field is_on? -> is_on
-               """
+      line =
+        "  Type #{inspect(UnnamedEntryToggle)} (custom_types map entry):\n" <>
+          ~s{    - field :is_on? → "isOn?" (formatted), not an identifier: } <>
+          ~s{set client_name on the field, e.g. client_name: "isOn"\n}
 
-      refute error_message =~ "Invalid field names in type"
+      assert length(String.split(error_message, line)) == 2
+      assert length(String.split(error_message, ~s{"isOn?"})) == 2
     end
   end
 

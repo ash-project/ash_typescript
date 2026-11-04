@@ -26,9 +26,10 @@ to the page that documents the current behaviour where there is one.
    `typed_controllers`, `typed_channels` and the `*_mapping_overrides` keys
    from config onto the manifest module, and move a resource's
    `typescript_field_names/0` to `field_names` ([Configuration](#configuration)).
-3. Fix what the manifest now rejects when it compiles: untyped structs, client
-   names that aren't TypeScript identifiers, metadata names that collide with
-   fields ([Compile-time checks](#compile-time-checks)).
+3. Fix what the manifest now rejects when it compiles: untyped structs,
+   invalid generated names (client names, function and schema names, type
+   aliases), metadata names that collide with fields
+   ([Compile-time checks](#compile-time-checks)).
 4. Check hand-written clients, error handling and error handlers: request keys,
    `required` errors, `unknown_*` errors, the `tenant` param, untyped data,
    `typed_query_action`, validation without AshPhoenix
@@ -302,25 +303,106 @@ composite custom type's `composite_types/1` entries are checked too, and
 
 See [Untyped Map Type Configuration](../advanced/custom-types.md#untyped-map-type-configuration).
 
-### Client names must be TypeScript identifiers
+### Generated names are checked when the manifest compiles
 
-Every field name the client gets must be a TypeScript identifier
-(`[A-Za-z_$][A-Za-z0-9_$]*`):
+Compiling the manifest now checks every name the generated code uses: client
+names (the keys of generated objects), the function, const, type and schema
+names generated for RPC actions, typed queries and typed controller routes, and
+type aliases. Every problem is reported at once, in one error that replaces the
+old per-check messages ("Invalid field names found …", "Invalid metadata field
+names found …", "Invalid names found that contain question marks …", "Invalid
+names for TypeScript generation found.", "… generates the function …", the
+stand-alone "The ts_alias …" and "The client_name …" errors). The verifier
+modules behind those messages are removed:
+`AshTypescript.Resource.Verifiers.VerifyFieldNames`,
+`AshTypescript.Resource.Verifiers.VerifyMapFieldNames`,
+`AshTypescript.Manifest.Verifiers.VerifyActionTypes` and
+`AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames`. Each line names
+the owner and the fix:
 
-- Compiling the manifest fails for a `custom_types` `field` whose
-  `client_name` isn't one.
-- A type field that `typescript_field_names/0` maps to a name that isn't one,
-  or a `custom_types` `map` entry field without `client_name` whose formatted
-  name isn't one (`:is_on?` becomes `isOn?`), is reported wherever the
-  manifest reaches the type: action arguments and results, resource fields,
-  embedded resources, routes and channel payloads. Compiling the manifest
-  warns, and codegen fails. Before, only action arguments and results were
-  checked, and the others generated TypeScript and zod/valibot schemas that
-  don't compile.
+```
+Invalid generated names found.
 
-Pick an identifier (`client_name: "isOn"` for `:is_on?`). See
+Client names (keys of generated objects) must be TypeScript identifiers
+([A-Za-z_$][A-Za-z0-9_$]*). A name the formatter makes from a raw name with an underscore
+before a digit (line_1) is rejected too, since its client name (line1) doesn't tell line_1
+from line1.
+
+  Resource MyApp.Task:
+    - field :address_line_1 → "addressLine1" (formatted), underscore before a digit: add it to field_names in the resource's typescript block, e.g. address_line_1: "addressLine1"
+    - field :is_active? → "isActive?" (formatted), not an identifier: add it to field_names in the resource's typescript block, e.g. is_active?: "isActive"
+
+Function, const, type and schema names must be TypeScript identifiers that aren't
+JavaScript reserved words, and a type name can't be a predefined TypeScript type name
+(string, any, …).
+
+  RPC action :delete in MyApp.Domain:
+    - function "delete", a JavaScript reserved word: rename the rpc_action, for example :delete_item
+
+Type aliases:
+
+  MyApp.Types.GeoPoint:
+    - The ts_alias "Geo-Point" of MyApp.Types.GeoPoint is not a TypeScript identifier.
+```
+
+Update anything that matches the old messages. What changes:
+
+- **Earlier and harder.** These were a compile warning (an error under
+  `--warnings-as-errors`) and a codegen error, and now fail the manifest
+  compile: formatter-made client names with a `?` or an underscore before a
+  digit, and invalid `field_names`, `argument_names`, `metadata_field_names`
+  and `typescript_field_names/0` values; `rpc_action` and `typed_query` names;
+  typed controller route names, arguments and `returns` fields.
+- **Newly reported**, since no check covered them:
+  - client names that aren't TypeScript identifiers, wherever they sit (a
+    resource field or action argument named `:"due-at"` was emitted as is);
+  - calculation arguments, and union members in action arguments and
+    results, by both rules;
+  - the metadata fields of an `rpc_action` without `show_metadata`, which
+    exposes them all (before, only a `show_metadata` list was checked);
+  - function, const, type and schema names that aren't identifiers: an
+    `rpc_action :"list-todos"`, a `ts_fields_const_name`, `ts_result_type_name`,
+    `zod_schema_name` or `valibot_schema_name` that isn't one, and every name
+    derived from an RPC action, typed query or route (validation and channel
+    functions, input types, schemas), whatever the feature flags;
+  - JavaScript reserved words in every generated function, const, type and
+    schema name, the names you set included (`ts_fields_const_name "default"`,
+    `zod_schema_name "class"`), and predefined TypeScript type names (`string`,
+    `any`, `never`, …) in type names (`ts_result_type_name "string"`);
+  - typed channel events that aren't identifiers (`event: "post-created"`),
+    and their `<Event>Payload` type names: the event is a key of the generated
+    `<Channel>Events` type;
+  - under a custom (MFA) `output_field_formatter`, the generated code's own
+    keys (`hasMore`, `results`, `fetchOptions`, …) when the formatter doesn't
+    make identifiers of them. The built-in formatters always do.
+- **Generated differently:** with `typed_controller_path_params_style: :args`,
+  a path parameter whose client name is a JavaScript reserved word is bound as
+  the name plus `Param` (`showItemPath(newParam: string)` for `/items/:new`).
+  Before, the generated function didn't compile. Positional parameter names
+  aren't part of the API, so callers don't change.
+- **Newly allowed:** `field_names` maps a field whose raw name isn't a
+  TypeScript identifier (`field_names "attr-dash": "attrDash"`), not only names
+  with a `?` or an underscore before a digit. The report suggests it:
+  `- field :"due-at" → "due-at" (formatted), not an identifier: add it to
+  field_names in the resource's typescript block, e.g. "due-at": "dueAt"`.
+- **No longer reported:**
+  - a name you set that has an underscore before a digit
+    (`argument_names [act: [line_1: "line_1"]]`, `metadata_field_names
+    [field_1: "field_1"]`): it is a valid identifier, used as written;
+  - names in anything the manifest never reaches, since nothing is generated
+    for them: fields of resources in no `typescript_rpc` block, typed
+    controllers not listed in `typed_controllers:`, and the `client_name` and
+    `ts_alias` of `custom_types` entries for types nothing uses. The "not
+    listed" warnings still point at unlisted resources and controllers.
+
+The `field_names` checks that run when the resource compiles ("Invalid
+field_names configuration found": a key that isn't a field or doesn't need a
+mapping, a value that isn't a string) are unchanged, except that a key that
+isn't an identifier now needs a mapping (see "Newly allowed").
+
+See [Troubleshooting](../reference/troubleshooting.md#error-invalid-generated-names-found),
 [Declaring Fields in the Manifest](../advanced/custom-types.md#declaring-fields-in-the-manifest)
-and [Map Type Field Mapping](../advanced/field-name-mapping.md#map-type-field-mapping).
+and [Field Name Mapping](../advanced/field-name-mapping.md).
 
 ### Metadata name collisions are reported by ash_rpc
 
@@ -561,18 +643,25 @@ map loses them (its generated TypeScript type never had them). See
 ### Reserved function names are rejected
 
 A route whose function name is a JavaScript reserved word (`:delete`, `:new`,
-`:import`, `:default`, …) is a compile error, whatever its method:
-"generates the function `delete`, a JavaScript reserved word". Before, a route
-with a fetch function generated code TypeScript rejects, and a path-only route
-generated `deletePath`. Rename it (`delete :delete_item`); the client then calls
-`deleteItem` / `deleteItemPath`. Names that only contain a reserved word
-(`:import_users`) are unaffected.
+`:import`, `:default`, …) fails the manifest compile, whatever its method, with
+"Invalid generated names found." and the line `- function "delete", a JavaScript
+reserved word: rename the route, for example :delete_item` (see
+[Generated names are checked when the manifest compiles](#generated-names-are-checked-when-the-manifest-compiles)).
+Before, a route with a fetch function generated code TypeScript rejects, and a
+path-only route generated `deletePath`. Rename it (`delete :delete_item`); the
+client then calls `deleteItem` / `deleteItemPath`. Names that only contain a
+reserved word (`:import_users`) are unaffected.
 
 The same applies to an `rpc_action` (see
 [RPC Action Options](../features/rpc-action-options.md)) and to a
 `typed_query` whose fields const would be a reserved word: rename it or set
 another `ts_fields_const_name` (see
-[Typed Queries](../guides/typed-queries.md#configuration-options)).
+[Typed Queries](../guides/typed-queries.md#configuration-options)). A
+`ts_fields_const_name`, `ts_result_type_name`, `zod_schema_name` or
+`valibot_schema_name` you set can't be a reserved word either, and a
+`ts_result_type_name` can't be a predefined TypeScript type name: the line names
+the option (`- zod schema "class" (zod_schema_name), a JavaScript reserved word:
+change zod_schema_name`).
 
 ### Structured arguments can't go in the URL
 

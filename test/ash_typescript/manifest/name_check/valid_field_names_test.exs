@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
+defmodule AshTypescript.Manifest.NameCheck.ValidFieldNamesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - valid field names pass" do

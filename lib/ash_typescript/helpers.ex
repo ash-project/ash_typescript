@@ -39,79 +39,68 @@ defmodule AshTypescript.Helpers do
     )
   end
 
-  @doc """
-  Helper functions for commonly used pagination field names.
-  These ensure consistency across all pagination-related type generation.
-  """
-  def formatted_results_field, do: format_output_field(:results)
-  def formatted_has_more_field, do: format_output_field(:has_more)
-  def formatted_limit_field, do: format_output_field(:limit)
-  def formatted_offset_field, do: format_output_field(:offset)
-  def formatted_after_field, do: format_output_field(:after)
-  def formatted_before_field, do: format_output_field(:before)
-  def formatted_previous_page_field, do: format_output_field(:previous_page)
-  def formatted_next_page_field, do: format_output_field(:next_page)
+  # The static keys of the generated code that the output formatter names, by
+  # the `formatted_<name>_field/0` function that returns each: pagination,
+  # error, field selection, config and response fields.
+  @formatted_fields [
+    results: :results,
+    has_more: :has_more,
+    limit: :limit,
+    offset: :offset,
+    after: :after,
+    before: :before,
+    previous_page: :previous_page,
+    next_page: :next_page,
+    error_type: :type,
+    error_message: :message,
+    error_short_message: :short_message,
+    error_vars: :vars,
+    error_fields: :fields,
+    error_path: :path,
+    error_details: :details,
+    error_id: :error_id,
+    args: :args,
+    fields: :fields,
+    page: :page,
+    action: :action,
+    input: :input,
+    identity: :identity,
+    filter: :filter,
+    sort: :sort,
+    count: :count,
+    metadata_fields: :metadata_fields,
+    headers: :headers,
+    fetch_options: :fetch_options,
+    custom_fetch: :custom_fetch,
+    tenant: :tenant,
+    hook_ctx: :hook_ctx,
+    channel: :channel,
+    result_handler: :result_handler,
+    error_handler: :error_handler,
+    timeout_handler: :timeout_handler,
+    timeout: :timeout,
+    success: :success,
+    errors: :errors,
+    data: :data
+  ]
+
+  # Other static keys codegen formats with the output formatter directly.
+  @other_static_fields [:config, :get_by, :metadata]
 
   @doc """
-  Helper functions for commonly used error field names.
-  These ensure consistency across all error-related type generation.
-
-  Matches the error structure defined in AshRpc.Error protocol.
+  The static keys of the generated code (`:has_more`, `:fetch_options`, …)
+  that codegen names with the output formatter: the `formatted_*_field/0`
+  keys and the others it formats directly. `AshTypescript.Manifest.NameCheck`
+  checks each as a client name.
   """
-  def formatted_error_type_field, do: format_output_field(:type)
-  def formatted_error_message_field, do: format_output_field(:message)
-  def formatted_error_short_message_field, do: format_output_field(:short_message)
-  def formatted_error_vars_field, do: format_output_field(:vars)
-  def formatted_error_fields_field, do: format_output_field(:fields)
-  def formatted_error_path_field, do: format_output_field(:path)
-  def formatted_error_details_field, do: format_output_field(:details)
-  def formatted_error_id_field, do: format_output_field(:error_id)
+  @spec static_client_names() :: [atom()]
+  def static_client_names,
+    do: Enum.uniq(Keyword.values(@formatted_fields) ++ @other_static_fields)
 
-  @doc """
-  Helper functions for commonly used calculation and field selection field names.
-  These ensure consistency across all args/fields-related type generation.
-  """
-  def formatted_args_field, do: format_output_field(:args)
-  def formatted_fields_field, do: format_output_field(:fields)
-
-  @doc """
-  Helper function for pagination page field name.
-  """
-  def formatted_page_field, do: format_output_field(:page)
-
-  @doc """
-  Helper function for the RPC payload's action key.
-  """
-  def formatted_action_field, do: format_output_field(:action)
-
-  @doc """
-  Helper functions for commonly used config interface field names.
-  These ensure consistency across all RPC config-related type generation.
-  """
-  # Common config fields
-  def formatted_input_field, do: format_output_field(:input)
-  def formatted_identity_field, do: format_output_field(:identity)
-  def formatted_filter_field, do: format_output_field(:filter)
-  def formatted_sort_field, do: format_output_field(:sort)
-  def formatted_count_field, do: format_output_field(:count)
-  def formatted_metadata_fields_field, do: format_output_field(:metadata_fields)
-  def formatted_headers_field, do: format_output_field(:headers)
-  def formatted_fetch_options_field, do: format_output_field(:fetch_options)
-  def formatted_custom_fetch_field, do: format_output_field(:custom_fetch)
-  def formatted_tenant_field, do: format_output_field(:tenant)
-  def formatted_hook_ctx_field, do: format_output_field(:hook_ctx)
-
-  # Channel-specific config fields
-  def formatted_channel_field, do: format_output_field(:channel)
-  def formatted_result_handler_field, do: format_output_field(:result_handler)
-  def formatted_error_handler_field, do: format_output_field(:error_handler)
-  def formatted_timeout_handler_field, do: format_output_field(:timeout_handler)
-  def formatted_timeout_field, do: format_output_field(:timeout)
-
-  # Response fields
-  def formatted_success_field, do: format_output_field(:success)
-  def formatted_errors_field, do: format_output_field(:errors)
-  def formatted_data_field, do: format_output_field(:data)
+  for {name, field} <- @formatted_fields do
+    @doc "The output formatter's name for the static key `#{inspect(field)}`."
+    def unquote(:"formatted_#{name}_field")(), do: format_output_field(unquote(field))
+  end
 
   # ─────────────────────────────────────────────────────────────────
   # Type Introspection Helpers

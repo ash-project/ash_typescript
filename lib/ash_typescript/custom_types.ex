@@ -67,7 +67,7 @@ defmodule AshTypescript.CustomTypes do
   @identifier ~r/\A[A-Za-z_$][A-Za-z0-9_$]*\z/
   # Names TypeScript doesn't accept for an exported type or const: type
   # keywords and the JavaScript reserved words (`NameValidation`).
-  @reserved_words ~w(any unknown never object string number boolean bigint symbol undefined) ++
+  @reserved_words AshTypescript.NameValidation.ts_type_keywords() ++
                     AshTypescript.NameValidation.js_reserved_words()
 
   # TypeScript and DOM globals the generated code references by name (an
@@ -187,8 +187,10 @@ defmodule AshTypescript.CustomTypes do
 
   The alias is `alias_name/3`'s. A library's schema name is `nil` when the
   entry the type's uses resolve to (`map_entry/2`) has a replacement for that
-  library, else `:derive`. Raises `ArgumentError` for an invalid
-  `typescript_type_alias/0` result (`check_alias_names/2` reports it first).
+  library, else `:derive`. Raises `ArgumentError` for a
+  `typescript_type_alias/0` result that isn't a string (`check_alias_names/2`
+  reports it first). The alias string isn't judged here:
+  `AshTypescript.Manifest.NameCheck` checks it.
   """
   @spec names(module(), custom_types()) :: names()
   def names(module, %{declared: declared, builtin: builtin} = custom_types) do
@@ -224,8 +226,8 @@ defmodule AshTypescript.CustomTypes do
   declared type has its own.
 
   `{:error, message}`, naming the module, when `typescript_type_alias/0`
-  decides the name and returns anything but a TypeScript identifier that
-  isn't a reserved word.
+  decides the name and returns anything but a string. The name itself isn't
+  judged here: `AshTypescript.Manifest.NameCheck` checks it.
   """
   @spec alias_name(module(), custom_types(), boolean()) ::
           {:ok, String.t() | nil} | {:error, String.t()}
@@ -241,7 +243,7 @@ defmodule AshTypescript.CustomTypes do
         {:ok, entry.ts_alias}
 
       exports?(module, :typescript_type_alias, 0) ->
-        callback_alias_name(module)
+        callback_alias(module)
 
       match?(%MapType{ts_alias: name} when is_binary(name), builtin[module]) ->
         {:ok, builtin[module].ts_alias}
@@ -255,16 +257,14 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # `typescript_type_alias/0`'s result for `module`, as `{:ok, name}`, or
-  # `{:error, message}` naming the module when it isn't a string or isn't a
-  # valid TypeScript name.
-  @spec callback_alias_name(module()) :: {:ok, String.t()} | {:error, String.t()}
-  def callback_alias_name(module) do
+  # `typescript_type_alias/0`'s result for `module`, as `{:ok, name}` whatever
+  # the string (`AshTypescript.Manifest.NameCheck` checks it), or
+  # `{:error, message}` naming the module when it isn't a string.
+  @spec callback_alias(module()) :: {:ok, String.t()} | {:error, String.t()}
+  def callback_alias(module) do
     case module.typescript_type_alias() do
       name when is_binary(name) ->
-        subject = "The typescript_type_alias/0 result #{inspect(name)} of #{inspect(module)}"
-
-        with :ok <- check_name(name, subject), do: {:ok, name}
+        {:ok, name}
 
       other ->
         {:error,
@@ -277,13 +277,14 @@ defmodule AshTypescript.CustomTypes do
   # The first alias error among the manifest's map-like definitions (declared
   # custom types and field-bearing NewTypes), then among the scalars it
   # reaches, as `{:error, message}`; `:ok` when there is none. A map-like
-  # error is an invalid `alias_name/3` result, or an aliased field-bearing
-  # NewType that exports `typescript_type/0` (through `typescript_type_alias/0`;
-  # a field-less `map` entry on such a type is rejected by
-  # `NormalizeCustomTypes`). A scalar error is an invalid
-  # `typescript_type_alias/0` result where the callback names the scalar
-  # (`AshTypescript.Codegen.ScalarAliases`); a scalar may export
-  # `typescript_type/0` beside it.
+  # error is a `typescript_type_alias/0` result that isn't a string where
+  # `alias_name/3` takes it, or an aliased field-bearing NewType that exports
+  # `typescript_type/0` (through `typescript_type_alias/0`; a field-less `map`
+  # entry on such a type is rejected by `NormalizeCustomTypes`). A scalar
+  # error is a `typescript_type_alias/0` result that isn't a string where the
+  # callback names the scalar (`AshTypescript.Codegen.ScalarAliases`); a
+  # scalar may export `typescript_type/0` beside it. Alias strings are
+  # `AshTypescript.Manifest.NameCheck`'s.
   @spec check_alias_names(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
   def check_alias_names(%Manifest{} = manifest, custom_types) do
     with :ok <- check_map_like_alias_names(manifest, custom_types),
@@ -318,7 +319,7 @@ defmodule AshTypescript.CustomTypes do
     |> Enum.filter(&(Codegen.ScalarAliases.source(&1, custom_types) == :callback))
     |> Enum.map(& &1.module)
     |> Enum.uniq()
-    |> Enum.find_value(:ok, &alias_error(callback_alias_name(&1)))
+    |> Enum.find_value(:ok, &alias_error(callback_alias(&1)))
   end
 
   defp alias_error({:error, _message} = error), do: error
@@ -394,8 +395,10 @@ defmodule AshTypescript.CustomTypes do
   # `{:error, message}` starting with `subject` (`The ts_alias "x" of Mod`):
   # it must be an identifier, not a reserved word, and not a global the
   # generated code uses (`Array`, `Promise`, `Record`, …). Every alias name
-  # check goes through here: entry `ts_alias` strings, `typescript_type_alias/0`
-  # results and MFA `ts_alias` results.
+  # check goes through here: static aliases (entry `ts_alias` strings and
+  # `typescript_type_alias/0` results) through
+  # `AshTypescript.NameValidation.check_alias_name/2`, and MFA `ts_alias`
+  # results through `AshTypescript.Codegen.ScalarAliases`.
   @spec check_name(String.t(), String.t()) :: :ok | {:error, String.t()}
   def check_name(name, subject) do
     cond do

@@ -144,6 +144,97 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
     end
   end
 
+  defmodule QChild do
+    @moduledoc false
+    use Ash.Resource,
+      domain: AshTypescript.Rpc.RestrictedSchemaCodegenTest.QDomain,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "RestrictedQChild"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :parent_id, :uuid, public?: true
+      attribute :label, :string, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule QParent do
+    @moduledoc false
+    use Ash.Resource,
+      domain: AshTypescript.Rpc.RestrictedSchemaCodegenTest.QDomain,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "RestrictedQParent"
+      field_names best_children?: "bestChildren"
+    end
+
+    attributes do
+      uuid_primary_key :id
+    end
+
+    relationships do
+      has_many :best_children?, AshTypescript.Rpc.RestrictedSchemaCodegenTest.QChild do
+        public? true
+        destination_attribute :parent_id
+      end
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule QDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource AshTypescript.Rpc.RestrictedSchemaCodegenTest.QParent do
+        rpc_action :list_q_parents, :read, denied_loads: [best_children?: [:label]]
+      end
+
+      resource AshTypescript.Rpc.RestrictedSchemaCodegenTest.QChild
+    end
+
+    resources do
+      resource AshTypescript.Rpc.RestrictedSchemaCodegenTest.QParent
+      resource AshTypescript.Rpc.RestrictedSchemaCodegenTest.QChild
+    end
+  end
+
+  describe "nested schema names" do
+    test "a nested schema name built from a raw name with ? is an identifier" do
+      manifest = AshTypescript.Test.InlineManifest.build!(domains: [QDomain])
+
+      {schema_def, "ListQParentsSchema"} =
+        AshTypescript.with_manifest(manifest, fn ->
+          AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema.get_schema_and_reference(
+            QParent,
+            %{denied_loads: [best_children?: [:label]]},
+            "ListQParents",
+            AshRpc.Manifest.resource_lookup(manifest)
+          )
+        end)
+
+      assert schema_def =~
+               "type ListQParentsSchemaBestChildren = Omit<RestrictedQChildResourceSchema"
+
+      assert schema_def =~ "__resource: ListQParentsSchemaBestChildren; }"
+      refute schema_def =~ "?;"
+      refute schema_def =~ "BestChildren?"
+    end
+  end
+
   describe "unrestricted actions" do
     test "use base resource schema when no restrictions", %{generated: generated} do
       assert generated =~ ~r/ListTodosFields = UnifiedFieldSelection<TodoResourceSchema>/

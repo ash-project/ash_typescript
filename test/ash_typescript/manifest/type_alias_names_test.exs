@@ -570,18 +570,24 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert CustomTypes.alias_name(T.Plain, custom_types(%{}), false) == {:ok, nil}
     end
 
-    test "an invalid callback result is an error for every kind" do
+    test "a non-string callback result is an error for every kind" do
       for aliased_by_default? <- [true, false] do
-        assert CustomTypes.alias_name(T.BadName, custom_types(%{}), aliased_by_default?) ==
-                 {:error,
-                  ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadName)} ] <>
-                    "is not a TypeScript identifier."}
-
         assert CustomTypes.alias_name(T.AtomName, custom_types(%{}), aliased_by_default?) ==
                  {:error,
                   "The typescript_type_alias/0 of #{inspect(T.AtomName)} must return a " <>
                     "string, got: :atom."}
       end
+    end
+
+    test "callback_alias/1 returns a string result as is" do
+      assert CustomTypes.callback_alias(T.BadName) == {:ok, "bad-name"}
+    end
+
+    test "callback_alias/1 rejects a non-string result" do
+      assert CustomTypes.callback_alias(T.AtomName) ==
+               {:error,
+                "The typescript_type_alias/0 of #{inspect(T.AtomName)} must return a " <>
+                  "string, got: :atom."}
     end
   end
 
@@ -767,8 +773,11 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     test "an invalid typescript_type_alias/0 on a NewType fails compilation" do
       message = compile_error!(BadNameManifest, nil, [T.BadHolderDomain])
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadName)} ] <>
+               "Type aliases:\n\n  #{inspect(T.BadName)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadName)} ] <>
                  "is not a TypeScript identifier."
     end
   end
@@ -804,11 +813,14 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     test "an invalid typescript_type_alias/0 on a scalar fails compilation" do
       message = compile_error!(BadScalarManifest, nil, [T.BadScalarDomain])
 
+      assert message =~ "Invalid generated names found."
+
       assert message =~
-               ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadScalar)} ] <>
+               "Type aliases:\n\n  #{inspect(T.BadScalar)}:\n    - " <>
+                 ~s[The typescript_type_alias/0 result "bad-name" of #{inspect(T.BadScalar)} ] <>
                  "is not a TypeScript identifier."
 
-      assert message =~ "custom_types"
+      assert message =~ "names :"
 
       message = compile_error!(AtomScalarManifest, nil, [T.AtomScalarDomain])
 

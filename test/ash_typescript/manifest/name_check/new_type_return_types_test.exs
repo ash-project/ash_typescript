@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
+defmodule AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - Ash.Type.NewType return types (Ash.TypedStruct)" do
@@ -57,12 +57,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainReturnsTypedStruct])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainReturnsTypedStruct])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "completed?"
-      assert error_message =~ "is_urgent?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :completed? → "completed?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.InvalidFieldsTypedStruct, e.g. completed?: "completed"}
+
+      assert error_message =~
+               ~s{- field :is_urgent? → "isUrgent?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.InvalidFieldsTypedStruct, e.g. is_urgent?: "isUrgent"}
     end
 
     test "passes when Ash.TypedStruct has typescript_field_names mappings" do
@@ -223,13 +229,21 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCustomTypeArgument])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainCustomTypeArgument])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types or argument/
-      assert error_message =~ "setting_1"
-      assert error_message =~ "option_2"
-      assert error_message =~ "enabled?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :enabled? → "enabled?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomConfigType, e.g. enabled?: "enabled"}
+
+      assert error_message =~
+               ~s{- field :option_2 → "option2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomConfigType, e.g. option_2: "option2"}
+
+      assert error_message =~
+               ~s{- field :setting_1 → "setting1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomConfigType, e.g. setting_1: "setting1"}
     end
 
     test "passes when NewType-based custom type has typescript_field_names" do
@@ -362,12 +376,18 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainNestedCustomType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainNestedCustomType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "value_1"
-      assert error_message =~ "count_2"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :count_2 → "count2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.InnerCustomType, e.g. count_2: "count2"}
+
+      assert error_message =~
+               ~s{- field :value_1 → "value1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.InnerCustomType, e.g. value_1: "value1"}
     end
 
     test "detects invalid field names in array of NewType-based custom type" do
@@ -422,13 +442,21 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainArrayCustomType])
+      %{message: error_message} =
+        assert_raise Spark.Error.DslError, fn ->
+          silent_verify_for_domains([TestDomainArrayCustomType])
+        end
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "item_id_1"
-      assert error_message =~ "quantity_2"
-      assert error_message =~ "in_stock?"
+      assert error_message =~ "Invalid generated names found."
+
+      assert error_message =~
+               ~s{- field :in_stock? → "inStock?" (formatted), not an identifier: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomItemType, e.g. in_stock?: "inStock"}
+
+      assert error_message =~
+               ~s{- field :item_id_1 → "itemId1" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomItemType, e.g. item_id_1: "itemId1"}
+
+      assert error_message =~
+               ~s{- field :quantity_2 → "quantity2" (formatted), underscore before a digit: add typescript_field_names/0 to AshTypescript.Manifest.NameCheck.NewTypeReturnTypesTest.CustomItemType, e.g. quantity_2: "quantity2"}
     end
   end
 

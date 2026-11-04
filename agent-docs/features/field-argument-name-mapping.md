@@ -18,13 +18,13 @@ TypeScript has stricter identifier rules than Elixir. Common Elixir naming patte
 
 ## Invalid Name Patterns
 
-**Detected by verifiers as requiring mapping:**
+**Rejected by the manifest's name check unless mapped** (a formatter-made client
+name must be an identifier, and its raw name can't match `~r/_+\d/`):
 
 ```elixir
-# Invalid patterns (regex: ~r/_+\d|\?/)
 :field_1           # Underscore followed by digit
 :address_line_2    # Underscore followed by digit
-:is_active?        # Question mark
+:is_active?        # Question mark ("isActive?" isn't an identifier)
 :item__3           # Multiple underscores followed by digit
 
 # Valid patterns (no mapping needed)
@@ -138,7 +138,7 @@ searchUsers({
 Map/keyword/tuple type constraints with invalid field names cannot be used directly:
 
 ```elixir
-# This will fail verification!
+# This fails the manifest compile!
 attribute :metadata, :map do
   constraints fields: [
     field_1: [type: :string],        # Invalid name
@@ -232,91 +232,88 @@ end
 
 ## Verification System
 
-### Three Verifiers
+### Two Checks
 
-**1. VerifyFieldNames** - Checks resource-level fields
+**1. `AshTypescript.Manifest.NameCheck`** (`lib/ash_typescript/manifest/name_check.ex`)
+checks every client name the decorated manifest gives codegen, when the manifest
+compiles (run last by `DecorateManifest`). It walks one slot per name, read from the
+`custom.ash_rpc` decoration as `ClientNames` reads it:
 
-```elixir
-# Verifies all public attributes, relationships, calculations, aggregates
-# after applying field_names mapping don't have invalid patterns
-```
+- `:resource_field`: public attributes, relationships, calculations and aggregates of
+  every decorated resource, embedded ones included;
+- `:calculation_argument`, `:action_argument` (once per `{resource, action}`; an input
+  named like a resource field is reported as the field), `:metadata_field`;
+- `:type_field` and `:union_member`: the fields of maps, keywords, tuples, structs
+  and custom types, and union members, at every position `TypeUses.positions/1`
+  returns (action arguments and returns, resource fields, routes, publications),
+  named types once at their definition;
+- `:route_argument`.
 
-**2. VerifyMappedFieldNames** - Validates `field_names` configuration
+Each slot records where its name came from (`:formatter`, `field_names`,
+`argument_names`, `metadata_field_names`, `typescript_field_names/0`, `client_name`),
+read from the decoration's override maps. The rule is
+`NameValidation.check_client_name/3`: the name must be an identifier
+(`identifier?/1`), and a formatter-made name's raw name can't match `_+\d`. An
+explicit name is only checked for validity, so `argument_names [act: [line_1:
+"line_1"]]` is accepted. The same walk checks binding names (RPC functions, typed
+query consts, route functions and schemas, typed channel events and payload types)
+and type aliases; the rules live in `AshTypescript.NameValidation`, the walk holds
+none of its own. Under a custom (MFA) output formatter the static keys
+(`Helpers.static_client_names/0`: `hasMore`, `fetchOptions`, …) are client slots
+too, owner `:static`. Fields of a resource without the `AshTypescript.Resource`
+extension (an embedded resource or struct-argument target the manifest reaches)
+have slots marked `exposed?: false`; their fix adds the extension and a
+`field_names` entry. When the raw name is usable as is (`field_names_key?/1` is
+false) but the formatter's result isn't, the fix is "change the formatter" (plus
+`argument_names` / `metadata_field_names` for those kinds). Anything the manifest
+doesn't reach has no slots.
+
+Every problem fails the compile in one `Spark.Error.DslError` at path `[:names]`
+(an error, not a verifier warning), so codegen never sees an invalid name.
+
+**2. `VerifyMappedFieldNames`** (resource verifier) validates the `field_names`
+configuration:
 
 ```elixir
 # Ensures:
 # - Keys reference existing fields
-# - Keys are actually invalid names
-# - Values are valid replacement names
+# - Keys need a mapping (contain _+digits or ?, or aren't identifiers:
+#   NameValidation.field_names_key?/1)
+# - Values are strings
 ```
 
-**3. VerifyMapFieldNames** - Checks composite type constraints
-
-```elixir
-# Detects invalid field names in:
-# - :map type constraints
-# - :keyword type constraints
-# - :tuple type constraints
-# - Union type members
-# - Nested composite types
-```
-
-`VerifyMapFieldNames` exempts keys a type maps with `typescript_field_names/0` and
-doesn't check the mapped values. Those are checked by the manifest verifier
-`AshTypescript.Manifest.Verifiers.VerifyActionTypes`: it walks entrypoint argument
-and generic return types, then every type node the manifest reaches
-(`TypeUses.nodes/1`: resource fields, embedded resources, routes, publications) and
-rejects a mapped value that isn't a TypeScript identifier, and a `custom_types` `map`
-entry field without `client_name` whose formatter-made name is invalid
-(`invalid_name?/1`, e.g. `is_on?`) or isn't an identifier. A pair already reported
-through an entrypoint isn't repeated under "Invalid field names in type Mod". Like
-every Spark verifier it only warns at compile time; codegen re-runs it and fails
-(`AshTypescript.Manifest.run_verifiers/1`). Tests:
-`test/ash_typescript/rpc/verify_action_types/mapped_field_names_test.exs`.
+So `field_names "attr-dash": "attrDash"` maps a dashed attribute, and
+`field_names title: "heading"` is rejected. Whether a value is an identifier is
+`NameCheck`'s.
 
 ### Error Messages
 
-**Resource field verification failure** (abridged — `verify_field_names.ex:88-129` also
-emits a generated `Example for <Module>: typescript do field_names ... end` block):
+**Name check failure** (one section per family, one group per owner, one line per
+problem with its fix; pinned by `name_check_test.exs`' full-message test):
 
 ```
-Invalid field names found that contain question marks, or numbers preceded by underscores.
-These patterns are not allowed in TypeScript generation.
+Invalid generated names found.
 
-Invalid field names in resource MyApp.User:
-  - attribute address_line_1 → address_line1
-  - calculation total_items_2 → total_items2
+Client names (keys of generated objects) must be TypeScript identifiers
+([A-Za-z_$][A-Za-z0-9_$]*). A name the formatter makes from a raw name with an underscore
+before a digit (line_1) is rejected too, since its client name (line1) doesn't tell line_1
+from line1.
 
-Names should use standard camelCase or snake_case patterns without numbered suffixes.
-You can use field_names in the typescript section to provide valid alternatives.
-
-Example for User:
-
-    typescript do
-      field_names address_line_1: "addressLine1", total_items_2: "totalItems2"
-    end
+  Resource MyApp.Task:
+    - field :address_line_1 → "addressLine1" (formatted), underscore before a digit: add it to field_names in the resource's typescript block, e.g. address_line_1: "addressLine1"
+    - metadata :field_1 of RPC action :read_tasks → "field1" (formatted), underscore before a digit: add it to the RPC action's metadata_field_names, e.g. field_1: "field1"
+    - field :settings.field_1 → "field1" (formatted), underscore before a digit: wrap it in an Ash.Type.NewType with typescript_field_names/0
+    - argument :field_2 of action :update (RPC actions update_task) → "field2" (formatted), underscore before a digit: add it to argument_names for the action, e.g. update: [field_2: "field2"]
+    - field :is_active? → "isActive?" (formatted), not an identifier: add it to field_names in the resource's typescript block, e.g. is_active?: "isActive"
 ```
 
-**Composite type verification failure.** The header is dynamic
-(`verify_map_field_names.ex:192-202`) — `<error_types>` is one of
-`map/keyword/tuple type constraints`, `union member names`, or
-`map/keyword/tuple type constraints and union member names`, and the closing fix
-instructions vary to match:
-
-```
-Invalid field names found in map/keyword/tuple type constraints.
-These patterns are not allowed in TypeScript generation.
-
-Invalid constraint field names in attribute :metadata on resource MyApp.Resource:
-    - field_1 → field1
-    - is_active? → is_active
-
-Create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
-and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
-```
+A field inside a type is named by its path (`:settings.field_1`, `:entries[].entry_1`,
+`:returns.address_line_1` for a route result). An explicit name that isn't an
+identifier names its source: `- field :attr_1 → "attr-dash" (field_names), not an
+identifier: change the field_names value`.
 
 **Mapped field validation failure** (verbatim from
-`lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex:125-156`):
+`lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex`):
 
 ```
 Invalid field_names configuration found:
@@ -326,16 +323,14 @@ Invalid field_names configuration found:
 
 Requirements:
 - Keys must reference existing fields on the resource
-- Keys must be invalid names (containing _+digits or ?)
-- Values must be strings representing the exact TypeScript client name
-- Values must be valid TypeScript identifiers (e.g., "isActive", "addressLine1")
+- Keys must need a mapping (containing _+digits or ?, or not an identifier)
+- Values must be strings representing the exact TypeScript client name (e.g., "isActive", "addressLine1")
 ```
 
-The four error-part variants are:
+The error-part variants are:
 - `- Field <name> does not exist on resource <resource>`
 - `- Field <name> is already a valid name and doesn't need mapping`
 - `- Replacement name <inspect(name)> must be a string, not an atom. Use "<name>" instead of :<name>`
-- `- Replacement name "<name>" is not a valid TypeScript identifier`
 
 ## Integration Points
 
@@ -366,7 +361,8 @@ Codegen reads the same decoration; see the next section.
 
 The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
 `get_original_argument_name/3` were **deleted** — do not reintroduce them.
-`get_mapped_argument_name/3` still exists and is used by the verifiers.
+`get_mapped_argument_name/3` still exists (public), but nothing in lib calls it since
+`VerifyRpc`'s argument-name check was removed.
 
 ## Where codegen gets names
 
@@ -396,8 +392,8 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
 - Resources without the `AshTypescript.Resource` extension that are reached as struct
   arguments, and embedded resources without it, are decorated with formatter-only names
   (`exposed: false`).
-- Only `AshTypescript.RpcMappingSource` and the compile-time verifiers read the DSL and
-  `typescript_field_names/0`. `test/ash_typescript/codegen_name_source_guard_test.exs`
+- Only `AshTypescript.RpcMappingSource` and compile-time checks (`VerifyMappedFieldNames`,
+  `AshTypescript.CustomTypes`) read the DSL and `typescript_field_names/0`. `test/ash_typescript/codegen_name_source_guard_test.exs`
   fails if any other codegen module does (the allowlist is `ClientNames`).
 - `test/ash_typescript/codegen/client_names_agreement_test.exs` checks that emitted names
   equal the decorated names under camel, pascal and snake case, and
@@ -410,19 +406,21 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
 
 ### Test Levels
 
-**1. Verifier Tests**
+**1. Name Check Tests**
 ```elixir
-# test/ash_typescript/resource/verify_field_names_test.exs
-# test/ash_typescript/resource/verify_map_field_names_test.exs
-# test/ash_typescript/resource/verify_nested_map_field_names_test.exs
-# VerifyMappedFieldNames has no dedicated file — it is exercised through
-# verify_field_names_test.exs / typescript_field_names_test.exs via
-# AshTypescript.VerifierChecker.check_all_verifiers/1
+# test/ash_typescript/name_validation_test.exs       — one row per rule verdict
+# test/ash_typescript/manifest/name_check_test.exs   — the walk (slots) and the report
+# test/ash_typescript/manifest/name_check/          — end to end through the manifest
+#   compile
+# test/ash_typescript/name_check_guard_test.exs      — every name codegen emits is a
+#   slot at its position
+# test/ash_typescript/resource/verify_mapped_field_names_test.exs — VerifyMappedFieldNames,
+#   through AshTypescript.VerifierChecker
 ```
 
 **2. Type Generation Tests**
 ```elixir
-# test/ash_typescript/resource/typescript_field_names_test.exs
+# test/ash_typescript/resource/typescript_field_names_codegen_test.exs
 test "generates TypeScript types with mapped field names" do
   type_code = AshTypescript.Codegen.generate_all_schemas_for_resource(resource, [resource])
 
@@ -522,9 +520,9 @@ end
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/resource.ex` | DSL definition for field_names and argument_names |
-| `lib/ash_typescript/resource/verifiers/verify_field_names.ex` | Resource-level field verification |
+| `lib/ash_typescript/manifest/name_check.ex` | The walk over the decorated manifest: every client, binding and alias name, and the report |
+| `lib/ash_typescript/name_validation.ex` | The name rules (`check_client_name/3`, …), pure functions of one name |
 | `lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex` | field_names configuration validation |
-| `lib/ash_typescript/resource/verifiers/verify_map_field_names.ex` | Composite type constraint verification |
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
 | `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
@@ -563,14 +561,14 @@ end
 
 - Mapping is performed at runtime during RPC pipeline
 - Minimal overhead (simple map lookups)
-- Verifiers run at compile time (no runtime cost)
+- Name checks run when the manifest compiles (no runtime cost)
 - TypeScript compilation validates mapped names
 
 ## Migration Strategy
 
 ### Adding Mappings to Existing Resources
 
-1. **Identify invalid fields** - Run codegen to see verifier errors
+1. **Identify invalid fields** - Compile; "Invalid generated names found." lists each one with its fix
 2. **Add mappings** - Add `field_names` and `argument_names` to `typescript` block
 3. **Update TypeScript clients** - Use new mapped names in client code
 4. **Test thoroughly** - Verify both input and output mapping works
@@ -578,7 +576,7 @@ end
 ### Example Migration
 
 ```elixir
-# Before (fails verification)
+# Before (fails the manifest compile)
 typescript do
   type_name "User"
 end
@@ -587,7 +585,7 @@ attributes do
   attribute :address_line_1, :string, public?: true
 end
 
-# After (passes verification)
+# After (compiles)
 typescript do
   type_name "User"
   field_names address_line_1: "addressLine1"
@@ -614,9 +612,9 @@ const user = await createUser({
 
 ## Troubleshooting
 
-### Verifier Errors Won't Clear
+### Name Errors Won't Clear
 
-**Problem**: Added field mapping but still get verifier errors
+**Problem**: Added field mapping but still get "Invalid generated names found."
 
 **Solution**: Ensure mapping is in correct format (values must be strings):
 ```elixir
@@ -633,10 +631,11 @@ A stale manifest serves stale mappings to both codegen and the runtime. If the m
 
 **Problem**: Replacement name is also invalid
 
-**Solution**: Ensure replacement doesn't contain invalid patterns:
+**Solution**: Ensure the replacement is a TypeScript identifier (a mapped name is used
+as written, so `"address_line_1"` is accepted):
 ```elixir
-# Wrong - replacement still has underscore before digit
-field_names address_line_1: "address_line_1_new"
+# Wrong - not an identifier
+field_names address_line_1: "address-line-1"
 
 # Correct
 field_names address_line_1: "addressLine1"

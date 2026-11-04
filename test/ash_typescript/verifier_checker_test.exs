@@ -5,53 +5,87 @@
 defmodule AshTypescript.VerifierCheckerTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureIO
+
+  alias AshTypescript.Resource.Verifiers.VerifyMappedFieldNames
+  alias AshTypescript.VerifierChecker
+
   describe "check_all_verifiers/1" do
     test "returns :ok for valid resources" do
-      # Test with a known valid resource
-      assert :ok = AshTypescript.VerifierChecker.check_all_verifiers([AshTypescript.Test.Todo])
+      assert :ok = VerifierChecker.check_all_verifiers([AshTypescript.Test.Todo])
     end
 
     test "returns :ok for valid domains" do
-      # Test with a known valid domain
-      assert :ok = AshTypescript.VerifierChecker.check_all_verifiers([AshTypescript.Test.Domain])
+      assert :ok = VerifierChecker.check_all_verifiers([AshTypescript.Test.Domain])
     end
 
     test "returns :ok for valid resources and domains together" do
       assert :ok =
-               AshTypescript.VerifierChecker.check_all_verifiers([
+               VerifierChecker.check_all_verifiers([
                  AshTypescript.Test.Todo,
                  AshTypescript.Test.Domain
                ])
     end
 
     test "returns :ok for empty list" do
-      assert :ok = AshTypescript.VerifierChecker.check_all_verifiers([])
+      assert :ok = VerifierChecker.check_all_verifiers([])
     end
 
-    test "detects verifier errors in invalid resources" do
-      # This test requires a resource with actual verifier errors
-      # For now, we'll test the basic structure
-      # In a real scenario, we'd create a test resource with invalid field names
-      # to trigger the VerifyFieldNames verifier
+    test "reports each failing verifier with its module and the DslError's message" do
+      define_unneeded_mappings()
 
-      # For example, a resource with fields containing "_1" or "?" would fail
-      # Since we can't easily create such a resource inline, we'll skip this
-      # and rely on integration testing with intentionally broken resources
+      assert {:error, message} =
+               VerifierChecker.check_all_verifiers([
+                 AshTypescript.Test.Todo,
+                 __MODULE__.UnneededTitle,
+                 __MODULE__.UnneededBody
+               ])
+
+      assert message == block(:UnneededTitle, :title) <> "\n\n" <> block(:UnneededBody, :body)
     end
   end
 
-  describe "error formatting" do
-    test "formats Spark.Error.DslError correctly" do
-      # This is tested implicitly when verifier errors occur
-      # The format_error/1 function should extract the message from DslError
-    end
+  # `format_error/1`'s string and exception clauses aren't tested: every
+  # verifier of the four extensions returns `{:error, %Spark.Error.DslError{}}`
+  # and none warns, so only a verifier that raises reaches them.
 
-    test "formats string errors correctly" do
-      # This is tested implicitly when string errors occur
-    end
+  # Two resources whose `field_names` maps a name that needs no mapping. At
+  # compile time Spark only warns about it.
+  defp define_unneeded_mappings do
+    capture_io(:stderr, fn ->
+      for {name, field} <- [UnneededTitle: :title, UnneededBody: :body] do
+        defmodule Module.concat(__MODULE__, name) do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-    test "formats exception errors correctly" do
-      # This is tested implicitly when exceptions occur
-    end
+          typescript do
+            type_name "VerifierChecker#{name}"
+            field_names [{field, "renamed"}]
+          end
+
+          attributes do
+            uuid_primary_key :id
+            attribute field, :string, public?: true
+          end
+        end
+      end
+    end)
+  end
+
+  defp block(name, field) do
+    String.trim("""
+    Module: #{inspect(Module.concat(__MODULE__, name))}
+    Verifier: #{inspect(VerifyMappedFieldNames)}
+    Error: Invalid field_names configuration found:
+
+    - Field #{field} is already a valid name and doesn't need mapping
+
+    Requirements:
+    - Keys must reference existing fields on the resource
+    - Keys must need a mapping (containing _+digits or ?, or not an identifier)
+    - Values must be strings representing the exact TypeScript client name (e.g., "isActive", "addressLine1")
+    """)
   end
 end

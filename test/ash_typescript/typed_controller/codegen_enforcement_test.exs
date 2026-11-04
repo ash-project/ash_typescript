@@ -32,6 +32,22 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
           end
         end
       end
+
+      defmodule DuplicateRoutes do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.TypedController.CodegenEnforcementTest.DuplicateRoutesController
+
+          get :status do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+
+          post :status do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+        end
+      end
     end)
 
     :ok
@@ -98,10 +114,10 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
   describe "verifier enforcement" do
     test "VerifierChecker reports typed controller verifier failures" do
       assert {:error, message} =
-               AshTypescript.VerifierChecker.check_all_verifiers([__MODULE__.InvalidFieldNames])
+               AshTypescript.VerifierChecker.check_all_verifiers([__MODULE__.DuplicateRoutes])
 
       assert message =~ "Verifier: AshTypescript.TypedController.Verifiers.VerifyTypedController"
-      assert message =~ "route :status, returns field `done?`"
+      assert message =~ "Duplicate route names found: :status"
     end
 
     test "VerifierChecker accepts valid typed controllers and channels" do
@@ -114,19 +130,22 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
       assert :ok = AshTypescript.VerifierChecker.check_all_verifiers(modules)
     end
 
-    # Building the manifest succeeds (decorating `done?` is fine); the
-    # verifier run during codegen is what fails.
+    # The manifest compile reports `done?`, so codegen never runs on it.
     test "codegen fails for a manifest typed controller with invalid names" do
-      manifest =
-        AshTypescript.Test.InlineManifest.build!(
-          typed_controllers: [__MODULE__.InvalidFieldNames],
-          typed_channels: []
-        )
+      %{message: message} =
+        assert_raise RuntimeError, fn ->
+          AshTypescript.Test.InlineManifest.build!(
+            typed_controllers: [__MODULE__.InvalidFieldNames],
+            typed_channels: []
+          )
+        end
 
-      assert {:error, message} =
-               CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
+      assert message =~ "Invalid generated names found."
 
-      assert message =~ "route :status, returns field `done?`"
+      assert message =~
+               "  Route :status of #{inspect(__MODULE__.InvalidFieldNames)}:\n" <>
+                 ~s{    - field :returns.done? → "done?" (formatted), not an identifier: } <>
+                 "rename the field, e.g. :done\n"
     end
   end
 
