@@ -69,6 +69,13 @@ defmodule AshTypescript.MixProject do
     end
   end
 
+  def ash_rpc_version do
+    case System.get_env("ASH_RPC_VERSION") do
+      "local" -> [path: "../ash_rpc", override: true]
+      _ -> [github: "ash-project/ash_rpc", branch: "main"]
+    end
+  end
+
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
@@ -206,7 +213,7 @@ defmodule AshTypescript.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.27")},
-      {:ash_rpc, github: "ash-project/ash_rpc", branch: "main"},
+      {:ash_rpc, ash_rpc_version()},
       {:ash_authentication, "~> 4.0", optional: true},
       {:phoenix, "~> 1.7"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
