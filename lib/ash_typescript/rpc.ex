@@ -668,7 +668,7 @@ defmodule AshTypescript.Rpc do
     **not** scope action discovery. Actions are resolved from the single manifest
     in `config :ash_typescript, manifest:`, so passing a different `otp_app` does
     not restrict — or widen — the set of reachable actions.
-  - `conn` - The Plug connection
+  - `conn` - The Plug connection, or the `Phoenix.Socket` when called from a channel
   - `params` - Request parameters map
 
   ## Returns
@@ -682,7 +682,7 @@ defmodule AshTypescript.Rpc do
   This implementation uses strict validation and fails fast on any invalid input.
   No permissive modes - all errors are reported immediately.
   """
-  @spec run_action(atom(), Plug.Conn.t(), map()) :: map()
+  @spec run_action(atom(), Plug.Conn.t() | Phoenix.Socket.t(), map()) :: map()
   def run_action(otp_app, conn, params) do
     with {:ok, parsed_request} <- Pipeline.parse_request(otp_app, conn, params),
          {:ok, ash_result} <- Pipeline.execute_ash_action(parsed_request),
@@ -700,7 +700,7 @@ defmodule AshTypescript.Rpc do
   Returns the same client-formatted response map shape as `run_action/3`, and
   treats `otp_app` the same way — it does not scope action discovery.
   """
-  @spec validate_action(atom(), Plug.Conn.t(), map()) :: map()
+  @spec validate_action(atom(), Plug.Conn.t() | Phoenix.Socket.t(), map()) :: map()
   def validate_action(otp_app, conn, params) do
     case Pipeline.parse_request(otp_app, conn, params, validation_mode?: true) do
       {:ok, parsed_request} ->
@@ -829,7 +829,8 @@ defmodule AshTypescript.Rpc do
     from the configured manifest.
   - `typed_query_name` - The atom name of the typed query to execute
   - `params` - Map with optional `:input` and `:page` keys
-  - `conn` - The Plug connection (for tenant context, etc.)
+  - `conn` - The Plug connection, or the `Phoenix.Socket` when called from a channel
+    (for tenant context, etc.)
 
   ## Returns
   A client-formatted response map (same shape as `run_action/3`):
@@ -851,7 +852,8 @@ defmodule AshTypescript.Rpc do
         end
       end
   """
-  @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: map()
+  @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t() | Phoenix.Socket.t()) ::
+          map()
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
     case Pipeline.find_typed_query(typed_query_name) do
       nil ->
