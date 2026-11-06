@@ -31,13 +31,9 @@ defmodule AshTypescript.CodegenNameSourceGuardTest do
 
   @forbidden [
     :typescript_field_names,
-    :get_mapped_field_name,
-    :get_mapped_argument_name,
     :format_field_for_client,
     :format_mapped_output_field,
-    :has_typescript_field_names?,
-    :get_typescript_field_names_map,
-    :get_mapped_metadata_field_name
+    :has_typescript_field_names?
   ]
 
   @allowed %{

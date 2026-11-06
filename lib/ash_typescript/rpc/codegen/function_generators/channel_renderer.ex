@@ -14,7 +14,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
-  import AshTypescript.Helpers, only: [format_output_field: 1]
+  import AshTypescript.Helpers, only: [format_output_field: 1, formatted_page_field: 0]
 
   @doc """
   Renders a Channel execution function (handler-based).
@@ -22,7 +22,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   ## Options
   - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
+  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts) do
     shape =
       FunctionCore.build_execution_function_shape(
         resource,
@@ -39,10 +39,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     # `page` is passed — mirroring the HTTP functions' Config["page"] threading.
     {config_fields_with_page, page_param} =
       if shape.is_optional_pagination do
-        page_key = format_output_field(:page)
+        page_key = formatted_page_field()
 
         {replace_page_field(shape.config_fields, page_key),
-         "Page extends #{shape.rpc_action_name_pascal}Config[\"page\"] = undefined"}
+         "Page extends #{shape.config_type}[\"#{page_key}\"] = undefined"}
       else
         {shape.config_fields, nil}
       end
@@ -196,7 +196,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   end
 
   defp metadata_param(shape) do
-    "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+    "MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []"
   end
 
   # The page config field spans multiple list elements (an inline union/object
@@ -204,26 +204,14 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   # `page?:` and closing with `);` or `};` at two-space indent). Replaces the
   # whole run with a single `page?: Page;` so TypeScript infers the Page
   # generic from the caller's page literal.
+  # Only actions with optional pagination get here, so the field is there.
   defp replace_page_field(config_fields, page_key) do
     opener = "  #{page_key}?:"
+    start_idx = Enum.find_index(config_fields, &String.starts_with?(&1, opener))
+    {before, [_opener | rest]} = Enum.split(config_fields, start_idx)
+    close_idx = Enum.find_index(rest, &(&1 in ["  );", "  };"]))
 
-    case Enum.find_index(config_fields, &String.starts_with?(&1, opener)) do
-      nil ->
-        config_fields
-
-      start_idx ->
-        {before, [first | rest]} = Enum.split(config_fields, start_idx)
-
-        remaining =
-          if String.ends_with?(first, ";") do
-            rest
-          else
-            close_idx = Enum.find_index(rest, &(&1 in ["  );", "  };"]))
-            Enum.drop(rest, close_idx + 1)
-          end
-
-        before ++ ["  #{page_key}?: Page;"] ++ remaining
-    end
+    before ++ ["  #{page_key}?: Page;"] ++ Enum.drop(rest, close_idx + 1)
   end
 
   defp build_result_type_for_handler(shape, page_param) do
@@ -247,8 +235,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
       end
 
     case generic_args do
-      [] -> "#{shape.rpc_action_name_pascal}Result"
-      args -> "#{shape.rpc_action_name_pascal}Result<#{Enum.join(args, ", ")}>"
+      [] -> "#{shape.result_type}"
+      args -> "#{shape.result_type}<#{Enum.join(args, ", ")}>"
     end
   end
 end

@@ -217,11 +217,18 @@ defmodule AshTypescript.Codegen.NamedCustomTypesTest do
     end
 
     test "getBy values use the input mapping" do
+      # get_user_by_email's wire entrypoint has get_by: [:email]; type it as Task's theme.
+      lookup = AshTypescript.resource_lookup()
+      theme_type = Map.fetch!(Map.fetch!(lookup, Task).fields, :theme).type
+      user = Map.fetch!(lookup, AshTypescript.Test.User)
+      fields = Map.update!(user.fields, :email, &%{&1 | type: theme_type})
+      lookup = Map.put(lookup, AshTypescript.Test.User, %{user | fields: fields})
+
       assert ConfigBuilder.build_get_by_config_field(
-               Task,
-               %{get_by: [:id]},
-               lookup_with_id_typed_as(:theme)
-             ) == ["  getBy: {", "    id: ThemeInput;", "  };"]
+               AshTypescript.Test.User,
+               %{name: :get_user_by_email},
+               lookup
+             ) == ["  getBy: {", "    email: ThemeInput;", "  };"]
     end
   end
 

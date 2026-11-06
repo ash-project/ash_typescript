@@ -22,7 +22,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   ## Options
   - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
+  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts) do
     shape =
       FunctionCore.build_execution_function_shape(
         resource,

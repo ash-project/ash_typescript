@@ -15,7 +15,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
 
   import AshTypescript.Codegen
   import AshTypescript.Helpers
-  alias AshTypescript.Rpc.Codegen.Helpers.{ActionIntrospection, ConfigBuilder}
+  alias AshTypescript.Rpc.Codegen.ActionExports
+  alias AshTypescript.Rpc.Codegen.FunctionNames
+  alias AshTypescript.Rpc.Codegen.Helpers.{ConfigBuilder, EntrypointOptions}
   alias AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes
 
   @doc """
@@ -30,17 +32,16 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
 
   The renderer can then add transport-specific fields and formatting.
   """
-  def build_execution_function_shape(resource, action, rpc_action, rpc_action_name, opts \\ []) do
+  def build_execution_function_shape(resource, action, rpc_action, rpc_action_name, opts) do
     # :http or :channel
     transport = Keyword.get(opts, :transport)
 
-    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
     resource_name = build_resource_type_name(resource)
     context = ConfigBuilder.get_action_context(resource, action, rpc_action)
 
     # Check metadata configuration
     has_metadata =
-      MetadataTypes.metadata_enabled?(MetadataTypes.exposed_metadata_fields(resource, rpc_action))
+      MetadataTypes.metadata_enabled?(MetadataTypes.exposed_metadata_fields(rpc_action))
 
     # Get common config fields (without transport-specific fields)
     # Pass is_channel: true for channel transport to include hookCtx field
@@ -62,7 +63,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
       build_fields_config(
         base_config_fields,
         action,
-        rpc_action_name_pascal
+        FunctionNames.fields_type(rpc_action_name)
       )
 
     # Add filtering fields
@@ -75,18 +76,22 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
     config_fields = add_metadata_fields(config_fields, has_metadata)
 
     is_optional_pagination =
-      action.type == :read and
-        not context.is_get_action and
-        ActionIntrospection.action_supports_pagination?(action) and
-        not ActionIntrospection.action_requires_pagination?(action) and
+      ConfigBuilder.optional_pagination?(
+        action,
+        EntrypointOptions.entrypoint!(rpc_action),
         has_fields
+      )
 
     %{
       resource: resource,
       action: action,
       rpc_action: rpc_action,
       rpc_action_name: rpc_action_name,
-      rpc_action_name_pascal: rpc_action_name_pascal,
+      result_type: FunctionNames.result_type(rpc_action_name),
+      fields_type: FunctionNames.fields_type(rpc_action_name),
+      infer_result_type: FunctionNames.infer_result_type(rpc_action_name),
+      config_type: FunctionNames.config_type(rpc_action_name),
+      metadata_type: FunctionNames.metadata_type(rpc_action_name),
       resource_name: resource_name,
       context: context,
       has_fields: has_fields,
@@ -105,81 +110,51 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
   They just validate input and return validation errors.
   """
   def build_validation_function_shape(resource, action, rpc_action, rpc_action_name, _opts \\ []) do
-    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
     context = ConfigBuilder.get_action_context(resource, action, rpc_action)
 
     %{
       resource: resource,
       action: action,
       rpc_action_name: rpc_action_name,
-      rpc_action_name_pascal: rpc_action_name_pascal,
       context: context
     }
   end
 
   # Private helpers
 
-  defp build_fields_config(config_fields, action, rpc_action_name_pascal) do
-    if action.type != :destroy do
-      case action.type do
-        :action ->
-          case ActionIntrospection.action_returns_field_selectable_type?(action) do
-            {:ok, type, _value} when type in [:resource, :array_of_resource] ->
-              updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
+  # Whether the action selects fields is `ActionExports.fields?/1`, the
+  # predicate its exports and the JSON manifest read: reads require `fields`,
+  # the others take it optionally.
+  defp build_fields_config(config_fields, action, fields_type) do
+    cond do
+      not ActionExports.fields?(action) ->
+        {config_fields, false, nil}
 
-              {updated_fields, true,
-               "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
+      action.type == :read ->
+        {config_fields ++ ["  #{formatted_fields_field()}: Fields;"], true,
+         "Fields extends #{fields_type}"}
 
-            {:ok, type, _fields}
-            when type in [
-                   :typed_map,
-                   :array_of_typed_map,
-                   :typed_struct,
-                   :array_of_typed_struct
-                 ] ->
-              updated_fields =
-                config_fields ++
-                  [
-                    "  #{formatted_fields_field()}: Fields;"
-                  ]
+      action.type == :action ->
+        {config_fields ++ ["  #{formatted_fields_field()}: Fields;"], true,
+         "Fields extends #{fields_type} | undefined = undefined"}
 
-              {updated_fields, true,
-               "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
-
-            {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
-              # Unconstrained maps don't support field selection
-              {config_fields, false, nil}
-
-            _ ->
-              {config_fields, false, nil}
-          end
-
-        :read ->
-          updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
-
-          {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
-
-        type when type in [:create, :update] ->
-          updated_fields = config_fields ++ ["  #{formatted_fields_field()}?: Fields;"]
-
-          {updated_fields, true,
-           "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
-      end
-    else
-      {config_fields, false, nil}
+      true ->
+        {config_fields ++ ["  #{formatted_fields_field()}?: Fields;"], true,
+         "Fields extends #{fields_type} | undefined = undefined"}
     end
   end
 
   defp add_filtering_fields(config_fields, context, resource_name) do
     config_fields =
       if context.supports_filtering do
-        config_fields ++ ["  #{format_output_field(:filter)}?: #{resource_name}FilterInput;"]
+        config_fields ++
+          ["  #{formatted_filter_field()}?: #{FunctionNames.filter_input_type(resource_name)};"]
       else
         config_fields
       end
 
     if context.supports_sorting do
-      sort_field = format_output_field(:sort)
+      sort_field = formatted_sort_field()
 
       config_fields ++
         [
@@ -201,7 +176,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
 
   defp add_metadata_fields(config_fields, has_metadata) do
     if has_metadata do
-      metadata_fields_key = format_output_field(:metadata_fields)
+      metadata_fields_key = formatted_metadata_fields_field()
       config_fields ++ ["  #{metadata_fields_key}?: MetadataFields;"]
     else
       config_fields

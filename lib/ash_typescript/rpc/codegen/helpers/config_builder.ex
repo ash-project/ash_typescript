@@ -13,18 +13,19 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   import AshTypescript.Helpers
 
   alias AshTypescript.Codegen.{ClientNames, TypeMapper}
-  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.Rpc.Codegen.FunctionNames
+  alias AshTypescript.Rpc.Codegen.Helpers.{ActionIntrospection, EntrypointOptions}
 
   @doc """
   Gets the action context - a map of values indicating what features the action supports.
 
-  Note: The action should be augmented with RPC settings (get?, get_by) before calling this.
-  This is done in the codegen module via `augment_action_with_rpc_settings/3`.
+  The rpc_action's options (`get?`, `get_by`, `enable_filter?`, `enable_sort?`,
+  `identities`) are read from its wire entrypoint through `EntrypointOptions`.
 
   ## Parameters
 
     * `resource` - The Ash resource
-    * `action` - The Ash action (possibly augmented with RPC settings)
+    * `action` - The Ash action
     * `rpc_action` - The RPC action configuration
 
   ## Returns
@@ -34,6 +35,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   - `:identities` - List of identity atoms for record lookup (update/destroy actions)
   - `:supports_pagination` - Whether the action supports pagination (list reads)
   - `:supports_filtering` - Whether the action supports filtering (list reads)
+  - `:supports_sorting` - Whether the action supports sorting (list reads)
   - `:action_input_type` - Whether the input is :none, :required, or :optional
   - `:is_get_action` - Whether this is a get action (returns single or null)
 
@@ -45,23 +47,19 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         identities: [],
         supports_pagination: true,
         supports_filtering: true,
+        supports_sorting: true,
         action_input_type: :required,
         is_get_action: false
       }
   """
   def get_action_context(resource, action, rpc_action) do
-    ash_get? = action.type == :read and Map.get(action, :get?, false)
-    rpc_get? = Map.get(rpc_action, :get?, false)
-    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
-
-    is_get_action = ash_get? or rpc_get? or rpc_get_by
-
-    enable_filter? = Map.get(rpc_action, :enable_filter?, true)
-    enable_sort? = Map.get(rpc_action, :enable_sort?, true)
+    entrypoint = EntrypointOptions.entrypoint!(rpc_action)
+    is_get_action = EntrypointOptions.get?(entrypoint, action)
+    list_read? = action.type == :read and not is_get_action
 
     identities =
       if action.type in [:update, :destroy] do
-        Map.get(rpc_action, :identities, [:_primary_key])
+        EntrypointOptions.identities(entrypoint)
       else
         []
       end
@@ -69,14 +67,35 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     %{
       requires_tenant: AshTypescript.Rpc.requires_tenant_parameter?(resource),
       identities: identities,
-      supports_pagination:
-        action.type == :read and not is_get_action and
-          ActionIntrospection.action_supports_pagination?(action),
-      supports_filtering: action.type == :read and not is_get_action and enable_filter?,
-      supports_sorting: action.type == :read and not is_get_action and enable_sort?,
+      supports_pagination: list_read? and ActionIntrospection.action_supports_pagination?(action),
+      supports_filtering: filtering?(action, entrypoint),
+      supports_sorting: list_read? and EntrypointOptions.sort_enabled?(entrypoint),
       action_input_type: ActionIntrospection.action_input_type(action),
       is_get_action: is_get_action
     }
+  end
+
+  @doc """
+  Whether an action's config takes a `filter` (typed by the resource's
+  `<Resource>FilterInput`): a list read with filtering enabled. The one
+  predicate for the RPC file, its exports and the JSON manifest.
+  """
+  @spec filtering?(map(), AshRpc.Entrypoint.t()) :: boolean()
+  def filtering?(action, %AshRpc.Entrypoint{} = entrypoint) do
+    action.type == :read and not EntrypointOptions.get?(entrypoint, action) and
+      EntrypointOptions.filter_enabled?(entrypoint)
+  end
+
+  @doc """
+  Whether an action takes an optional `page` (and so gets a `<Pascal>Config`
+  type): a list read with fields that supports pagination without requiring it.
+  The one predicate for the RPC file, its exports and the JSON manifest.
+  """
+  @spec optional_pagination?(map(), AshRpc.Entrypoint.t(), boolean()) :: boolean()
+  def optional_pagination?(action, %AshRpc.Entrypoint{} = entrypoint, has_fields) do
+    action.type == :read and not EntrypointOptions.get?(entrypoint, action) and
+      ActionIntrospection.action_supports_pagination?(action) and
+      not ActionIntrospection.action_requires_pagination?(action) and has_fields
   end
 
   @doc """
@@ -193,7 +212,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         build_single_identity_type(resource, identity, validation_function?, resource_lookup)
       end)
 
-    formatted_identity = format_output_field(:identity)
+    formatted_identity = formatted_identity_field()
     union_type = Enum.join(identity_types, " | ")
 
     ["  #{formatted_identity}: #{union_type};"]
@@ -233,31 +252,28 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     end
   end
 
+  # `VerifyIdentities` has checked that the resource declares the identity.
   defp build_single_identity_type(resource, identity_name, validation_function?, resource_lookup) do
     identity = Ash.Info.Manifest.get_identity(resource_lookup, resource, identity_name)
 
-    if identity do
-      # Use identity field names directly (e.g., { email: string } not { uniqueEmail: string })
-      field_types =
-        Enum.map_join(identity.keys, "; ", fn key ->
-          formatted_key = get_formatted_field_name(resource, key)
-          attr = Ash.Info.Manifest.get_field(resource_lookup, resource, key)
-          base_type = TypeMapper.map_plain_type(attr.type, :input)
+    # Use identity field names directly (e.g., { email: string } not { uniqueEmail: string })
+    field_types =
+      Enum.map_join(identity.keys, "; ", fn key ->
+        formatted_key = get_formatted_field_name(resource, key)
+        attr = Ash.Info.Manifest.get_field(resource_lookup, resource, key)
+        base_type = TypeMapper.map_plain_type(attr.type, :input)
 
-          type =
-            if validation_function? do
-              maybe_add_string_union(base_type)
-            else
-              base_type
-            end
+        type =
+          if validation_function? do
+            maybe_add_string_union(base_type)
+          else
+            base_type
+          end
 
-          "#{formatted_key}: #{type}"
-        end)
+        "#{formatted_key}: #{type}"
+      end)
 
-      "{ #{field_types} }"
-    else
-      "{ /* Identity #{identity_name} not found */ never }"
-    end
+    "{ #{field_types} }"
   end
 
   defp maybe_add_string_union("string"), do: "string"
@@ -275,7 +291,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     * `resource` - The Ash resource
     * `_action` - The Ash action (currently unused but kept for consistency)
-    * `context` - The action context from `get_action_context/2`
+    * `context` - The action context from `get_action_context/3`
     * `opts` - Options keyword list:
       - `:rpc_action_name` - The snake_case name of the RPC action
       - `:validation_function?` - If true, identity types accept `Type | string`
@@ -291,7 +307,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ["  tenant: string;", "  input: CreateTodoInput;", "  hookCtx?: ActionHookContext;"]
   """
   def build_common_config_fields(resource, _action, context, opts) do
-    rpc_action_name_pascal = snake_to_pascal_case(opts[:rpc_action_name] || "action")
+    input_type = FunctionNames.input_type(opts[:rpc_action_name] || "action")
     validation_function? = Keyword.get(opts, :validation_function?, false)
     is_validation = Keyword.get(opts, :is_validation, false)
     is_channel = Keyword.get(opts, :is_channel, false)
@@ -300,9 +316,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     config_fields =
       if context.requires_tenant do
-        config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
+        config_fields ++ ["  #{formatted_tenant_field()}: string;"]
       else
-        config_fields ++ ["  #{format_output_field(:tenant)}?: string;"]
+        config_fields ++ ["  #{formatted_tenant_field()}?: string;"]
       end
 
     config_fields =
@@ -318,10 +334,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     config_fields =
       case context.action_input_type do
         :required ->
-          config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+          config_fields ++ ["  #{formatted_input_field()}: #{input_type};"]
 
         :optional ->
-          config_fields ++ ["  #{format_output_field(:input)}?: #{rpc_action_name_pascal}Input;"]
+          config_fields ++ ["  #{formatted_input_field()}?: #{input_type};"]
 
         :none ->
           config_fields
@@ -388,12 +404,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   Builds the getBy configuration field with pre-computed resource_lookup.
   """
   def build_get_by_config_field(resource, rpc_action, resource_lookup) do
-    get_by_fields = Map.get(rpc_action, :get_by) || []
+    get_by_fields = rpc_action |> EntrypointOptions.entrypoint!() |> EntrypointOptions.get_by()
 
     if get_by_fields == [] do
       []
     else
-      formatted_get_by = format_output_field(:get_by)
+      formatted_get_by = formatted_get_by_field()
 
       field_lines =
         Enum.map(get_by_fields, fn field_name ->
@@ -419,7 +435,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     fields =
       if supports_countable do
-        fields ++ ["    #{format_output_field(:count)}?: boolean;"]
+        fields ++ ["    #{formatted_count_field()}?: boolean;"]
       else
         fields
       end
@@ -441,7 +457,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       "    #{formatted_after_field()}?: string;",
       "    #{formatted_before_field()}?: string;",
       "    #{formatted_offset_field()}?: never;",
-      "    #{format_output_field(:count)}?: #{count_type};"
+      "    #{formatted_count_field()}?: #{count_type};"
     ]
 
     [
@@ -461,7 +477,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     offset_fields =
       if supports_countable do
-        offset_fields ++ ["      #{format_output_field(:count)}?: boolean;"]
+        offset_fields ++ ["      #{formatted_count_field()}?: boolean;"]
       else
         offset_fields
       end

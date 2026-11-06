@@ -154,7 +154,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   """
   def get_typed_queries(entrypoints, action_lookup) when is_list(entrypoints) do
     entrypoints
-    |> Enum.filter(&has_ash_typescript_config?/1)
     |> Enum.flat_map(fn e ->
       typed_queries = Map.get(e.config.ash_typescript.resource_config, :typed_queries, [])
 
@@ -174,7 +173,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   """
   def get_rpc_config_by_domain(entrypoints) when is_list(entrypoints) do
     entrypoints
-    |> Enum.filter(&has_ash_typescript_config?/1)
     |> Enum.group_by(fn e -> e.config.ash_typescript.domain end)
     |> Enum.map(fn {domain, entries} ->
       # Group entries by resource_config to reconstruct the domain's rpc_config shape
@@ -193,27 +191,9 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     |> get_rpc_config_by_domain()
   end
 
-  @doc """
-  Finds the decorated entrypoint for a `{resource, rpc_action}` pair, so codegen
-  can read precomputed values (e.g. exposed metadata fields) off `Custom`.
-  """
-  def entrypoint_for(resource, rpc_action) when is_atom(resource) do
-    rpc_name = rpc_action.name
-
-    Enum.find(AshTypescript.entrypoints(), fn e ->
-      rpc = AshTypescript.Manifest.Custom.rpc_action(e)
-      e.resource == resource and rpc != nil and rpc.name == rpc_name
-    end)
-  end
-
   # ─────────────────────────────────────────────────────────────────
   # Helpers
   # ─────────────────────────────────────────────────────────────────
-
-  defp has_ash_typescript_config?(%Ash.Info.Manifest.Entrypoint{config: %{ash_typescript: _}}),
-    do: true
-
-  defp has_ash_typescript_config?(_), do: false
 
   defp get_entrypoints do
     AshTypescript.entrypoints()

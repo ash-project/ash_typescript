@@ -7,6 +7,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   alias Ash.Info.Manifest
   alias AshTypescript.Manifest.Custom
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
 
   setup_all do
     {:ok,
@@ -25,7 +26,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     test "field_name_mappings round-trips field_names DSL", %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
 
-      assert Custom.field_name_mappings(user) == %{
+      assert AshRpc.Manifest.Custom.field_name_overrides(user) == %{
                address_line_1: "addressLine1",
                is_active?: "isActive"
              }
@@ -34,25 +35,38 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     test "reverse mapping is the inverse", %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
 
-      assert Custom.original_field_name(user, "isActive") == :is_active?
-      assert Custom.original_field_name(user, "addressLine1") == :address_line_1
-      assert Custom.original_field_name(user, "doesNotExist") == nil
+      assert AshRpc.Manifest.Custom.original_field_name(user, "isActive") == :is_active?
+      assert AshRpc.Manifest.Custom.original_field_name(user, "addressLine1") == :address_line_1
+      assert AshRpc.Manifest.Custom.original_field_name(user, "doesNotExist") == nil
     end
 
     test "mapped_field_name returns explicit override", %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
 
-      assert Custom.mapped_field_name(user, :is_active?) == "isActive"
-      assert Custom.mapped_field_name(user, :name) == nil
+      assert AshRpc.Manifest.Custom.field_name_override(user, :is_active?) == "isActive"
+      assert AshRpc.Manifest.Custom.field_name_override(user, :name) == nil
     end
 
     test "argument_name_mappings round-trips argument_names DSL", %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
 
-      assert Custom.mapped_argument_name(user, :read_with_invalid_arg, :is_active?) == "isActive"
-      assert Custom.mapped_argument_name(user, :read_with_invalid_arg, :unmapped) == nil
+      assert AshRpc.Manifest.Custom.argument_name_override(
+               user,
+               :read_with_invalid_arg,
+               :is_active?
+             ) == "isActive"
 
-      assert Custom.original_argument_name(user, :read_with_invalid_arg, "isActive") ==
+      assert AshRpc.Manifest.Custom.argument_name_override(
+               user,
+               :read_with_invalid_arg,
+               :unmapped
+             ) == nil
+
+      assert AshRpc.Manifest.Custom.original_argument_name(
+               user,
+               :read_with_invalid_arg,
+               "isActive"
+             ) ==
                :is_active?
     end
 
@@ -73,7 +87,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       not_exposed = lookup[AshTypescript.Test.NotExposed]
       assert %Manifest.Resource{} = not_exposed
       refute AshRpc.Manifest.Custom.exposed?(not_exposed)
-      assert Custom.field_name_mappings(not_exposed) == %{}
+      assert AshRpc.Manifest.Custom.field_name_overrides(not_exposed) == %{}
     end
   end
 
@@ -88,7 +102,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
       assert AshRpc.Manifest.Custom.exposed?(inner)
 
-      assert Custom.field_name_mappings(inner) == %{
+      assert AshRpc.Manifest.Custom.field_name_overrides(inner) == %{
                created_by?: "createdBy",
                is_public?: "isPublic"
              }
@@ -102,16 +116,18 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       options = type_lookup[AshTypescript.Test.InputParsing.Options]
 
       assert %Manifest.Type{} = options
-      assert Custom.type_field_name_mappings(options) == %{cache_enabled_1?: "cacheEnabled1"}
 
-      assert Custom.reverse_type_field_name_mappings(options) == %{
-               "cacheEnabled1" => :cache_enabled_1?
+      assert AshRpc.Manifest.Custom.type_field_name_overrides(options) == %{
+               cache_enabled_1?: "cacheEnabled1"
              }
+
+      {_forward, reverse} = AshRpc.Manifest.Custom.type_field_name_overrides_pair(options)
+      assert reverse == %{"cacheEnabled1" => :cache_enabled_1?}
     end
   end
 
   describe "entrypoint decoration" do
-    test "rpc_action / domain / resource_config are mirrored to .custom.ash_typescript",
+    test "rpc_action / domain are mirrored to .custom.ash_typescript",
          %{manifest: spec} do
       entrypoint =
         Enum.find(spec.entrypoints, fn e ->
@@ -122,10 +138,9 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       assert entrypoint
       assert Custom.rpc_action(entrypoint) != nil
       assert Custom.entrypoint_domain(entrypoint) != nil
-      assert Custom.resource_config(entrypoint) != nil
     end
 
-    test "metadata_field_mappings is derived from rpc_action.metadata_field_names",
+    test "the wire entrypoint's metadata_field_names come from rpc_action.metadata_field_names",
          %{manifest: spec} do
       entrypoint =
         Enum.find(spec.entrypoints, fn e ->
@@ -133,39 +148,32 @@ defmodule AshTypescript.Manifest.DecoratorTest do
             e.action.name == :read_with_invalid_metadata_names
         end)
 
-      assert Custom.metadata_field_mappings(entrypoint) == %{
+      assert wire(entrypoint).metadata_field_names == %{
                meta_1: "meta1",
                is_valid?: "isValid",
                field_2: "field2"
-             }
-
-      assert Custom.reverse_metadata_field_mappings(entrypoint) == %{
-               "meta1" => :meta_1,
-               "isValid" => :is_valid?,
-               "field2" => :field_2
              }
     end
 
     test "entrypoints without metadata_field_names get empty mappings",
          %{manifest: spec} do
       entrypoint =
-        Enum.find(spec.entrypoints, fn e -> e.resource == AshTypescript.Test.User end)
+        Enum.find(spec.entrypoints, fn e ->
+          e.resource == AshTypescript.Test.User and Custom.rpc_action(e) != nil
+        end)
 
       assert entrypoint
-      assert Custom.metadata_field_mappings(entrypoint) == %{}
-      assert Custom.reverse_metadata_field_mappings(entrypoint) == %{}
+      assert wire(entrypoint).metadata_field_names == %{}
     end
   end
 
   describe "Custom accessors with nil / undecorated inputs" do
     test "all accessors handle nil gracefully" do
-      assert Custom.ash_typescript(nil) == nil
       refute AshRpc.Manifest.Custom.exposed?(nil)
-      assert Custom.field_name_mappings(nil) == %{}
-      assert Custom.original_field_name(nil, "foo") == nil
-      assert Custom.mapped_field_name(nil, :foo) == nil
+      assert AshRpc.Manifest.Custom.field_name_overrides(nil) == %{}
+      assert AshRpc.Manifest.Custom.original_field_name(nil, "foo") == nil
+      assert AshRpc.Manifest.Custom.field_name_override(nil, :foo) == nil
       assert Custom.rpc_action(nil) == nil
-      assert Custom.metadata_field_mappings(nil) == %{}
     end
   end
 
@@ -289,61 +297,82 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     end
   end
 
-  describe "exposed_metadata_fields decoration" do
+  describe "entrypoint options" do
+    @entrypoint_option_keys [
+      :exposed_metadata_fields,
+      :load_restrictions,
+      :filtering_enabled?,
+      :sorting_enabled?,
+      :metadata_field_mappings,
+      :reverse_metadata_field_mappings
+    ]
+
+    test "the decorator no longer stores entrypoint options", %{manifest: spec} do
+      decorated =
+        for e <- spec.entrypoints, ts = e.custom[:ash_typescript], ts[:rpc_action], do: ts
+
+      assert decorated != []
+
+      for ts <- decorated,
+          do: assert(Map.take(ts, @entrypoint_option_keys) == %{}, inspect(ts.rpc_action.name))
+    end
+  end
+
+  describe "exposed metadata fields on the wire entrypoint" do
     test "show_metadata: nil exposes all action metadata names", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_all)
-      assert Custom.exposed_metadata_fields(e) == Enum.map(e.action.metadata, & &1.name)
+
+      assert EntrypointOptions.exposed_metadata_fields(wire(e)) ==
+               Enum.map(e.action.metadata, & &1.name)
     end
 
-    test "show_metadata: false exposes none", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_false)
-      assert Custom.exposed_metadata_fields(e) == []
+    test "show_metadata: false exposes none" do
+      assert EntrypointOptions.exposed_metadata_fields(wire(:read_tasks_with_metadata_false)) ==
+               []
     end
 
-    test "show_metadata: [] exposes none", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_empty)
-      assert Custom.exposed_metadata_fields(e) == []
+    test "show_metadata: [] exposes none" do
+      assert EntrypointOptions.exposed_metadata_fields(wire(:read_tasks_with_metadata_empty)) ==
+               []
     end
 
-    test "explicit list is preserved", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_two)
-      assert Custom.exposed_metadata_fields(e) == [:some_string, :some_number]
+    test "explicit list is preserved" do
+      assert EntrypointOptions.exposed_metadata_fields(wire(:read_tasks_with_metadata_two)) ==
+               [:some_string, :some_number]
+    end
+  end
+
+  describe "load restrictions & filter/sort on the wire entrypoint" do
+    test "allowed_loads → {:allow, verbatim list}" do
+      assert EntrypointOptions.load_restrictions(wire(:list_todos_allow_only_user)) ==
+               {:allow, [:user]}
+    end
+
+    test "nested allowed_loads preserve the exact nested shape" do
+      assert EntrypointOptions.load_restrictions(wire(:list_todos_allow_nested)) ==
+               {:allow, [:user, comments: [:todo]]}
+    end
+
+    test "denied_loads → {:deny, list}" do
+      assert EntrypointOptions.load_restrictions(wire(:list_todos_deny_user)) == {:deny, [:user]}
+    end
+
+    test "neither → :none" do
+      assert EntrypointOptions.load_restrictions(wire(:list_todos_no_filter)) == :none
+    end
+
+    test "enable_filter?/enable_sort? default true, false when disabled" do
+      default = wire(:list_todos_allow_only_user)
+      assert EntrypointOptions.filter_enabled?(default)
+      assert EntrypointOptions.sort_enabled?(default)
+
+      refute EntrypointOptions.filter_enabled?(wire(:list_todos_no_filter))
+      refute EntrypointOptions.sort_enabled?(wire(:list_todos_no_sort))
     end
   end
 
-  describe "load restrictions & filter/sort decoration" do
-    test "allowed_loads → {:allow, verbatim list}", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
-      assert Custom.load_restrictions(e) == {:allow, [:user]}
-    end
-
-    test "nested allowed_loads preserve the exact nested shape", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_nested)
-      assert Custom.load_restrictions(e) == {:allow, [:user, comments: [:todo]]}
-    end
-
-    test "denied_loads → {:deny, list}", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_deny_user)
-      assert Custom.load_restrictions(e) == {:deny, [:user]}
-    end
-
-    test "neither → :none", %{manifest: spec} do
-      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_filter)
-      assert Custom.load_restrictions(e) == :none
-    end
-
-    test "enable_filter?/enable_sort? default true, false when disabled", %{manifest: spec} do
-      default = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
-      assert Custom.filtering_enabled?(default)
-      assert Custom.sorting_enabled?(default)
-
-      no_filter = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_filter)
-      refute Custom.filtering_enabled?(no_filter)
-
-      no_sort = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_sort)
-      refute Custom.sorting_enabled?(no_sort)
-    end
-  end
+  defp wire(%Manifest.Entrypoint{} = e), do: wire(Custom.rpc_action(e).name)
+  defp wire(rpc_name), do: EntrypointOptions.entrypoint!(rpc_name)
 
   defp entrypoint_for_rpc(spec, resource, rpc_name) do
     Enum.find(spec.entrypoints, fn e ->

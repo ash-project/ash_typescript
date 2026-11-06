@@ -13,19 +13,21 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
 
   import AshTypescript.Helpers
 
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
+
   @doc """
   Builds payload field definitions for an RPC function.
 
   Generates an array of TypeScript object property strings that construct the
   payload object sent to the server. Each field maps a config value to a payload key.
 
-  Every payload key (including `action`) goes through the output field
-  formatter, which is how ash_rpc reads them.
+  Every payload key (including `action`) is ash_rpc's client name for it, from
+  its vocabulary (`AshRpc.Manifest.vocabulary/1`).
 
   ## Parameters
 
     * `rpc_action_name` - The snake_case name of the RPC action
-    * `context` - The action context from `ConfigBuilder.get_action_context/2`
+    * `context` - The action context from `ConfigBuilder.get_action_context/3`
     * `opts` - Options keyword list:
       - `:include_fields` - If true, include optional fields parameter
       - `:include_filtering_pagination` - If true, include filter/sort/page parameters (default: true)
@@ -52,15 +54,15 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
     include_fields = Keyword.get(opts, :include_fields, false)
     include_filtering_pagination = Keyword.get(opts, :include_filtering_pagination, true)
     include_metadata_fields = Keyword.get(opts, :include_metadata_fields, false)
-    rpc_action = Keyword.get(opts, :rpc_action)
+    rpc_action = Keyword.fetch!(opts, :rpc_action)
     payload_fields = ["#{formatted_action_field()}: \"#{rpc_action_name}\""]
 
     payload_fields =
       if context.requires_tenant do
         payload_fields ++
-          ["#{format_output_field(:tenant)}: config.#{format_output_field(:tenant)}"]
+          ["#{formatted_tenant_field()}: config.#{formatted_tenant_field()}"]
       else
-        tenant_field = format_output_field(:tenant)
+        tenant_field = formatted_tenant_field()
 
         payload_fields ++
           [
@@ -78,8 +80,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
 
     # Add get_by field if this is a get_by action
     payload_fields =
-      if rpc_action && (Map.get(rpc_action, :get_by) || []) != [] do
-        get_by_field = format_output_field(:get_by)
+      if EntrypointOptions.get_by(EntrypointOptions.entrypoint!(rpc_action)) != [] do
+        get_by_field = formatted_get_by_field()
 
         payload_fields ++
           ["#{get_by_field}: config.#{get_by_field}"]
@@ -109,7 +111,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
 
     payload_fields =
       if include_metadata_fields do
-        metadata_fields_key = format_output_field(:metadata_fields)
+        metadata_fields_key = formatted_metadata_fields_field()
 
         payload_fields ++
           [
@@ -123,7 +125,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       if include_filtering_pagination and context.supports_filtering do
         payload_fields ++
           [
-            "...(config.#{format_output_field(:filter)} && { #{format_output_field(:filter)}: config.#{format_output_field(:filter)} })"
+            "...(config.#{formatted_filter_field()} && { #{formatted_filter_field()}: config.#{formatted_filter_field()} })"
           ]
       else
         payload_fields
@@ -133,7 +135,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       if include_filtering_pagination and context.supports_sorting do
         payload_fields ++
           [
-            "...(config.#{format_output_field(:sort)} && { #{format_output_field(:sort)}: Array.isArray(config.#{format_output_field(:sort)}) ? config.#{format_output_field(:sort)}.join(\",\") : config.#{format_output_field(:sort)} })"
+            "...(config.#{formatted_sort_field()} && { #{formatted_sort_field()}: Array.isArray(config.#{formatted_sort_field()}) ? config.#{formatted_sort_field()}.join(\",\") : config.#{formatted_sort_field()} })"
           ]
       else
         payload_fields

@@ -8,8 +8,6 @@ defmodule AshTypescript.Helpers do
   """
   @doc false
   defdelegate snake_to_pascal_case(value), to: AshRpc.Case
-  @doc false
-  defdelegate camel_to_snake_case(value), to: AshRpc.Case
 
   @doc """
   Formats a value for embedding in generated TypeScript code.
@@ -39,16 +37,31 @@ defmodule AshTypescript.Helpers do
     )
   end
 
-  # The static keys of the generated code that the output formatter names, by
-  # the `formatted_<name>_field/0` function that returns each: pagination,
-  # error, field selection, config and response fields.
+  # The request keys of the generated code, each returned by a
+  # `formatted_<key>_field/0` function, by the scope of ash_rpc's vocabulary
+  # (`AshRpc.Manifest.vocabulary/1`) that names it: the keys the runtime reads.
+  @request_fields [
+    params: [
+      :action,
+      :input,
+      :identity,
+      :fields,
+      :get_by,
+      :filter,
+      :sort,
+      :page,
+      :tenant,
+      :metadata_fields
+    ],
+    page: [:limit, :offset, :count, :after, :before]
+  ]
+
+  # The response and client-only keys of the generated code that the output
+  # formatter names, by the `formatted_<name>_field/0` function that returns
+  # each: pagination results, error, response, config and handler fields.
   @formatted_fields [
     results: :results,
     has_more: :has_more,
-    limit: :limit,
-    offset: :offset,
-    after: :after,
-    before: :before,
     previous_page: :previous_page,
     next_page: :next_page,
     error_type: :type,
@@ -59,20 +72,9 @@ defmodule AshTypescript.Helpers do
     error_path: :path,
     error_details: :details,
     error_id: :error_id,
-    args: :args,
-    fields: :fields,
-    page: :page,
-    action: :action,
-    input: :input,
-    identity: :identity,
-    filter: :filter,
-    sort: :sort,
-    count: :count,
-    metadata_fields: :metadata_fields,
     headers: :headers,
     fetch_options: :fetch_options,
     custom_fetch: :custom_fetch,
-    tenant: :tenant,
     hook_ctx: :hook_ctx,
     channel: :channel,
     result_handler: :result_handler,
@@ -85,17 +87,34 @@ defmodule AshTypescript.Helpers do
   ]
 
   # Other static keys codegen formats with the output formatter directly.
-  @other_static_fields [:config, :get_by, :metadata]
+  @other_static_fields [:config, :metadata]
 
   @doc """
-  The static keys of the generated code (`:has_more`, `:fetch_options`, …)
-  that codegen names with the output formatter: the `formatted_*_field/0`
-  keys and the others it formats directly. `AshTypescript.Manifest.NameCheck`
-  checks each as a client name.
+  The response and client-only keys of the generated code (`:has_more`,
+  `:fetch_options`, …) that codegen names with the output formatter: the
+  formatter's `formatted_*_field/0` keys and the others it formats directly.
+  The request keys come from ash_rpc's vocabulary instead
+  (`Codegen.ClientNames.vocabulary!/2`).
+  `AshTypescript.Manifest.NameCheck` checks both as client names.
   """
   @spec static_client_names() :: [atom()]
   def static_client_names,
     do: Enum.uniq(Keyword.values(@formatted_fields) ++ @other_static_fields)
+
+  for {scope, keys} <- @request_fields, key <- keys do
+    @doc "ash_rpc's client name for the request key `#{inspect(key)}`."
+    def unquote(:"formatted_#{key}_field")(),
+      do: AshTypescript.Codegen.ClientNames.vocabulary!(unquote(scope), unquote(key))
+  end
+
+  @doc """
+  ash_rpc's client name for `key` in a nested-load envelope or a calculation
+  load (`fields`, `filter`, `sort`, `page`, `limit`, `offset`, `args`): the
+  `:query_opts` vocabulary.
+  """
+  @spec formatted_query_opt_field(atom()) :: String.t()
+  def formatted_query_opt_field(key),
+    do: AshTypescript.Codegen.ClientNames.vocabulary!(:query_opts, key)
 
   for {name, field} <- @formatted_fields do
     @doc "The output formatter's name for the static key `#{inspect(field)}`."

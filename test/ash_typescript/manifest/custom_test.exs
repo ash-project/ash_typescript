@@ -56,25 +56,6 @@ defmodule AshTypescript.Manifest.CustomTest do
     end
   end
 
-  describe "exposed_metadata_fields/1" do
-    test "returns [] for an undecorated entrypoint" do
-      assert Custom.exposed_metadata_fields(%Ash.Info.Manifest.Entrypoint{}) == []
-      assert Custom.exposed_metadata_fields(nil) == []
-    end
-  end
-
-  describe "load_restrictions / filter / sort accessors" do
-    test "defaults on undecorated entrypoint" do
-      e = %Ash.Info.Manifest.Entrypoint{}
-      assert Custom.load_restrictions(e) == :none
-      assert Custom.filtering_enabled?(e) == true
-      assert Custom.sorting_enabled?(e) == true
-      assert Custom.load_restrictions(nil) == :none
-      assert Custom.filtering_enabled?(nil) == true
-      assert Custom.sorting_enabled?(nil) == true
-    end
-  end
-
   describe "routes and publications" do
     alias AshTypescript.Manifest.{Publication, Route}
 

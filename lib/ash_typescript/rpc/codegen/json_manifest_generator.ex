@@ -28,13 +28,10 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Codegen.ImportResolver
-  alias AshTypescript.Codegen.SchemaCore
-  alias AshTypescript.Codegen.ValibotSchemaGenerator
-  alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
   alias AshTypescript.Manifest.Custom
-  alias AshTypescript.Rpc.Codegen.FunctionNames
-  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.Rpc.Codegen.ActionExports
+  alias AshTypescript.Rpc.Codegen.Helpers.{ActionIntrospection, EntrypointOptions}
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
   @doc """
@@ -131,17 +128,10 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     files =
-      case AshTypescript.routes_output_file() do
-        nil ->
-          files
-
-        path ->
-          if AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config() !=
-               [] do
-            Map.put(files, "routes", file_entry(manifest_path, path))
-          else
-            files
-          end
+      if AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config() != [] do
+        Map.put(files, "routes", file_entry(manifest_path, AshTypescript.routes_output_file()))
+      else
+        files
       end
 
     files =
@@ -182,38 +172,18 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   end
 
   defp build_action_entry({resource, action, rpc_action, domain, resource_config}) do
-    rpc_action_name = to_string(rpc_action.name)
-    pascal_name = Helpers.snake_to_pascal_case(rpc_action_name)
-    function_name = FunctionNames.execution(rpc_action_name)
     resource_name = resource |> Module.split() |> List.last()
     namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
 
-    action = augment_action_with_rpc_settings(action, rpc_action)
-
-    has_fields = has_fields?(action)
-    is_get_action = is_get_action?(action, rpc_action)
-
-    is_optional_pagination =
-      action.type == :read and
-        not is_get_action and
-        ActionIntrospection.action_supports_pagination?(action) and
-        not ActionIntrospection.action_requires_pagination?(action) and
-        has_fields
+    entrypoint = EntrypointOptions.entrypoint!(rpc_action)
+    action = EntrypointOptions.mark_get(entrypoint, action)
+    exports = ActionExports.build(resource, action, rpc_action)
+    is_get_action = EntrypointOptions.get?(entrypoint, action)
 
     input_requirement = ActionIntrospection.action_input_type(action)
 
-    show_validation = AshTypescript.Rpc.generate_validation_functions?()
-    show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
-
-    # Validation and channel functions exist for every action, but an input
-    # schema is only emitted when the action actually has inputs — so these two
-    # variants are per-action, not just "is the library enabled".
-    has_schema? = SchemaCore.action_has_schema?(action)
-    show_zod = AshTypescript.Rpc.generate_zod_schemas?() and has_schema?
-    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?() and has_schema?
-
     %{
-      "functionName" => function_name,
+      "functionName" => exports.function,
       "actionType" => to_string(action.type),
       "get" => is_get_action,
       "namespace" => namespace,
@@ -224,71 +194,44 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         (rpc_action.see || [])
         |> Enum.map(&Helpers.format_output_field/1),
       "input" => build_input_info(input_requirement),
-      "types" =>
-        build_types(pascal_name, resource, action, rpc_action, has_fields, is_optional_pagination),
+      "types" => build_types(exports),
       "pagination" => build_pagination(action, is_get_action),
-      "enableFilter" => Map.get(rpc_action, :enable_filter?, true),
-      "enableSort" => Map.get(rpc_action, :enable_sort?, true),
+      "enableFilter" => EntrypointOptions.filter_enabled?(entrypoint),
+      "enableSort" => EntrypointOptions.sort_enabled?(entrypoint),
       "variants" => %{
-        "validation" => show_validation,
-        "zod" => show_zod,
-        "valibot" => show_valibot,
-        "channel" => show_channel,
-        "validationChannel" => show_validation and show_channel
+        "validation" => not is_nil(exports.validation),
+        "zod" => not is_nil(exports.zod_schema),
+        "valibot" => not is_nil(exports.valibot_schema),
+        "channel" => not is_nil(exports.channel),
+        "validationChannel" => not is_nil(exports.validation_channel)
       },
       "variantNames" =>
-        build_variant_names(
-          rpc_action_name,
-          show_validation,
-          show_zod,
-          show_valibot,
-          show_channel
+        put_present(%{},
+          validation: exports.validation,
+          zod: exports.zod_schema,
+          valibot: exports.valibot_schema,
+          channel: exports.channel,
+          validationChannel: exports.validation_channel
         )
     }
   end
 
-  defp build_types(pascal_name, resource, action, rpc_action, has_fields, is_optional_pagination) do
-    ts_resource_name = AshTypescript.Codegen.Helpers.build_resource_type_name(resource)
+  # `inferResult` is the field-generic result type, so it is listed with
+  # `fields` only (a non-selectable generic action's `Infer…Result` takes no
+  # field selection). `filterInput` is the resource's filter type, present when
+  # the function's config takes a `filter`.
+  defp build_types(%ActionExports{} = exports) do
+    put_present(%{"result" => exports.result},
+      fields: exports.fields,
+      inferResult: exports.fields && exports.infer_result,
+      input: exports.input,
+      config: exports.config,
+      filterInput: exports.filter_input
+    )
+  end
 
-    base = %{
-      "result" => "#{pascal_name}Result"
-    }
-
-    base =
-      if has_fields do
-        base
-        |> Map.put("fields", "#{pascal_name}Fields")
-        |> Map.put("inferResult", "Infer#{pascal_name}Result")
-      else
-        base
-      end
-
-    # Same predicate as the Input type emitter (input_types.ex) and the export
-    # collector — destroy actions with inputs get an Input type too.
-    base =
-      if has_input?(action) do
-        Map.put(base, "input", FunctionNames.input_type(rpc_action.name))
-      else
-        base
-      end
-
-    base =
-      if is_optional_pagination do
-        Map.put(base, "config", "#{pascal_name}Config")
-      else
-        base
-      end
-
-    enable_filter? = Map.get(rpc_action, :enable_filter?, true)
-
-    base =
-      if action.type == :read and enable_filter? do
-        Map.put(base, "filterInput", "#{ts_resource_name}FilterInput")
-      else
-        base
-      end
-
-    base
+  defp put_present(map, entries) do
+    for {key, value} <- entries, value, into: map, do: {to_string(key), value}
   end
 
   defp build_pagination(action, is_get_action) do
@@ -317,60 +260,10 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   defp build_deprecated(rpc_action) do
     case Map.get(rpc_action, :deprecated) do
-      nil -> false
-      false -> false
+      unset when unset in [nil, false] -> false
       true -> true
       message when is_binary(message) -> message
     end
-  end
-
-  defp build_variant_names(rpc_action_name, show_validation, show_zod, show_valibot, show_channel) do
-    names = %{}
-
-    names =
-      if show_validation do
-        Map.put(names, "validation", FunctionNames.validation(rpc_action_name))
-      else
-        names
-      end
-
-    names =
-      if show_zod do
-        Map.put(names, "zod", SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_action_name))
-      else
-        names
-      end
-
-    names =
-      if show_valibot do
-        Map.put(
-          names,
-          "valibot",
-          SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
-        )
-      else
-        names
-      end
-
-    names =
-      if show_channel do
-        Map.put(names, "channel", FunctionNames.channel(rpc_action_name))
-      else
-        names
-      end
-
-    names =
-      if show_validation and show_channel do
-        Map.put(
-          names,
-          "validationChannel",
-          FunctionNames.validation_channel(rpc_action_name)
-        )
-      else
-        names
-      end
-
-    names
   end
 
   defp get_description(rpc_action, action, resource_name) do
@@ -391,51 +284,6 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   defp default_description(:action, resource_name),
     do: "Execute generic action on #{resource_name}"
-
-  # Mirrors Rpc.Codegen.augment_action_with_rpc_settings/3
-  defp augment_action_with_rpc_settings(action, rpc_action) do
-    rpc_get? = Map.get(rpc_action, :get?, false)
-    rpc_get_by = Map.get(rpc_action, :get_by) || []
-
-    cond do
-      rpc_get? ->
-        Map.put(action, :get?, true)
-
-      rpc_get_by != [] ->
-        action |> Map.put(:get?, true) |> Map.put(:rpc_get_by_fields, rpc_get_by)
-
-      true ->
-        action
-    end
-  end
-
-  defp is_get_action?(action, rpc_action) do
-    ash_get? = Map.get(action, :get?, false)
-    rpc_get? = Map.get(rpc_action, :get?, false)
-    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
-    ash_get? or rpc_get? or rpc_get_by
-  end
-
-  defp has_fields?(action) do
-    case action.type do
-      :destroy -> false
-      :read -> true
-      type when type in [:create, :update] -> true
-      :action -> action_has_field_selectable_return?(action)
-    end
-  end
-
-  defp action_has_field_selectable_return?(action) do
-    case ActionIntrospection.action_returns_field_selectable_type?(action) do
-      {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] -> false
-      {:ok, _, _} -> true
-      _ -> false
-    end
-  end
-
-  defp has_input?(action) do
-    ActionIntrospection.action_input_type(action) != :none
-  end
 
   # Typed controller routes
 

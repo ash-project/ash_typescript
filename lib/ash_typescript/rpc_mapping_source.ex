@@ -20,6 +20,7 @@ defmodule AshTypescript.RpcMappingSource do
   @behaviour AshRpc.MappingSource
 
   alias AshTypescript.Helpers
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
   alias AshTypescript.Rpc.RpcAction
 
   @impl true
@@ -78,7 +79,7 @@ defmodule AshTypescript.RpcMappingSource do
       read_action: rpc.read_action,
       get?: rpc.get? || false,
       get_by: rpc.get_by || [],
-      identities: rpc.identities || [:_primary_key],
+      identities: rpc.identities || EntrypointOptions.default_identities(),
       not_found_error?: resolve_not_found_error?(rpc.not_found_error?),
       enable_filter?: rpc.enable_filter? != false,
       enable_sort?: rpc.enable_sort? != false,

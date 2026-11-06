@@ -40,9 +40,35 @@ defmodule AshTypescript.Rpc.Codegen.FunctionNames do
   end
 
   @doc "Name of the generated input type (e.g. `ListTodosInput`)."
-  def input_type(rpc_action_name) do
-    Helpers.snake_to_pascal_case(to_string(rpc_action_name)) <> "Input"
-  end
+  def input_type(rpc_action_name), do: pascal(rpc_action_name) <> "Input"
+
+  @doc "Name of the generated result type (e.g. `ListTodosResult`)."
+  def result_type(rpc_action_name), do: pascal(rpc_action_name) <> "Result"
+
+  @doc "Name of the generated field selection type (e.g. `ListTodosFields`)."
+  def fields_type(rpc_action_name), do: pascal(rpc_action_name) <> "Fields"
+
+  @doc "Name of the generated inferred result type (e.g. `InferListTodosResult`)."
+  def infer_result_type(rpc_action_name), do: "Infer" <> pascal(rpc_action_name) <> "Result"
+
+  @doc "Name of the generated config type (e.g. `ListTodosConfig`)."
+  def config_type(rpc_action_name), do: pascal(rpc_action_name) <> "Config"
+
+  @doc "Name of the generated metadata type (e.g. `ListTodosMetadata`)."
+  def metadata_type(rpc_action_name), do: pascal(rpc_action_name) <> "Metadata"
+
+  @doc """
+  Name of the restricted resource schema of an rpc_action with load
+  restrictions (e.g. `ListTodosSchema`); nested restricted schemas append
+  their path to it.
+  """
+  def restricted_schema(rpc_action_name), do: pascal(rpc_action_name) <> "Schema"
+
+  @doc """
+  Name of a resource's filter input type, from the resource's TypeScript name
+  (e.g. `TodoFilterInput`).
+  """
+  def filter_input_type(resource_type_name), do: "#{resource_type_name}FilterInput"
 
   @doc """
   Name of a typed query's fields const: its `ts_fields_const_name`, else its
@@ -59,6 +85,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionNames do
   """
   def typed_query_result_type(typed_query) do
     typed_query.ts_result_type_name ||
-      "#{Helpers.snake_to_pascal_case(typed_query.name)}Result"
+      pascal(typed_query.name) <> "Result"
   end
+
+  defp pascal(rpc_action_name), do: Helpers.snake_to_pascal_case(to_string(rpc_action_name))
 end

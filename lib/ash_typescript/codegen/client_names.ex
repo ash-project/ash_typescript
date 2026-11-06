@@ -94,6 +94,27 @@ defmodule AshTypescript.Codegen.ClientNames do
     )
   end
 
+  @doc """
+  Client name of a key ash_rpc accepts, from its vocabulary
+  (`AshRpc.Manifest.vocabulary/1`) of the current manifest: a request param
+  (`:params`), a page option (`:page`), a nested query option (`:query_opts`)
+  or a filter operator or function (`:filter_ops`).
+  """
+  @spec vocabulary!(atom(), atom()) :: String.t()
+  def vocabulary!(scope, internal), do: vocabulary!(AshTypescript.manifest(), scope, internal)
+
+  @doc "Client name of `internal` in the `scope` vocabulary of `manifest`."
+  @spec vocabulary!(Manifest.t(), atom(), atom()) :: String.t()
+  def vocabulary!(%Manifest{} = manifest, scope, internal)
+      when is_atom(scope) and is_atom(internal) do
+    manifest
+    |> AshRpc.Manifest.vocabulary()
+    |> Map.get(scope, %{})
+    |> Enum.find_value(fn {client, name} -> if name == internal, do: client end) ||
+      raise ArgumentError,
+            "no client name for #{inspect(internal)} in the #{inspect(scope)} vocabulary"
+  end
+
   @doc "The decorated wire entrypoint for an RPC name."
   @spec wire_entrypoint!(atom() | String.t()) :: AshRpc.Entrypoint.t()
   def wire_entrypoint!(rpc_name) do

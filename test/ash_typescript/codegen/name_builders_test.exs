@@ -60,6 +60,37 @@ defmodule AshTypescript.Codegen.NameBuildersTest do
     end
   end
 
+  describe "per-rpc type names" do
+    test "each type name builder appends its suffix to the PascalCase rpc_action name" do
+      assert FunctionNames.result_type(:list_todos) == "ListTodosResult"
+      assert FunctionNames.fields_type(:list_todos) == "ListTodosFields"
+      assert FunctionNames.infer_result_type(:list_todos) == "InferListTodosResult"
+      assert FunctionNames.config_type(:list_todos) == "ListTodosConfig"
+      assert FunctionNames.metadata_type(:list_todos) == "ListTodosMetadata"
+      assert FunctionNames.restricted_schema(:list_todos) == "ListTodosSchema"
+      assert FunctionNames.result_type("get_todo") == "GetTodoResult"
+    end
+
+    test "filter_input_type/1 takes the resource's TypeScript name" do
+      assert FunctionNames.filter_input_type("Todo") == "TodoFilterInput"
+    end
+
+    test "no per-rpc type name is built outside FunctionNames" do
+      offending =
+        for path <-
+              Path.wildcard(
+                "lib/ash_typescript/{codegen,rpc,typed_controller,typed_channel}/**/*.ex"
+              ) ++
+                Path.wildcard("lib/ash_typescript/manifest/**/*.ex"),
+            Path.basename(path) != "function_names.ex",
+            {line, number} <- path |> File.read!() |> String.split("\n") |> Enum.with_index(1),
+            Regex.match?(~r/#\{[^}]*\}(Result|Fields|Config|Metadata|FilterInput)\b/, line),
+            do: "#{path}:#{number}: #{String.trim(line)}"
+
+      assert offending == []
+    end
+  end
+
   describe "typed query names" do
     test "typed query builders equal codegen's names", %{typed_queries: typed_queries} do
       assert typed_queries != []

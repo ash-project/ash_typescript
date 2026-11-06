@@ -12,9 +12,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
   `:_primary_key` sentinel) and `resource.identities` (for named identities).
   """
   use Spark.Dsl.Verifier
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
   alias Spark.Dsl.Verifier
-
-  @default_identities [:_primary_key]
 
   @impl true
   def verify(dsl) do
@@ -22,8 +21,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
     resource_lookup = Verifier.get_persisted(dsl, :resource_lookup)
     do_verify(manifest, resource_lookup)
   end
-
-  defp do_verify(nil, _resource_lookup), do: :ok
 
   defp do_verify(%Ash.Info.Manifest{} = manifest, resource_lookup) do
     errors =
@@ -44,7 +41,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
         rpc_action = get_in(entrypoint.config, [:ash_typescript, :rpc_action])
 
         if rpc_action do
-          identities = Map.get(rpc_action, :identities) || @default_identities
+          identities = Map.get(rpc_action, :identities) || EntrypointOptions.default_identities()
           resource_spec = Map.get(resource_lookup, entrypoint.resource)
           validate_identities(entrypoint.resource, rpc_action, identities, resource_spec)
         else
@@ -56,8 +53,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
     end
   end
 
-  defp validate_identities(_resource, _rpc_action, _identities, nil), do: []
-
+  # Entrypoint resources are always in the lookup, and the `identities`
+  # option is a list of atoms.
   defp validate_identities(resource, rpc_action, identities, %Ash.Info.Manifest.Resource{
          primary_key: primary_key,
          identities: declared
@@ -70,7 +67,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
           []
         end
 
-      identity_name when is_atom(identity_name) ->
+      identity_name ->
         if Map.has_key?(declared, identity_name) do
           []
         else
@@ -79,14 +76,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyIdentities do
              Map.keys(declared) |> Enum.sort()}
           ]
         end
-
-      _ ->
-        []
     end)
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Error formatting (matches legacy `Rpc.Verifiers.VerifyIdentities`)
+  # Error formatting
   # ─────────────────────────────────────────────────────────────────
 
   defp format_validation_errors(errors) do

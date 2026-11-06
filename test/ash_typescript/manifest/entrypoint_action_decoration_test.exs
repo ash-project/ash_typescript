@@ -26,7 +26,7 @@ defmodule AshTypescript.Manifest.EntrypointActionDecorationTest do
     # input map (for the configured formatter) + field types
     Enum.each(action_lookup, fn {_key, action} ->
       assert is_map(AshRpc.Manifest.Custom.action_expected_input_keys(action))
-      assert is_map(Custom.action_input_field_types(action))
+      assert is_map(AshRpc.Manifest.Custom.action_input_field_types(action))
     end)
   end
 

@@ -11,18 +11,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
   """
 
   alias AshTypescript.Codegen.{ClientNames, TypeMapper}
+  alias AshTypescript.Rpc.Codegen.FunctionNames
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
 
-  defdelegate get_exposed_metadata_fields(rpc_action, ash_action), to: AshRpc.Introspection
   defdelegate metadata_enabled?(exposed_fields), to: AshRpc.Introspection
 
-  @doc """
-  Reads the precomputed exposed metadata fields off the decorated entrypoint for
-  a `{resource, rpc_action}` pair, falling back to `[]` when no entrypoint matches.
-  """
-  def exposed_metadata_fields(resource, rpc_action) do
-    AshTypescript.Manifest.Custom.exposed_metadata_fields(
-      AshTypescript.Rpc.Codegen.RpcConfigCollector.entrypoint_for(resource, rpc_action)
-    )
+  @doc "The metadata fields an rpc_action's wire entrypoint exposes."
+  def exposed_metadata_fields(rpc_action) do
+    rpc_action |> EntrypointOptions.entrypoint!() |> EntrypointOptions.exposed_metadata_fields()
   end
 
   @doc """
@@ -32,17 +28,18 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
   ## Parameters
 
-    * `resource` - The Ash resource module
     * `action` - The Ash action
     * `rpc_action` - The RPC action configuration
-    * `rpc_action_name_pascal` - The PascalCase name of the RPC action
+    * `rpc_action_name` - The name of the RPC action
 
   ## Returns
 
   A string containing the TypeScript metadata type definition, or an empty string if no metadata is exposed.
   """
-  def generate_action_metadata_type(resource, action, rpc_action, rpc_action_name_pascal) do
-    exposed_fields = exposed_metadata_fields(resource, rpc_action)
+  def generate_action_metadata_type(action, rpc_action, rpc_action_name) do
+    metadata_type_name = FunctionNames.metadata_type(rpc_action_name)
+
+    exposed_fields = exposed_metadata_fields(rpc_action)
 
     if metadata_enabled?(exposed_fields) do
       all_metadata_fields = Map.get(action, :metadata, [])
@@ -67,7 +64,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
       """
 
-      export type #{rpc_action_name_pascal}Metadata = {
+      export type #{metadata_type_name} = {
       #{Enum.join(metadata_field_defs, "\n")}
       };
       """

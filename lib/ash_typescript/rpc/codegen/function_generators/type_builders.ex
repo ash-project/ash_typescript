@@ -51,14 +51,14 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
   """
   def build_optional_pagination_config(shape, config_fields) do
     if shape.is_optional_pagination do
-      config_type_name = "#{shape.rpc_action_name_pascal}Config"
+      config_type_name = shape.config_type
 
       config_fields_concrete =
         Enum.map(config_fields, fn field_def ->
-          String.replace(field_def, ": Fields;", ": #{shape.rpc_action_name_pascal}Fields;")
+          String.replace(field_def, ": Fields;", ": #{shape.fields_type};")
           |> String.replace(
             ": MetadataFields;",
-            ": ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata>;"
+            ": ReadonlyArray<keyof #{shape.metadata_type}>;"
           )
         end)
 
@@ -74,25 +74,25 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
   defp build_destroy_result_type(shape, success_field, error_type_def, config_type_ref) do
     if shape.has_metadata do
       result_type = """
-      | { #{success_field}: true; data: {}; #{format_output_field(:metadata)}: Pick<#{shape.rpc_action_name_pascal}Metadata, MetadataFields[number]>; }
+      | { #{success_field}: true; #{formatted_data_field()}: {}; #{format_output_field(:metadata)}: Pick<#{shape.metadata_type}, MetadataFields[number]>; }
       | #{error_type_def}
       """
 
       result_type_def =
-        "export type #{shape.rpc_action_name_pascal}Result<MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []> = #{result_type};"
+        "export type #{shape.result_type}<MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []> = #{result_type};"
 
-      {result_type_def, "#{shape.rpc_action_name_pascal}Result<MetadataFields>",
-       "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []",
+      {result_type_def, "#{shape.result_type}<MetadataFields>",
+       "MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []",
        "config: #{config_type_ref}"}
     else
       result_type = """
-      | { #{success_field}: true; data: {}; }
+      | { #{success_field}: true; #{formatted_data_field()}: {}; }
       | #{error_type_def}
       """
 
-      result_type_def = "export type #{shape.rpc_action_name_pascal}Result = #{result_type};"
+      result_type_def = "export type #{shape.result_type} = #{result_type};"
 
-      {result_type_def, "#{shape.rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
+      {result_type_def, shape.result_type, "", "config: #{config_type_ref}"}
     end
   end
 
@@ -100,27 +100,28 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
     mutation_metadata_field =
       if shape.is_mutation and shape.has_metadata,
         do:
-          " #{format_output_field(:metadata)}: Pick<#{shape.rpc_action_name_pascal}Metadata, MetadataFields[number]>;",
+          " #{format_output_field(:metadata)}: Pick<#{shape.metadata_type}, MetadataFields[number]>;",
         else: ""
 
     {result_type_generics, return_type_generics, function_generics, function_sig,
      function_return_generics} =
       cond do
         shape.is_optional_pagination and shape.has_metadata and shape.action.type == :read ->
-          page_param = "Page extends #{shape.rpc_action_name_pascal}Config[\"page\"] = undefined"
+          page_param =
+            "Page extends #{shape.config_type}[\"#{formatted_page_field()}\"] = undefined"
 
           metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+            "MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []"
 
           result_type_generics_str = "#{shape.fields_generic}, #{metadata_param}, #{page_param}"
           result_data_generics_str = "<Fields, MetadataFields, Page>"
-          metadata_fields_key = format_output_field(:metadata_fields)
+          metadata_fields_key = formatted_metadata_fields_field()
 
           function_return_generics_str =
-            "<Fields, Config[\"#{metadata_fields_key}\"] extends ReadonlyArray<any> ? Config[\"#{metadata_fields_key}\"] : [], Config[\"page\"]>"
+            "<Fields, Config[\"#{metadata_fields_key}\"] extends ReadonlyArray<any> ? Config[\"#{metadata_fields_key}\"] : [], Config[\"#{formatted_page_field()}\"]>"
 
           config_generic =
-            "Config extends #{shape.rpc_action_name_pascal}Config = #{shape.rpc_action_name_pascal}Config"
+            "Config extends #{shape.config_type} = #{shape.config_type}"
 
           function_generics_str = "#{shape.fields_generic}, #{config_generic}"
           function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
@@ -129,13 +130,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
            function_sig_str, function_return_generics_str}
 
         shape.is_optional_pagination ->
-          page_param = "Page extends #{shape.rpc_action_name_pascal}Config[\"page\"] = undefined"
+          page_param =
+            "Page extends #{shape.config_type}[\"#{formatted_page_field()}\"] = undefined"
+
           result_type_generics_str = "#{shape.fields_generic}, #{page_param}"
           result_data_generics_str = "<Fields, Page>"
-          function_return_generics_str = "<Fields, Config[\"page\"]>"
+          function_return_generics_str = "<Fields, Config[\"#{formatted_page_field()}\"]>"
 
           config_generic =
-            "Config extends #{shape.rpc_action_name_pascal}Config = #{shape.rpc_action_name_pascal}Config"
+            "Config extends #{shape.config_type} = #{shape.config_type}"
 
           function_generics_str = "#{shape.fields_generic}, #{config_generic}"
           function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
@@ -145,7 +148,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
         shape.action.type == :read and shape.has_metadata ->
           metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+            "MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []"
 
           result_type_generics_str = "#{shape.fields_generic}, #{metadata_param}"
           result_data_generics_str = "<Fields, MetadataFields>"
@@ -157,7 +160,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
 
         shape.is_mutation and shape.has_metadata ->
           metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+            "MetadataFields extends ReadonlyArray<keyof #{shape.metadata_type}> = []"
 
           result_type_generics_str = "#{shape.fields_generic}, #{metadata_param}"
           result_data_generics_str = "<Fields>"
@@ -181,42 +184,27 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
       end
 
     result_type = """
-    | { #{success_field}: true; data: Infer#{shape.rpc_action_name_pascal}Result#{return_type_generics};#{mutation_metadata_field} }
+    | { #{success_field}: true; #{formatted_data_field()}: #{shape.infer_result_type}#{return_type_generics};#{mutation_metadata_field} }
     | #{error_type_def}
     """
 
     result_type_def =
-      "export type #{shape.rpc_action_name_pascal}Result<#{result_type_generics}> = #{result_type};"
+      "export type #{shape.result_type}<#{result_type_generics}> = #{result_type};"
 
-    {result_type_def, "#{shape.rpc_action_name_pascal}Result#{function_return_generics}",
-     function_generics, function_sig}
+    {result_type_def, "#{shape.result_type}#{function_return_generics}", function_generics,
+     function_sig}
   end
 
+  # Only generic actions return a type that isn't field-selectable, and generic
+  # actions have no metadata, so the result carries none.
   defp build_simple_result_type(shape, success_field, error_type_def, config_type_ref) do
-    if shape.has_metadata do
-      action_metadata_field =
-        " #{format_output_field(:metadata)}: Pick<#{shape.rpc_action_name_pascal}Metadata, MetadataFields[number]>;"
+    result_type = """
+    | { #{success_field}: true; #{formatted_data_field()}: #{shape.infer_result_type}; }
+    | #{error_type_def}
+    """
 
-      result_type = """
-      | { #{success_field}: true; data: Infer#{shape.rpc_action_name_pascal}Result;#{action_metadata_field} }
-      | #{error_type_def}
-      """
+    result_type_def = "export type #{shape.result_type} = #{result_type};"
 
-      result_type_def =
-        "export type #{shape.rpc_action_name_pascal}Result<MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []> = #{result_type};"
-
-      {result_type_def, "#{shape.rpc_action_name_pascal}Result<MetadataFields>",
-       "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []",
-       "config: #{config_type_ref}"}
-    else
-      result_type = """
-      | { #{success_field}: true; data: Infer#{shape.rpc_action_name_pascal}Result; }
-      | #{error_type_def}
-      """
-
-      result_type_def = "export type #{shape.rpc_action_name_pascal}Result = #{result_type};"
-
-      {result_type_def, "#{shape.rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
-    end
+    {result_type_def, shape.result_type, "", "config: #{config_type_ref}"}
   end
 end

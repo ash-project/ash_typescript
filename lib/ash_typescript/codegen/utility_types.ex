@@ -144,23 +144,23 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       F extends boolean = true,
       S extends boolean = true,
     > = {
-      #{formatted_fields_field()}: UnifiedFieldSelection<Dest, F, S>[];
+      #{formatted_query_opt_field(:fields)}: UnifiedFieldSelection<Dest, F, S>[];
     } & (F extends true
       ? Meta extends { __filterInput: infer FI }
-        ? { #{formatted_filter_field()}?: FI }
-        : { #{formatted_filter_field()}?: never }
-      : { #{formatted_filter_field()}?: never }) &
+        ? { #{formatted_query_opt_field(:filter)}?: FI }
+        : { #{formatted_query_opt_field(:filter)}?: never }
+      : { #{formatted_query_opt_field(:filter)}?: never }) &
       (S extends true
         ? Meta extends { __sortField: infer SF extends string }
-          ? { #{formatted_sort_field()}?: SortString<SF> | SortString<SF>[] }
-          : { #{formatted_sort_field()}?: never }
-        : { #{formatted_sort_field()}?: never }) &
+          ? { #{formatted_query_opt_field(:sort)}?: SortString<SF> | SortString<SF>[] }
+          : { #{formatted_query_opt_field(:sort)}?: never }
+        : { #{formatted_query_opt_field(:sort)}?: never }) &
       (Meta extends { __pagination: infer P extends string }
         ? (
-            | { #{formatted_page_field()}?: NestedPageInput<P>; #{formatted_limit_field()}?: never; #{formatted_offset_field()}?: never }
-            | { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_page_field()}?: never }
+            | { #{formatted_query_opt_field(:page)}?: NestedPageInput<P>; #{formatted_query_opt_field(:limit)}?: never; #{formatted_query_opt_field(:offset)}?: never }
+            | { #{formatted_query_opt_field(:limit)}?: number; #{formatted_query_opt_field(:offset)}?: number; #{formatted_query_opt_field(:page)}?: never }
           )
-        : { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_page_field()}?: never });
+        : { #{formatted_query_opt_field(:limit)}?: number; #{formatted_query_opt_field(:offset)}?: number; #{formatted_query_opt_field(:page)}?: never });
 
     export type ComplexFieldSelection<
       T extends TypedSchema,
@@ -185,12 +185,12 @@ defmodule AshTypescript.Codegen.UtilityTypes do
           ? T[K] extends { __args: infer Args }
             ? NonNullable<ReturnType> extends TypedSchema
               ? {
-                  #{formatted_args_field()}: Args;
-                  #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[];
+                  #{formatted_query_opt_field(:args)}: Args;
+                  #{formatted_query_opt_field(:fields)}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[];
                 }
-              : { #{formatted_args_field()}: Args }
+              : { #{formatted_query_opt_field(:args)}: Args }
             : NonNullable<ReturnType> extends TypedSchema
-              ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[] }
+              ? { #{formatted_query_opt_field(:fields)}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[] }
               : never
           : T[K] extends { __type: "TypedMap" }
             ? NonNullable<T[K]> extends TypedSchema
@@ -269,9 +269,9 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                   __resource: infer Resource;
                 }
                 ? NonNullable<Resource> extends TypedSchema
-                  ? Field[K] extends { #{formatted_fields_field()}: infer NestedFields }
+                  ? Field[K] extends { #{formatted_query_opt_field(:fields)}: infer NestedFields }
                     ? NestedFields extends UnifiedFieldSelection<NonNullable<Resource>>[]
-                      ? Field[K] extends { #{formatted_page_field()}: infer Page }
+                      ? Field[K] extends { #{formatted_query_opt_field(:page)}: infer Page }
                         ? T[K] extends { __pagination: infer P extends string }
                           ? NestedPageResult<NonNullable<Resource>, NestedFields, P, Page>
                           : never
@@ -293,8 +293,8 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                   }
                 ? NonNullable<ReturnType> extends TypedSchema
                   ? null extends ReturnType
-                    ? InferResult<NonNullable<ReturnType>, Field[K]["fields"]> | null
-                    : InferResult<NonNullable<ReturnType>, Field[K]["fields"]>
+                    ? InferResult<NonNullable<ReturnType>, Field[K]["#{formatted_query_opt_field(:fields)}"]> | null
+                    : InferResult<NonNullable<ReturnType>, Field[K]["#{formatted_query_opt_field(:fields)}"]>
                   : ReturnType
                 : NonNullable<T[K]> extends { __type: "TypedMap"; __primitiveFields: infer TypedMapFields }
                   ? NonNullable<T[K]> extends { __array: true }
@@ -424,10 +424,10 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     // Checks if a page configuration object has any pagination parameters.
     // A limit-only page (e.g. { limit: 20 } for the first page) also paginates.
     export type HasPaginationParams<Page> =
-      Page extends { offset: any } ? true :
-      Page extends { after: any } ? true :
-      Page extends { before: any } ? true :
-      Page extends { limit: any } ? true :
+      Page extends { #{formatted_offset_field()}: any } ? true :
+      Page extends { #{formatted_after_field()}: any } ? true :
+      Page extends { #{formatted_before_field()}: any } ? true :
+      Page extends { #{formatted_limit_field()}: any } ? true :
       false;
 
     // Infer which pagination type is being used from the page config.
@@ -435,9 +435,9 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     // codegen — when an action supports both strategies, Ash paginates
     // limit-only requests with that page type.
     export type InferPaginationType<Page> =
-      Page extends { offset: any } ? "offset" :
-      Page extends { after: any } | { before: any } ? "keyset" :
-      Page extends { limit: any } ? "#{AshTypescript.default_page_type()}" :
+      Page extends { #{formatted_offset_field()}: any } ? "offset" :
+      Page extends { #{formatted_after_field()}: any } | { #{formatted_before_field()}: any } ? "keyset" :
+      Page extends { #{formatted_limit_field()}: any } ? "#{AshTypescript.default_page_type()}" :
       never;
 
     // Returns either non-paginated (array) or paginated result based on page params

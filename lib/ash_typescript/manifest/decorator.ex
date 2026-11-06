@@ -27,11 +27,10 @@ defmodule AshTypescript.Manifest.Decorator do
       `typescript_type_alias/0`; `AshTypescript.CustomTypes.alias_name/3`)
       gets `type_alias_names` too, beside its `type_name` when it has one.
 
-    * `manifest.entrypoints[i].custom.ash_typescript` — mirrors the
-      `config.ash_typescript` payload that `RpcConfigCollector` passed into
-      `Ash.Info.Manifest.Generator.generate/1`, plus pre-computed metadata
-      field-name mappings derived from `rpc_action.metadata_field_names` and the
-      off-wire `AshRpc.Entrypoint` for typed queries. Each typed query goes
+    * `manifest.entrypoints[i].custom.ash_typescript` — the `rpc_action`,
+      `typed_query` and `domain` of the `config.ash_typescript` payload that
+      `RpcConfigCollector` passed into `Ash.Info.Manifest.Generator.generate/1`,
+      plus the off-wire `AshRpc.Entrypoint` for typed queries. Each typed query goes
       through `AshRpc.Manifest.Decorator.check_untyped_structs!/4` (ash_rpc
       checks only wire entrypoints), which raises
       `AshRpc.Manifest.UntypedStructError` when it reaches an untyped struct
@@ -44,8 +43,8 @@ defmodule AshTypescript.Manifest.Decorator do
   in, returns a manifest out. All
   module-level information it needs (Spark DSL state on resource modules,
   `typescript_field_names/0` callbacks) is queried via the module atoms that
-  the manifest already references — the caller (`BuildManifest`) is responsible
-  for ensuring every referenced module is compiled before decoration runs.
+  the manifest already references — `BuildManifest`, which runs before it, is
+  responsible for ensuring every referenced module is compiled before decoration runs.
   """
 
   alias Ash.Info.Manifest
@@ -67,7 +66,7 @@ defmodule AshTypescript.Manifest.Decorator do
           hint: AshRpc.Manifest.UntypedStructError.hint(),
           custom_types: CustomTypes.custom_types()
         ) :: Manifest.t()
-  def decorate(%Manifest{} = manifest, opts \\ []) do
+  def decorate(%Manifest{} = manifest, opts) do
     lookups = %{
       resource_lookup: AshRpc.Manifest.resource_lookup(manifest),
       type_lookup: AshRpc.Manifest.type_lookup(manifest)
@@ -92,14 +91,12 @@ defmodule AshTypescript.Manifest.Decorator do
 
   defp decorate_resource(%Manifest.Resource{module: module} = resource) when is_atom(module) do
     if AshTypescript.RpcMappingSource.exposed_resource?(module) do
-      custom = %{type_name: AshTypescript.Codegen.Helpers.build_resource_type_name(module)}
+      custom = %{type_name: AshTypescript.Codegen.Helpers.derive_resource_type_name(module)}
       %Manifest.Resource{resource | custom: put_namespace(resource.custom, custom)}
     else
       resource
     end
   end
-
-  defp decorate_resource(%Manifest.Resource{} = resource), do: resource
 
   # ─────────────────────────────────────────────────────────────────
   # Type decoration
@@ -188,55 +185,11 @@ defmodule AshTypescript.Manifest.Decorator do
 
     custom_payload =
       ts
-      |> Map.take([:rpc_action, :typed_query, :domain, :resource_config])
-      |> Map.merge(metadata_decorations(ts))
-      |> Map.put(:exposed_metadata_fields, exposed_metadata_fields(ts, entrypoint.action))
-      |> Map.put(:load_restrictions, load_restrictions(ts))
-      |> Map.put(:filtering_enabled?, feature_enabled?(ts, :enable_filter?))
-      |> Map.put(:sorting_enabled?, feature_enabled?(ts, :enable_sort?))
+      |> Map.take([:rpc_action, :typed_query, :domain])
       |> Map.put(:typed_query_entrypoint, typed_query_entrypoint)
 
     %Manifest.Entrypoint{entrypoint | custom: put_namespace(entrypoint.custom, custom_payload)}
   end
-
-  defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint, _lookups, _hint), do: entrypoint
-
-  defp exposed_metadata_fields(%{rpc_action: rpc_action}, action) when not is_nil(rpc_action) do
-    AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(
-      rpc_action,
-      action
-    )
-  end
-
-  defp exposed_metadata_fields(_ts, _action), do: []
-
-  defp load_restrictions(%{rpc_action: rpc_action}) when not is_nil(rpc_action) do
-    allowed = Map.get(rpc_action, :allowed_loads)
-    denied = Map.get(rpc_action, :denied_loads)
-
-    cond do
-      not is_nil(allowed) -> {:allow, allowed}
-      not is_nil(denied) -> {:deny, denied}
-      true -> :none
-    end
-  end
-
-  defp load_restrictions(_), do: :none
-
-  defp feature_enabled?(%{rpc_action: rpc_action}, key) when not is_nil(rpc_action) do
-    Map.get(rpc_action, key, true)
-  end
-
-  defp feature_enabled?(_ts, _key), do: true
-
-  defp metadata_decorations(%{rpc_action: %{metadata_field_names: pairs}})
-       when is_list(pairs) do
-    mappings = Map.new(pairs)
-    %{metadata_field_mappings: mappings, reverse_metadata_field_mappings: reverse_map(mappings)}
-  end
-
-  defp metadata_decorations(_),
-    do: %{metadata_field_mappings: %{}, reverse_metadata_field_mappings: %{}}
 
   # ─────────────────────────────────────────────────────────────────
   # Helpers
@@ -244,9 +197,5 @@ defmodule AshTypescript.Manifest.Decorator do
 
   defp put_namespace(existing_custom, payload) when is_map(existing_custom) do
     Map.put(existing_custom, :ash_typescript, payload)
-  end
-
-  defp reverse_map(map) do
-    Enum.into(map, %{}, fn {k, v} -> {v, k} end)
   end
 end

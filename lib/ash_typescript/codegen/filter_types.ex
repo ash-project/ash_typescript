@@ -15,8 +15,10 @@ defmodule AshTypescript.Codegen.FilterTypes do
   `field.filter_operators` is a list of `%Ash.Info.Manifest.ApplicableOperator{}`
   records carrying both the canonical operator name (e.g. `:==`, `:<`) and a
   pre-resolved `rhs` (`:same` | `:any` | `{:concrete, type}` | `{:array, rhs}`).
-  The TS renderer maps the canonical name to a client-facing key via
-  `@operator_atom_to_key` and computes the RHS TS type from `op.rhs`.
+  The TS renderer types the operators in `@typed_operators` and the
+  functions in `@typed_functions`, names each by its Ash name in ash_rpc's
+  `:filter_ops` vocabulary (`AshRpc.Manifest.vocabulary/1`, the keys the
+  runtime accepts) and computes the RHS TS type from `op.rhs`.
 
   Operator values are typed with the field's input rendering: ash_rpc reads
   them as input, so a structured value takes the same client keys (optional
@@ -32,33 +34,28 @@ defmodule AshTypescript.Codegen.FilterTypes do
   """
   alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
+  alias AshTypescript.Rpc.Codegen.FunctionNames
 
-  # Mapping from canonical operator names (`%ApplicableOperator{}.name`, the
-  # symbols that appear in `Ash.Query.filter` expressions) to the TS filter
-  # keys exposed to clients. Names not in this map are dropped — to expose
-  # more operators, add an entry here and the corresponding TS code that
-  # consumes them.
-  @operator_atom_to_key %{
-    :== => "eq",
-    :!= => "not_eq",
-    :< => "less_than",
-    :> => "greater_than",
-    :<= => "less_than_or_equal",
-    :>= => "greater_than_or_equal",
-    :in => "in",
-    :is_nil => "is_nil"
+  # The typed operators: canonical operator names (`%ApplicableOperator{}.name`,
+  # the symbols that appear in `Ash.Query.filter` expressions) to their Ash
+  # operator names, which ash_rpc's `:filter_ops` vocabulary names for the
+  # client. Operators not in this map are dropped — to expose more, add an
+  # entry here and the corresponding TS code that consumes them.
+  @typed_operators %{
+    :== => :eq,
+    :!= => :not_eq,
+    :< => :less_than,
+    :> => :greater_than,
+    :<= => :less_than_or_equal,
+    :>= => :greater_than_or_equal,
+    :in => :in,
+    :is_nil => :is_nil
   }
 
-  # Mapping from predicate-function names (`%ApplicableFunction{}.name`) to
-  # the TS filter keys exposed to clients. Same dropping rule as
-  # `@operator_atom_to_key` — names not listed here are skipped. Limited to
-  # the well-understood string/array predicates today; expand as needed.
-  @function_atom_to_key %{
-    :contains => "contains",
-    :string_starts_with => "string_starts_with",
-    :string_ends_with => "string_ends_with",
-    :has => "has"
-  }
+  # The typed predicate functions (`%ApplicableFunction{}.name`). Same
+  # dropping rule as `@typed_operators`. Limited to the well-understood
+  # string/array predicates today; expand as needed.
+  @typed_functions MapSet.new([:contains, :string_starts_with, :string_ends_with, :has])
 
   # TS type for builtin Ash type modules appearing in `{:concrete, module}` rhs
   # entries. Limited to the small set actually used by predicate operators
@@ -71,13 +68,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     Ash.Type.Float => "number"
   }
 
-  defp format_field(field_name) do
-    AshTypescript.FieldFormatter.format_field_name(field_name, formatter())
-  end
+  # The client key ash_rpc reads for a filter operator, function or connective.
+  defp filter_key(name), do: ClientNames.vocabulary!(:filter_ops, name)
 
-  defp formatter do
-    AshTypescript.Rpc.output_field_formatter()
-  end
+  @doc false
+  # The `:filter_ops` names codegen types: the typed operators and functions.
+  @spec typed_filter_ops() :: [atom()]
+  def typed_filter_ops, do: Map.values(@typed_operators) ++ MapSet.to_list(@typed_functions)
 
   # ─────────────────────────────────────────────────────────────────
   # Public API
@@ -152,7 +149,8 @@ defmodule AshTypescript.Codegen.FilterTypes do
     end
   end
 
-  # Convenience: generates spec internally for callers without resource_lookup
+  # Test seam: builds the resource lookup itself.
+  @doc false
   def generate_filter_type(resource) do
     resource_lookup = build_resource_lookup()
     all_resources = Map.keys(resource_lookup)
@@ -165,7 +163,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   defp generate_filter_type_from_spec(resource, api_resource, allowed_resources, resource_lookup) do
     resource_name = Helpers.build_resource_type_name(resource)
-    filter_type_name = "#{resource_name}FilterInput"
+    filter_type_name = FunctionNames.filter_input_type(resource_name)
 
     field_filters =
       api_resource
@@ -217,7 +215,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # while `:first`/`:max`/`:min`/`:sum`/`:avg` are nullable.
   defp manifest_operations(%Ash.Info.Manifest.Field{} = field, base_type) do
     field.filter_operators
-    |> Enum.filter(fn %{name: name} -> Map.has_key?(@operator_atom_to_key, name) end)
+    |> Enum.filter(fn %{name: name} -> Map.has_key?(@typed_operators, name) end)
     |> Enum.reject(fn %{name: name} -> name == :is_nil and not field.allow_nil? end)
     |> Enum.filter(&allowed?(field, &1))
     |> Enum.map(&format_operation(&1, base_type))
@@ -275,7 +273,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   defp manifest_function_operations(%Ash.Info.Manifest.Field{} = field, base_type) do
     field.filter_functions
     |> Enum.filter(fn %{name: name} = function ->
-      Map.has_key?(@function_atom_to_key, name) and allowed?(field, function)
+      MapSet.member?(@typed_functions, name) and allowed?(field, function)
     end)
     |> Enum.map(&format_function(&1, base_type))
   end
@@ -285,12 +283,12 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # ─────────────────────────────────────────────────────────────────
 
   # Boolean connectives come from `manifest.filter_capabilities.boolean_connectives`
-  # (`and`, `or`, `not`). ash_rpc reads them under their formatted names, like
-  # every other filter key.
+  # (`and`, `or`, `not`), named like every other filter key by ash_rpc's
+  # `:filter_ops` vocabulary.
   defp generate_logical_operators(filter_type_name) do
     AshTypescript.manifest().filter_capabilities.boolean_connectives
     |> Enum.map_join("\n", fn connective ->
-      "  #{format_field(connective)}?: Array<#{filter_type_name}>;"
+      "  #{filter_key(connective)}?: Array<#{filter_type_name}>;"
     end)
     |> Kernel.<>("\n")
   end
@@ -298,7 +296,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   defp generate_relationship_filter(api_resource, relationship) do
     related_resource = relationship.destination
     related_resource_name = Helpers.build_resource_type_name(related_resource)
-    filter_type_name = "#{related_resource_name}FilterInput"
+    filter_type_name = FunctionNames.filter_input_type(related_resource_name)
 
     formatted_name = ClientNames.resource_field(api_resource, relationship.name)
 
@@ -307,43 +305,57 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp format_operation(%Ash.Info.Manifest.ApplicableOperator{name: name, rhs: rhs}, base_type) do
-    "    #{format_field(@operator_atom_to_key[name])}?: #{rhs_to_ts(rhs, base_type)};"
+  defp format_operation(%Ash.Info.Manifest.ApplicableOperator{name: name} = operator, base_type) do
+    "    #{filter_key(@typed_operators[name])}?: #{rhs_to_ts(operator, base_type)};"
   end
 
-  defp format_function(%Ash.Info.Manifest.ApplicableFunction{name: name, rhs: rhs}, base_type) do
-    base_type_for_function = function_base_type(name, base_type)
-
-    "    #{format_field(@function_atom_to_key[name])}?: #{rhs_to_ts(rhs, base_type_for_function)};"
+  defp format_function(%Ash.Info.Manifest.ApplicableFunction{name: name} = function, base_type) do
+    "    #{filter_key(name)}?: #{rhs_to_ts(function, base_type)};"
   end
 
-  # `:has` operates on an array field but the RHS is a single element. When
-  # the field type is `Array<X>`, the rhs `:same` (the array type) needs to
-  # collapse to `X` so the TS user provides an element, not an array. Only the
-  # single closing `>` of the `Array<...>` wrapper is dropped — the element
-  # type itself may end in `>` (e.g. `Array<Record<string, any>>`).
-  defp function_base_type(:has, "Array<" <> rest) do
-    binary_part(rest, 0, byte_size(rest) - 1)
+  @doc false
+  # The value an operator or function takes, from its `rhs`, folded with
+  # `value` and `array`: `value.(:field)` for the field's own type (`:same`,
+  # `:any`), `value.(:element)` for one element of it (`has` on an array
+  # field), `value.({:concrete, module})` for a fixed type (`isNil`), and
+  # `array.(inner)` around the value of `{:array, rhs}` (`in`). The filter
+  # types type operator values with it, typed queries render them with it.
+  @spec operator_value(
+          Ash.Info.Manifest.ApplicableOperator.t() | Ash.Info.Manifest.ApplicableFunction.t(),
+          (:field | :element | {:concrete, module()} -> value),
+          (value -> value)
+        ) :: value
+        when value: term()
+  def operator_value(%{name: name, rhs: rhs}, value, array) do
+    fold_rhs(rhs, if(name == :has, do: :element, else: :field), value, array)
   end
 
-  defp function_base_type(_name, base_type), do: base_type
+  defp fold_rhs(rhs, same, value, _array) when rhs in [:same, :any], do: value.(same)
+  defp fold_rhs({:concrete, _module} = concrete, _same, value, _array), do: value.(concrete)
 
-  # Map an `%ApplicableOperator{}.rhs` value to a TS type string.
-  # `:same`/`:any` use the field's own TS type — for comparisons that's the
-  # semantically intended type. Concrete builtin atoms map through the small
-  # `@builtin_rhs_to_ts` table; arrays wrap recursively.
-  defp rhs_to_ts(:same, base_type), do: base_type
-  defp rhs_to_ts(:any, base_type), do: base_type
+  defp fold_rhs({:array, inner}, same, value, array),
+    do: array.(fold_rhs(inner, same, value, array))
 
-  defp rhs_to_ts({:concrete, module}, base_type) when is_atom(module) do
-    Map.get(@builtin_rhs_to_ts, module, base_type)
+  # The TS type of an operator's value. The field's own type is `base_type`,
+  # concrete builtin types map through `@builtin_rhs_to_ts` (others fall back
+  # to `base_type`), arrays wrap.
+  defp rhs_to_ts(applicable, base_type) do
+    operator_value(
+      applicable,
+      fn
+        :field -> base_type
+        :element -> element_type(base_type)
+        {:concrete, module} -> Map.get(@builtin_rhs_to_ts, module, base_type)
+      end,
+      &"Array<#{&1}>"
+    )
   end
 
-  defp rhs_to_ts({:array, inner}, base_type) do
-    "Array<#{rhs_to_ts(inner, base_type)}>"
-  end
-
-  defp rhs_to_ts(_, base_type), do: base_type
+  # One element of an `Array<X>` field type, for `has`. Only the single
+  # closing `>` of the `Array<...>` wrapper is dropped: the element type
+  # itself may end in `>` (e.g. `Array<Record<string, any>>`).
+  defp element_type("Array<" <> rest), do: binary_part(rest, 0, byte_size(rest) - 1)
+  defp element_type(base_type), do: base_type
 
   defp build_resource_lookup do
     AshTypescript.resource_lookup()
