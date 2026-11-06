@@ -140,11 +140,8 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
       nil ->
         ""
 
-      imports when is_list(imports) ->
+      imports ->
         ImportResolver.resolve_custom_imports(target_output_file, imports)
-
-      _ ->
-        ""
     end
   end
 end

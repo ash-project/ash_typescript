@@ -275,6 +275,23 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       end)
     end
 
+    test "a valibot MFA returning a non-string raises with the whole message" do
+      entry = %Scalar{
+        module: IntegerStorageType,
+        type: Ash.Type.Integer,
+        valibot: {__MODULE__, :non_string_schema, []}
+      }
+
+      declare(entry, fn ->
+        error = assert_raise ArgumentError, fn -> valibot(IntegerStorageType) end
+
+        assert Exception.message(error) ==
+                 "the `valibot` MFA AshTypescript.Rpc.CustomTypeSchemaTest.non_string_schema/1 " <>
+                   "of the custom type #{inspect(IntegerStorageType)} must return a string, " <>
+                   "got: :not_a_string"
+      end)
+    end
+
     test "an entry is per module" do
       entry = %Scalar{module: IntegerStorageType, type: Ash.Type.Integer, zod: "z.string()"}
 

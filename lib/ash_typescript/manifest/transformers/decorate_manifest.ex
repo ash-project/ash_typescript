@@ -34,15 +34,15 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   `AshTypescript.Manifest.Decorator` gets the declarations too, for the
   names of the aliases and schemas of declared custom types and of the
   field-bearing NewTypes that opt into an alias. A `typescript_type_alias/0`
-  that returns anything but a string, and an aliased field-bearing NewType
-  that exports `typescript_type/0` (named by `typescript_type_alias/0`), are
-  a `Spark.Error.DslError`
+  that returns anything but a string, and a field-bearing or union NewType
+  that exports `typescript_type/0` (aliased or not: its TypeScript comes
+  from its fields), are a `Spark.Error.DslError`
   (`AshTypescript.CustomTypes.check_alias_names/2`). So is, checked first, a
   reached type module exporting `typescript_type_name/0` or
   `typescript_alias_name/0`, the callbacks' former names: the error names
   `typescript_type/0` / `typescript_type_alias/0`, or says to remove
-  `typescript_type_name/0` from a map-like type whose TypeScript comes from
-  its fields (`AshTypescript.CustomTypes.check_renamed_callbacks/2`).
+  `typescript_type_name/0` from a type whose TypeScript comes from its
+  fields (`AshTypescript.CustomTypes.check_renamed_callbacks/1`).
 
   Last, the fully decorated manifest's client names (the keys of generated
   objects), binding names (the functions, consts, types and schemas
@@ -66,38 +66,33 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
 
   @impl true
   def transform(dsl_state) do
-    case Transformer.get_persisted(dsl_state, :manifest) do
-      nil ->
-        {:ok, dsl_state}
+    manifest = Transformer.get_persisted(dsl_state, :manifest)
+    custom_types = Transformer.get_persisted(dsl_state, :custom_types)
+    fields_fun = AshTypescript.CustomTypes.fields_fun(custom_types)
+    hint_fun = AshTypescript.CustomTypes.hint_fun(custom_types)
+    routes = Transformer.get_persisted(dsl_state, :typed_routes, [])
+    publications = Transformer.get_persisted(dsl_state, :typed_publications, [])
 
-      manifest ->
-        custom_types = Transformer.get_persisted(dsl_state, :custom_types)
-        fields_fun = AshTypescript.CustomTypes.fields_fun(custom_types)
-        hint_fun = AshTypescript.CustomTypes.hint_fun(custom_types)
-        routes = Transformer.get_persisted(dsl_state, :typed_routes, [])
-        publications = Transformer.get_persisted(dsl_state, :typed_publications, [])
+    rpc_decorated =
+      manifest
+      |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
+        custom_type_fields: fields_fun,
+        custom_type_fields_hint: hint_fun,
+        extra_types: TypedRoutes.types(routes, publications)
+      )
+      |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
 
-        rpc_decorated =
-          manifest
-          |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource,
-            custom_type_fields: fields_fun,
-            custom_type_fields_hint: hint_fun,
-            extra_types: TypedRoutes.types(routes, publications)
-          )
-          |> TypedRoutes.decorate(routes, publications, fields_fun, hint_fun)
+    with :ok <- check_renamed_callbacks(dsl_state, rpc_decorated),
+         :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
+      decorated =
+        rpc_decorated
+        |> Decorator.decorate(hint: hint_fun, custom_types: custom_types)
+        |> put_custom_types(custom_types)
+        |> AshRpc.Manifest.put_lookups()
 
-        with :ok <- check_renamed_callbacks(dsl_state, rpc_decorated, custom_types),
-             :ok <- check_alias_names(dsl_state, rpc_decorated, custom_types) do
-          decorated =
-            rpc_decorated
-            |> Decorator.decorate(hint: hint_fun, custom_types: custom_types)
-            |> put_custom_types(custom_types)
-            |> AshRpc.Manifest.put_lookups()
-
-          with :ok <- name_check(dsl_state, decorated, custom_types) do
-            {:ok, persist(dsl_state, decorated, custom_types)}
-          end
-        end
+      with :ok <- name_check(dsl_state, decorated, custom_types) do
+        {:ok, persist(dsl_state, decorated, custom_types)}
+      end
     end
   end
 
@@ -111,9 +106,8 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
     |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
   end
 
-  defp check_renamed_callbacks(dsl_state, manifest, custom_types) do
-    with {:error, message} <-
-           AshTypescript.CustomTypes.check_renamed_callbacks(manifest, custom_types),
+  defp check_renamed_callbacks(dsl_state, manifest) do
+    with {:error, message} <- AshTypescript.CustomTypes.check_renamed_callbacks(manifest),
          do: dsl_error(dsl_state, message)
   end
 
@@ -160,10 +154,11 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
     %Ash.Info.Manifest{manifest | custom: custom}
   end
 
+  @doc false
   # Typed-query entrypoints keyed by name (as a string), read through
   # `AshTypescript.typed_query_lookup/1`. The runtime doesn't use it: ash_rpc
   # resolves wire entrypoints from its own `custom.ash_rpc` lookups.
-  defp build_typed_query_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
+  def build_typed_query_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
     Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
       case Custom.typed_query(entrypoint) do
         nil -> acc

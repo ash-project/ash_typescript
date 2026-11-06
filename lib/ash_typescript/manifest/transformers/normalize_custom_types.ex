@@ -248,9 +248,9 @@ defmodule AshTypescript.Manifest.Transformers.NormalizeCustomTypes do
   end
 
   # A field-less `map` entry (an explicit alias opt-in) on a field-bearing
-  # NewType that names its own TypeScript type. The callback opt-in
-  # (`typescript_type_alias/0`) is checked by `DecorateManifest`
-  # (`CustomTypes.check_alias_names/2`). A scalar combines
+  # NewType that names its own TypeScript type. Every other field-bearing or
+  # union NewType the manifest reaches is checked by `DecorateManifest`
+  # (`CustomTypes.check_alias_names/2`), aliased or not. A scalar combines
   # `typescript_type/0` with any opt-in: it is the alias body.
   defp check_no_type_callback(%MapType{} = map) do
     if exports_type?(map.module),

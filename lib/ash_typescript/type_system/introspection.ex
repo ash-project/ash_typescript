@@ -8,8 +8,7 @@ defmodule AshTypescript.TypeSystem.Introspection do
 
   Detects custom types (`typescript_type/0`), resolves named type
   definitions from the decorated manifest, walks the type nodes codegen
-  renders (`reachable_nodes/1`), and reads `typescript_field_names/0`
-  mappings.
+  renders (`reachable_nodes/1`).
   """
 
   alias Ash.Info.Manifest.Type
@@ -50,17 +49,14 @@ defmodule AshTypescript.TypeSystem.Introspection do
     as: :named_type!
 
   @doc """
-  `type`, or the definition of the named type (`:type_ref`) it is, resolved
-  through named types until a node that isn't one. A named type with no
-  definition (an opaque scalar custom type) stays a `:type_ref`.
+  `type`, or the definition of the named type (`:type_ref`) it is. A
+  definition is resolved through NewTypes (an opaque scalar custom type to
+  `:unknown`), so it is a `:type_ref` only for a NewType over an enum, whose
+  definition is a `:type_ref` to itself.
   """
   @spec resolve_named_type(Type.t()) :: Type.t()
-  def resolve_named_type(%Type{kind: :type_ref, module: module} = type) do
-    case AshRpc.Introspection.named_type_definition(AshTypescript.type_lookup(), module) do
-      %Type{kind: :type_ref} -> type
-      %Type{} = definition -> resolve_named_type(definition)
-    end
-  end
+  def resolve_named_type(%Type{kind: :type_ref, module: module}),
+    do: AshRpc.Introspection.named_type_definition(AshTypescript.type_lookup(), module)
 
   def resolve_named_type(%Type{} = type), do: type
 
@@ -107,24 +103,4 @@ defmodule AshTypescript.TypeSystem.Introspection do
     do: Enum.map(Type.get_fields(container), & &1.type)
 
   defp inner_types(_type), do: []
-
-  @doc """
-  Gets the typescript_field_names as a map, or empty map if not available.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.get_typescript_field_names_map(MyApp.TaskStats)
-      %{is_active?: "isActive", meta_1: "meta1"}
-  """
-  def get_typescript_field_names_map(nil), do: %{}
-
-  def get_typescript_field_names_map(module) when is_atom(module) do
-    if AshTypescript.Helpers.has_typescript_field_names?(module) do
-      module.typescript_field_names() |> Map.new()
-    else
-      %{}
-    end
-  end
-
-  def get_typescript_field_names_map(_), do: %{}
 end

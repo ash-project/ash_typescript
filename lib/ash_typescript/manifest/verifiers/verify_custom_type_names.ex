@@ -68,8 +68,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames do
     Enum.uniq(TypeAliases.fixed_alias_names() ++ utility_types)
   end
 
-  defp do_verify(nil, _module), do: :ok
-
   defp do_verify(%Manifest{} = manifest, module) do
     map_aliases =
       Enum.flat_map(manifest.types, fn definition ->

@@ -19,20 +19,6 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   # Type Constants
   # ─────────────────────────────────────────────────────────────────
 
-  @aggregate_types %{
-    count: "v.pipe(v.number(), v.integer())",
-    sum: "v.number()",
-    exists: "v.boolean()",
-    avg: "v.number()",
-    min: "v.any()",
-    max: "v.any()",
-    first: "v.any()",
-    last: "v.any()",
-    list: "v.array(v.any())",
-    custom: "v.any()",
-    integer: "v.pipe(v.number(), v.integer())"
-  }
-
   @simple_primitives %{
     Ash.Type.Boolean => "v.boolean()",
     Ash.Type.UUID => "v.pipe(v.string(), v.uuid())",
@@ -58,18 +44,10 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
     Ash.Type.Module => "v.string()"
   }
 
-  @atom_primitives %{
-    map: "v.record(v.string(), v.any())",
-    sum: "v.number()",
-    count: "v.pipe(v.number(), v.integer())"
-  }
-
   # ─────────────────────────────────────────────────────────────────
   # SchemaFormatter callbacks
   # ─────────────────────────────────────────────────────────────────
 
-  @impl true
-  def null_schema, do: "v.null()"
   @impl true
   def any_schema, do: "v.any()"
   @impl true
@@ -77,11 +55,7 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def custom_imports, do: AshTypescript.Rpc.valibot_import_into_generated()
   @impl true
-  def aggregate_types, do: @aggregate_types
-  @impl true
   def simple_primitives, do: @simple_primitives
-  @impl true
-  def atom_primitives, do: @atom_primitives
   @impl true
   def format_array(inner, constraints) do
     pipes =
@@ -104,6 +78,8 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   def wrap_nullable(schema), do: "v.nullable(#{schema})"
   @impl true
   def wrap_lazy(schema), do: "v.lazy(() => #{schema})"
+  @impl true
+  def schema_type(type_name), do: "v.GenericSchema<#{type_name}>"
   @impl true
   def wrap_object(fields), do: "v.object({ #{fields} })"
   @impl true
@@ -154,13 +130,9 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   # Public API (delegates to SchemaCore)
   # ─────────────────────────────────────────────────────────────────
 
-  @doc "Generates a Valibot schema definition for an RPC action's input."
+  @doc false
   def generate_valibot_schema(resource, action, rpc_action_name),
     do: SchemaCore.generate_action_schema(__MODULE__, resource, action, rpc_action_name)
-
-  @doc "Generates a Valibot schema for a single resource."
-  def generate_valibot_schema_for_resource(resource),
-    do: SchemaCore.generate_schema_for_resource(__MODULE__, resource)
 
   # ─────────────────────────────────────────────────────────────────
   # Private — string constraint builder (v.pipe style)

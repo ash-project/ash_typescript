@@ -15,14 +15,10 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
       defmodule MyLib.SchemaFormatter do
         @behaviour AshTypescript.Codegen.SchemaFormatter
 
-        def null_schema, do: "ml.null()"
         def any_schema, do: "ml.any()"
         # ...
       end
   """
-
-  @doc "Schema for nil / null type"
-  @callback null_schema() :: String.t()
 
   @doc "Fallback schema for unknown/any type"
   @callback any_schema() :: String.t()
@@ -43,14 +39,8 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   """
   @callback custom_imports() :: list(map())
 
-  @doc "Map of aggregate kind atoms to their schema strings (e.g. `%{count: \"z.number().int()\"}`)."
-  @callback aggregate_types() :: %{atom() => String.t()}
-
   @doc "Map of simple Ash type modules to schema strings — no constraint handling needed."
   @callback simple_primitives() :: %{module() => String.t()}
-
-  @doc "Map of atom-symbol primitives (e.g. `:map`) to schema strings."
-  @callback atom_primitives() :: %{atom() => String.t()}
 
   @doc "Build an array schema, applying outer `:min_length` and `:max_length` constraints."
   @callback format_array(inner :: String.t(), constraints :: keyword()) :: String.t()
@@ -79,9 +69,18 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   A deferred reference, for a schema defined later in the file: in zod
   `z.lazy(() => schema)`, in valibot `v.lazy(() => schema)`. Named schemas of
   declared custom types are emitted before the resource schemas, so their
-  references to resource schemas are deferred.
+  references to resource schemas are deferred; a resource schema on a cycle
+  is itself lazy.
   """
   @callback wrap_lazy(schema :: String.t()) :: String.t()
+
+  @doc """
+  The schema type a lazy schema whose values have the TypeScript type
+  `type_name` is cast to: in zod `z.ZodType<type_name>`, in valibot
+  `v.GenericSchema<type_name>`. A schema that references itself needs one,
+  since TypeScript can't infer its type.
+  """
+  @callback schema_type(type_name :: String.t()) :: String.t()
 
   @doc "Wrap a comma-joined set of `key: schema` fields in an inline object schema."
   @callback wrap_object(fields :: String.t()) :: String.t()

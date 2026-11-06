@@ -15,7 +15,8 @@ defmodule AshTypescript.CustomTypes.Builtin do
       constraint (`AshPostgresLtreeArray` with `escape?: true`, else
       `AshPostgresLtreeFlexible`).
 
-  A manifest entry for one of these modules replaces the built-in whole.
+  A manifest entry for one of these modules replaces the built-in whole,
+  except that a `map` entry without `ts_alias` keeps the alias `Money`.
   The modules belong to optional dependencies, so the entries hold only
   atoms and nothing here calls into them.
   """

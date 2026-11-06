@@ -7,13 +7,21 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
   # routes and typed channels files reference (aliases and the channel
   # types; route and channel types are plain data, so they reach no
   # resource schema), and they import it as in RPC projects. Nothing shared:
-  # no types file and no re-export.
+  # no types file and no re-export. The schema files hold no resource
+  # schemas either.
   # Codegen returns the files without writing them, so the configured
   # paths are used as they are.
   use ExUnit.Case, async: false
 
   import AshTypescript.Test.CodegenTestHelper,
-    only: [generate_files: 2, routes_content: 1, typed_channels_content: 1, types_content: 1]
+    only: [
+      generate_files: 2,
+      routes_content: 1,
+      typed_channels_content: 1,
+      types_content: 1,
+      valibot_content: 1,
+      zod_content: 1
+    ]
 
   alias AshTypescript.Codegen.NoRpcTypesFileTest, as: T
   alias AshTypescript.Test.InlineManifest
@@ -29,9 +37,7 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
     :enable_controller_namespace_files,
     :router,
     :manifest,
-    :import_into_generated,
-    :generate_zod_schemas,
-    :generate_valibot_schemas
+    :import_into_generated
   ]
 
   @types_file "./test/ts/ash_types.ts"
@@ -149,6 +155,29 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
 
       assert channels =~ ~s(export type * from "./ash_types";)
     end
+
+    # Route arguments are plain data, so nothing in this mode references a
+    # resource schema, nor a custom type schema that reaches a resource.
+    test "the schema files hold no resource schemas and import no input types", %{
+      files: files
+    } do
+      for {content, suffix} <- [
+            {zod_content(files), "ZodSchema"},
+            {valibot_content(files), "ValibotSchema"}
+          ] do
+        refute content =~ "Schemas for Input Resources"
+        refute content =~ "import type"
+        refute content =~ "InputSchema"
+
+        for resource <- ~w(TaskNote TaskMetadata TodoMetadata User),
+            do: refute(content =~ "export const #{resource}#{suffix} =")
+
+        refute content =~ "export const LineItem#{suffix} ="
+        assert content =~ "export const Money#{suffix} ="
+        assert content =~ "export const Theme#{suffix} ="
+        assert content =~ "export const login#{suffix} ="
+      end
+    end
   end
 
   describe "a route reaching aliases" do
@@ -183,10 +212,6 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
     end
 
     test "a manifest without domains generates the route's aliases" do
-      # The zod and valibot files render the app's embedded resources, which
-      # a manifest without domains lacks.
-      Application.put_env(:ash_typescript, :generate_zod_schemas, false)
-      Application.put_env(:ash_typescript, :generate_valibot_schemas, false)
       opts = [domains: [], typed_controllers: [T.AliasController]]
       manifest = InlineManifest.build!(opts)
       # Codegen verifies the configured manifest module.
@@ -273,5 +298,19 @@ defmodule AshTypescript.Codegen.NoRpcTypesFileTest do
         do: assert(exported?(types, name), "#{name} not exported")
 
     assert routes_content(files) =~ ~s(export type * from "./ash_types";)
+  end
+
+  test "RPC projects keep the resource schemas" do
+    {:ok, files} = generate_files(:ash_typescript, [])
+
+    for {content, suffix} <- [
+          {zod_content(files), "ZodSchema"},
+          {valibot_content(files), "ValibotSchema"}
+        ] do
+      assert content =~ ~s(import type { TaskNoteInputSchema, )
+
+      for name <- ~w(TaskNote TaskMetadata LineItem Money),
+          do: assert(content =~ "export const #{name}#{suffix} =", "#{name}#{suffix} missing")
+    end
   end
 end

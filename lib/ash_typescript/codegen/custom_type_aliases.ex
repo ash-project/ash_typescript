@@ -149,10 +149,22 @@ defmodule AshTypescript.Codegen.CustomTypeAliases do
   reference, so its input and schema uses render inline.
   """
   @spec reaches_resource?(Type.t()) :: boolean()
-  def reaches_resource?(%Type{} = definition) do
+  def reaches_resource?(%Type{} = definition), do: reaches_kind?(definition, [:resource])
+
+  @doc """
+  True when a definition's fields reach a resource or an embedded resource,
+  walked like `reaches_resource?/1`. Codegen without RPC output emits no
+  resource schemas, so it leaves such definitions' named schemas out
+  (`AshTypescript.Codegen.SchemaCore.generate_custom_type_schemas/2`).
+  """
+  @spec reaches_any_resource?(Type.t()) :: boolean()
+  def reaches_any_resource?(%Type{} = definition),
+    do: reaches_kind?(definition, [:resource, :embedded_resource])
+
+  defp reaches_kind?(definition, kinds) do
     [definition]
     |> Introspection.reachable_nodes()
-    |> Enum.any?(&match?(%Type{kind: :resource}, &1))
+    |> Enum.any?(&(&1.kind in kinds))
   end
 
   @doc """

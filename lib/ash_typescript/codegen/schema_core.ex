@@ -261,8 +261,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   - `%Ash.Info.Manifest.Type{}` — the canonical spec form
   - `%Ash.Info.Manifest.Argument{}` / `%Ash.Info.Manifest.Field{}` — anything with a
     `:type` field carrying a `%Ash.Info.Manifest.Type{}`
-  - Aggregate kind atoms (e.g. `:count`, `:sum`) — looked up in
-    `formatter.aggregate_types()`
 
   Callers must feed spec data. Raw Ash types (atom modules, `{:array, _}`
   tuples, `%{type: SomeType, constraints: [...]}` shapes) are no longer
@@ -276,10 +274,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   applies uniformly, including nested string fields inside typed containers.
   """
   def get_type(formatter, type_input, context \\ nil)
-
-  def get_type(formatter, kind, _context) when is_atom(kind) and not is_nil(kind) do
-    Map.get(formatter.aggregate_types(), kind, formatter.any_schema())
-  end
 
   def get_type(formatter, %SpecType{} = type_info, _context) do
     map_spec_type(formatter, type_info)
@@ -381,16 +375,25 @@ defmodule AshTypescript.Codegen.SchemaCore do
   Every resource must be in the manifest (`AshTypescript.resource_lookup/0`,
   `AshTypescript.with_manifest/2` applies), since field names come from its
   decoration; a missing one raises `ArgumentError`.
+
+  Each schema follows the schemas it references, except the schemas on a
+  cycle (`recursive_resources/2`): those are lazy (`wrap_lazy/1`) and cast
+  to the resource's input type (`schema_type/1`), so they can reference
+  themselves and schemas declared after them. A cast, not an annotation:
+  the schema's optional fields accept `undefined`, which the input type's
+  optional fields don't under `exactOptionalPropertyTypes`.
   """
   def generate_schemas_for_resources(formatter, resources) do
     if formatter.generate_schemas_enabled?() and resources != [] do
       uniq_resources = Enum.uniq(resources)
       resource_lookup = manifest_lookup!(uniq_resources)
 
+      {sorted, recursive} = sort_resource_schemas(uniq_resources, formatter, resource_lookup)
+
       schemas =
-        uniq_resources
-        |> topological_sort(formatter, resource_lookup)
-        |> Enum.map_join("\n\n", &generate_schema_for_resource(formatter, &1, resource_lookup))
+        Enum.map_join(sorted, "\n\n", fn resource ->
+          generate_schema_impl(formatter, resource, resource_lookup, resource in recursive)
+        end)
 
       """
       // ============================
@@ -404,10 +407,27 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  @doc "Generates a schema for a single resource."
-  def generate_schema_for_resource(formatter, resource, resource_lookup \\ nil) do
-    lookup = resource_lookup || manifest_lookup!([resource])
-    generate_schema_impl(formatter, resource, lookup)
+  @doc """
+  The resources among `resources` whose schemas are on a cycle of the schema
+  dependency graph (an embedded resource containing itself, or resources
+  containing each other), which `generate_schemas_for_resources/2` renders
+  lazily. Each such schema is cast to the resource's TypeScript input type
+  (`AshTypescript.Codegen.Helpers.resource_input_type_name/1`), so the schema
+  file imports them from the types file.
+  """
+  @spec recursive_resources(module(), [module()]) :: [module()]
+  def recursive_resources(formatter, resources) do
+    if formatter.generate_schemas_enabled?() and resources != [] do
+      uniq_resources = Enum.uniq(resources)
+      resource_lookup = manifest_lookup!(uniq_resources)
+
+      uniq_resources
+      |> resource_deps_map(formatter, resource_lookup)
+      |> cyclic_nodes()
+      |> Enum.sort_by(&inspect/1)
+    else
+      []
+    end
   end
 
   @doc """
@@ -457,12 +477,28 @@ defmodule AshTypescript.Codegen.SchemaCore do
   rejects recursive aliased types before rendering any schema
   (`CustomTypeAliases.check_recursive_types!/0`).
 
+  With `resources?: false` (codegen without RPC output, which emits no
+  resource schemas), definitions that reach a resource or an embedded
+  resource are left out: their schemas would reference resource schemas the
+  file doesn't have, and nothing uses them there (route arguments are plain
+  data). Leaving one out never strands another, since a definition reaches
+  what the definitions it references reach.
+
   Definitions are read from the configured manifest
   (`AshTypescript.with_manifest/2` applies).
   """
-  @spec generate_custom_type_schemas(module()) :: String.t()
-  def generate_custom_type_schemas(formatter) do
-    case custom_type_schema_definitions(formatter) do
+  @spec generate_custom_type_schemas(module(), keyword()) :: String.t()
+  def generate_custom_type_schemas(formatter, opts \\ []) do
+    definitions =
+      if Keyword.get(opts, :resources?, true) do
+        custom_type_schema_definitions(formatter)
+      else
+        Enum.reject(custom_type_schema_definitions(formatter), fn {_name, definition} ->
+          CustomTypeAliases.reaches_any_resource?(definition)
+        end)
+      end
+
+    case definitions do
       [] ->
         ""
 
@@ -605,10 +641,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
       fields != [] ->
         build_object_from_fields(formatter, type_info, fields, opts)
 
-      type_info.kind == :struct and type_info.instance_of != nil and
-          Spark.Dsl.is?(type_info.instance_of, Ash.Resource) ->
-        map_resource_ref(formatter, type_info.instance_of, opts)
-
+      # A struct `instance_of` a resource is a `:resource` or
+      # `:embedded_resource` node in the manifest, never `:struct`.
       type_info.kind == :struct and type_info.instance_of != nil ->
         formatter.wrap_object("")
 
@@ -711,7 +745,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — resource schema generation
   # ─────────────────────────────────────────────────────────────────
 
-  defp generate_schema_impl(formatter, resource, resource_lookup) do
+  defp generate_schema_impl(formatter, resource, resource_lookup, recursive?) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     schema_name = "#{resource_name}#{formatter.schema_suffix()}"
     kw = formatter.library_prefix()
@@ -730,28 +764,70 @@ defmodule AshTypescript.Codegen.SchemaCore do
         "  #{formatted_name}: #{schema_type},"
       end)
 
-    """
-    export const #{schema_name} = #{kw}.object({
-    #{fields}
-    });
-    """
+    if recursive? do
+      schema_type = formatter.schema_type(CodegenHelpers.resource_input_type_name(resource))
+
+      """
+      export const #{schema_name} = #{formatter.wrap_lazy("#{kw}.object({\n#{fields}\n})")} as #{schema_type};
+      """
+    else
+      """
+      export const #{schema_name} = #{kw}.object({
+      #{fields}
+      });
+      """
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────
   # Private — topological sort (Kahn's algorithm)
   # ─────────────────────────────────────────────────────────────────
 
-  defp topological_sort(resources, formatter, resource_lookup) do
+  # Returns `{sorted, recursive}`. A schema on a cycle references its
+  # dependencies lazily, so it has none for the sort: it can be declared
+  # before them, and everything else follows it.
+  defp sort_resource_schemas(resources, formatter, resource_lookup) do
+    deps_map = resource_deps_map(resources, formatter, resource_lookup)
+    recursive = cyclic_nodes(deps_map)
+
+    eager_deps =
+      Map.new(deps_map, fn {node, deps} -> {node, eager_deps(node, deps, recursive)} end)
+
+    # No dependency of a node on a cycle is left, so every node is sorted.
+    {sorted, _remaining} = kahns_sort(resources, eager_deps, &inspect/1)
+
+    {sorted, recursive}
+  end
+
+  defp eager_deps(node, deps, recursive),
+    do: if(MapSet.member?(recursive, node), do: [], else: deps)
+
+  defp resource_deps_map(resources, formatter, resource_lookup) do
     resource_set = MapSet.new(resources)
 
-    deps_map =
-      Map.new(resources, fn resource ->
-        {resource, find_resource_dependencies(formatter, resource, resource_set, resource_lookup)}
-      end)
+    Map.new(resources, fn resource ->
+      {resource, find_resource_dependencies(formatter, resource, resource_set, resource_lookup)}
+    end)
+  end
 
-    {sorted, remaining} = kahns_sort(resources, deps_map, &inspect/1)
+  # The nodes that reach themselves through their dependencies.
+  defp cyclic_nodes(deps_map) do
+    deps_map
+    |> Map.keys()
+    |> Enum.filter(&Map.has_key?(reachable(Map.fetch!(deps_map, &1), deps_map, %{}), &1))
+    |> MapSet.new()
+  end
 
-    sorted ++ Enum.filter(resources, &MapSet.member?(remaining, &1))
+  # The nodes reachable from `nodes`, as the keys of `seen` (a plain map:
+  # dialyzer flags a `MapSet` threaded through this recursion as opaque).
+  defp reachable([], _deps_map, seen), do: seen
+
+  defp reachable([node | rest], deps_map, seen) do
+    if Map.has_key?(seen, node) do
+      reachable(rest, deps_map, seen)
+    else
+      reachable(Map.get(deps_map, node, []) ++ rest, deps_map, Map.put(seen, node, true))
+    end
   end
 
   # Returns `{sorted, remaining}`: `remaining` is non-empty when there's a
@@ -798,13 +874,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   defp resource_deps(_formatter, %SpecType{kind: kind} = type, set, _named)
        when kind in [:embedded_resource, :resource],
        do: in_set(SpecType.effective_resource(type), set)
-
-  defp resource_deps(formatter, %SpecType{kind: :struct, instance_of: inst} = type, set, named)
-       when not is_nil(inst) do
-    if Spark.Dsl.is?(inst, Ash.Resource),
-      do: in_set(inst, set),
-      else: field_resource_deps(formatter, type, set, named)
-  end
 
   defp resource_deps(formatter, %SpecType{kind: :union} = union, set, named),
     do: Enum.flat_map(union.members || [], &resource_deps(formatter, &1.type, set, named))

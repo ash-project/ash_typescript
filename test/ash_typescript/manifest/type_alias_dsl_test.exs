@@ -307,7 +307,7 @@ defmodule AshTypescript.Manifest.TypeAliasDslTest do
 
         assert message =~
                  "#{inspect(T.TypedNamed)} exports `typescript_type/0`: remove it; " <>
-                   "the alias is generated from the fields."
+                   "its TypeScript is generated from its fields or members."
 
         assert message =~ "custom_types -> map -> #{T.TypedNamed}"
       end

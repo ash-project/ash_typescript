@@ -239,7 +239,8 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
 
     test "references outside the section stay direct", %{zod: zod} do
       [_, rest] = String.split(zod, "// Zod Schemas for Input Resources")
-      refute rest =~ "z.lazy("
+      # Only recursive resource schemas are lazy there, as a whole, not references.
+      refute rest =~ ~r/z\.lazy\(\(\) => \w+ZodSchema\)/
       assert zod =~ "detailProfile: InputParsingProfileZodSchema.nullable().optional(),"
     end
   end
@@ -555,6 +556,35 @@ defmodule AshTypescript.Rpc.NamedCustomTypeSchemasTest do
 
       refute message =~ "_schema_name"
       refute message =~ "typed controller route"
+    end
+
+    test "the Valibot duplicate-name check names the custom type (zod output off)" do
+      AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:generate_zod_schemas])
+      Application.put_env(:ash_typescript, :generate_zod_schemas, false)
+
+      manifest =
+        with_types(fn types ->
+          Enum.map(types, fn
+            %Type{module: AshMoney.Types.Money} = money ->
+              put_in(money.custom.ash_typescript.type_alias_names.typescript, "User")
+
+            type ->
+              type
+          end)
+        end)
+
+      assert {:error, message} =
+               CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
+
+      assert message =~ "Duplicate Valibot schema names detected:\n  - UserValibotSchema\n"
+
+      assert message =~
+               "`UserValibotSchema` is the generated schema of the type " <>
+                 "AshMoney.Types.Money, named after its alias: rename the alias with " <>
+                 "`ts_alias \"…\"` on its `map` entry (or `typescript_type_alias/0` on the " <>
+                 "type, when no entry sets `ts_alias`)."
+
+      refute message =~ "Zod"
     end
   end
 

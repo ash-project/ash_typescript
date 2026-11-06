@@ -16,16 +16,18 @@ defmodule AshTypescript.Codegen.Orchestrator do
   - `ash_valibot.ts` — ALL Valibot schemas: resource-level + per-action RPC + per-route controller
   - `ash_rpc.ts` — imports types from ash_types.ts (no Zod), hook types, helper functions,
                     per-action input types, per-action result types, per-action RPC functions
-  - `routes.ts` — imports types from ash_types.ts (no Zod), static code, per-route path
-                   helpers, per-route input types, per-route action functions
+  - `ash_routes.ts` — imports types from ash_types.ts (no Zod), static code, per-route path
+                       helpers, per-route input types, per-route action functions
   - `ash_typed_channels.ts` — imports types from ash_types.ts, channel subscription helper functions
-  - `namespace/*.ts` — re-exports: functions + types from ash_rpc.ts, Zod schemas from ash_zod.ts
+  - `namespace/*.ts` — re-exports: functions + types from ash_rpc.ts, Zod schemas from
+                        ash_zod.ts, Valibot schemas from ash_valibot.ts
 
   Returns a map of `%{file_path => content}` for all generated files.
   """
 
   alias AshTypescript.Codegen.{
     CustomTypeAliases,
+    Helpers,
     ImportResolver,
     ScalarAliases,
     SchemaCore,
@@ -196,11 +198,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
     files =
       if zod_enabled? do
         controller_zod_schemas =
-          if routes_output_file do
-            ControllerCodegen.collect_route_zod_schemas(router: AshTypescript.router())
-          else
-            []
-          end
+          ControllerCodegen.collect_route_zod_schemas(router: AshTypescript.router())
 
         generate_schema_file(
           files,
@@ -219,11 +217,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
     files =
       if valibot_enabled? do
         controller_valibot_schemas =
-          if routes_output_file do
-            ControllerCodegen.collect_route_valibot_schemas(router: AshTypescript.router())
-          else
-            []
-          end
+          ControllerCodegen.collect_route_valibot_schemas(router: AshTypescript.router())
 
         generate_schema_file(
           files,
@@ -260,24 +254,16 @@ defmodule AshTypescript.Codegen.Orchestrator do
         files
       end
 
+    routes_content =
+      ControllerCodegen.generate_controller_content(
+        router: AshTypescript.router(),
+        import_paths: %{types: types_import_path(routes_output_file, shared_types_file)},
+        shared_type_names: shared_type_names
+      )
+
     files =
-      if routes_output_file do
-        router = AshTypescript.router()
-
-        import_paths = %{types: types_import_path(routes_output_file, shared_types_file)}
-
-        routes_content =
-          ControllerCodegen.generate_controller_content(
-            router: router,
-            import_paths: import_paths,
-            shared_type_names: shared_type_names
-          )
-
-        if routes_content != "" do
-          Map.put(files, routes_output_file, routes_content)
-        else
-          files
-        end
+      if routes_content != "" do
+        Map.put(files, routes_output_file, routes_content)
       else
         files
       end
@@ -346,7 +332,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
       end
 
     files =
-      if routes_output_file && AshTypescript.enable_controller_namespace_files?() do
+      if AshTypescript.enable_controller_namespace_files?() do
         grouped = ControllerCodegen.get_routes_by_namespace(router: AshTypescript.router())
 
         output_dir =
@@ -399,16 +385,19 @@ defmodule AshTypescript.Codegen.Orchestrator do
          rpc_output_file,
          controller_schemas
        ) do
-    rpc_schemas =
+    # Without RPC output nothing references a resource schema (route
+    # arguments are plain data), so the file holds none.
+    {rpc_schemas, schema_resources} =
       if rpc_output_file do
-        RpcCodegen.generate_rpc_schemas(formatter, resources_and_actions)
+        {RpcCodegen.generate_rpc_schemas(formatter, resources_and_actions), schema_resources}
       else
-        []
+        {[], []}
       end
 
     additional_schemas = rpc_schemas ++ controller_schemas
 
-    custom_type_schemas = SchemaCore.generate_custom_type_schemas(formatter)
+    custom_type_schemas =
+      SchemaCore.generate_custom_type_schemas(formatter, resources?: rpc_output_file != nil)
 
     resource_schemas_str =
       SchemaCore.generate_schemas_for_resources(formatter, schema_resources)
@@ -427,10 +416,19 @@ defmodule AshTypescript.Codegen.Orchestrator do
         resource_schemas: resource_schemas_str,
         types_output_file: types_output_file,
         schema_output_file: output_file,
-        additional_schemas: additional_schemas
+        additional_schemas: additional_schemas,
+        type_imports: lazy_schema_type_imports(formatter, schema_resources)
       )
 
     Map.put(files, output_file, content)
+  end
+
+  # The input types the lazy schemas of recursive resources are cast to.
+  defp lazy_schema_type_imports(formatter, schema_resources) do
+    formatter
+    |> SchemaCore.recursive_resources(schema_resources)
+    |> Enum.map(&Helpers.resource_input_type_name/1)
+    |> Enum.sort()
   end
 
   # `custom_type_names` maps the named custom-type schemas to their modules,
@@ -605,7 +603,6 @@ defmodule AshTypescript.Codegen.Orchestrator do
     named ++ bound
   end
 
-  defp local_name("type " <> name), do: String.trim(name)
   defp local_name(name), do: String.trim(name)
 
   # An alias equal to an `import_name` clashes with the `import * as` of the

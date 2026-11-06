@@ -9,7 +9,6 @@ defmodule AshTypescript.Codegen do
   This module serves as the primary entry point for code generation. It delegates
   to specialized submodules in `AshTypescript.Codegen.*` for specific tasks:
 
-  - `TypeDiscovery` - Discovers all types needing TypeScript definitions
   - `TypeAliases` - Generates TypeScript type aliases for Ash types
   - `ResourceSchemas` - Generates resource schemas (output and input)
   - `TypeMapper` - Maps Ash types to TypeScript types
@@ -23,6 +22,7 @@ defmodule AshTypescript.Codegen do
     TypeMapper
   }
 
+  @doc false
   defdelegate generate_ash_type_aliases(resources), to: TypeAliases
 
   defdelegate generate_all_schemas_for_resources(
@@ -32,15 +32,8 @@ defmodule AshTypescript.Codegen do
               ),
               to: ResourceSchemas
 
-  defdelegate generate_all_schemas_for_resource(
-                resource,
-                allowed_resources,
-                input_schema_resources \\ []
-              ),
-              to: ResourceSchemas
-
+  @doc false
   defdelegate generate_unified_resource_schema(resource, allowed_resources), to: ResourceSchemas
-  defdelegate generate_input_schema(resource), to: ResourceSchemas
 
   defdelegate get_ts_type(type_and_constraints, select_and_loads \\ nil), to: TypeMapper
   defdelegate get_ts_input_type(attr), to: TypeMapper

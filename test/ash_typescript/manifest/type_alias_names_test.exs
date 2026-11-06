@@ -243,6 +243,29 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
     end
   end
 
+  # An unaliased typed-map NewType naming its own TypeScript.
+  defmodule MapNamed do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: :map, constraints: [fields: [a: [type: :string]]]
+
+    def typescript_type, do: "MapNamedTs"
+  end
+
+  # A union NewType naming its own TypeScript.
+  defmodule UnionNamed do
+    @moduledoc false
+    use Ash.Type.NewType,
+      subtype_of: :union,
+      constraints: [
+        types: [
+          text: [type: :string, tag: :kind, tag_value: "text"],
+          count: [type: :integer, tag: :kind, tag_value: "count"]
+        ]
+      ]
+
+    def typescript_type, do: "UnionNamedTs"
+  end
+
   # Holders for the compile checks, one type each.
   defmodule BothHolder do
     @moduledoc false
@@ -317,6 +340,78 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
 
     resources do
       resource T.TypedNamedHolder
+    end
+  end
+
+  defmodule MapNamedHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "TypeAliasNamesMapNamedHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :named, T.MapNamed, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule MapNamedHolderDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.MapNamedHolder do
+        rpc_action :read_map_named, :read
+      end
+    end
+
+    resources do
+      resource T.MapNamedHolder
+    end
+  end
+
+  defmodule UnionNamedHolder do
+    @moduledoc false
+    use Ash.Resource,
+      domain: nil,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "TypeAliasNamesUnionNamedHolder"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :named, T.UnionNamed, public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule UnionNamedHolderDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.UnionNamedHolder do
+        rpc_action :read_union_named, :read
+      end
+    end
+
+    resources do
+      resource T.UnionNamedHolder
     end
   end
 
@@ -750,8 +845,8 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
   end
 
   describe "map-like compile checks" do
-    @type_name_message "exports `typescript_type/0`: remove it; the alias is generated " <>
-                         "from the fields."
+    @type_name_message "exports `typescript_type/0`: remove it; its TypeScript is generated " <>
+                         "from its fields or members."
 
     test "typescript_type_alias/0 with typescript_type/0 on a field-bearing NewType" do
       message = compile_error!(BothCallbacksManifest, nil, [T.BothHolderDomain])
@@ -760,14 +855,19 @@ defmodule AshTypescript.Manifest.TypeAliasNamesTest do
       assert message =~ "custom_types"
     end
 
-    test "without any opt-in, typescript_type/0 on a field-bearing NewType is unchanged" do
-      manifest =
-        TypedNamedManifest
-        |> compile_manifest!(nil, [T.TypedNamedHolderDomain])
-        |> AshTypescript.manifest()
+    # Aliased or not, a field-bearing NewType's TypeScript comes from its
+    # fields (a union's from its members).
+    test "typescript_type/0 on an unaliased field-bearing or union NewType fails compilation" do
+      for {name, domain, type} <- [
+            {TypedNamedManifest, T.TypedNamedHolderDomain, T.TypedNamed},
+            {MapNamedManifest, T.MapNamedHolderDomain, T.MapNamed},
+            {UnionNamedManifest, T.UnionNamedHolderDomain, T.UnionNamed}
+          ] do
+        message = compile_error!(name, nil, [domain])
 
-      assert definition(manifest, T.TypedNamed).custom.ash_typescript ==
-               %{type_name: "TypedNamedTs"}
+        assert message =~ "#{inspect(type)} #{@type_name_message}"
+        assert message =~ "custom_types"
+      end
     end
 
     test "an invalid typescript_type_alias/0 on a NewType fails compilation" do

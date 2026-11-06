@@ -22,7 +22,7 @@ defmodule AshTypescript.Manifest.TypeUses do
   each node with its owner (the field, argument, action, route,
   publication or type definition it sits under) and its path from there.
 
-  Used by `AshTypescript.CustomTypes.check_renamed_callbacks/2`,
+  Used by `AshTypescript.CustomTypes.check_renamed_callbacks/1`,
   `check_alias_names/2` (scalar callbacks) and `compile_dependencies/3`
   (`:unknown` modules), by
   `AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames` (scalar names),

@@ -29,6 +29,9 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
       * `:types_output_file` - Path to the shared types file (required)
       * `:schema_output_file` - Path to this schema file (required, for import resolution)
       * `:additional_schemas` - Pre-rendered schema strings to append (optional)
+      * `:type_imports` - Type names the schemas reference, imported from the
+        types file: the input types lazy resource schemas are cast to
+        (`AshTypescript.Codegen.SchemaCore.recursive_resources/2`) (optional)
 
   ## Returns
 
@@ -40,12 +43,11 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
     types_output_file = Keyword.fetch!(opts, :types_output_file)
     schema_output_file = Keyword.fetch!(opts, :schema_output_file)
     additional_schemas = Keyword.get(opts, :additional_schemas, [])
+    type_imports = Keyword.get(opts, :type_imports, [])
 
     import_path = formatter.configured_import_path()
     types_import_path = ImportResolver.resolve_import_path(schema_output_file, types_output_file)
     library_name = formatter.library_name()
-
-    type_imports = collect_type_imports(resource_schemas)
 
     type_import_line =
       if type_imports != [] do
@@ -88,12 +90,5 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
       "" -> ""
       lines -> lines <> "\n"
     end
-  end
-
-  # Extracts type references from schema code that need to be imported from the types file.
-  defp collect_type_imports(_schemas) do
-    # For now, schemas are self-contained and don't reference types from ash_types.ts.
-    # If they start referencing shared types, we'll add import collection here.
-    []
   end
 end

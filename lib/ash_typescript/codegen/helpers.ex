@@ -23,10 +23,17 @@ defmodule AshTypescript.Codegen.Helpers do
     end
   end
 
+  @doc """
+  The name of a resource's TypeScript input type (`XInputSchema`), which types
+  what clients send for it; its lazy validation schemas are cast to it.
+  """
+  def resource_input_type_name(resource_module),
+    do: build_resource_type_name(resource_module) <> "InputSchema"
+
   @doc false
-  # The name `build_resource_type_name/1` gives a resource that has no decorated
-  # `type_name`, read without the configured manifest (`VerifyCustomTypeNames`
-  # verifies a manifest while it compiles).
+  # A resource's TypeScript name, read without the configured manifest: the
+  # decorator stores it as the `type_name`, and `VerifyCustomTypeNames`
+  # verifies a manifest while it compiles.
   def derive_resource_type_name(resource_module) do
     case AshTypescript.Resource.Info.typescript_type_name(resource_module) do
       {:ok, name} -> name
@@ -41,15 +48,7 @@ defmodule AshTypescript.Codegen.Helpers do
   # (`AshTypescript.CustomTypes.names/2`).
   @spec module_type_name(module()) :: String.t()
   def module_type_name(module) do
-    module
-    |> Module.split()
-    |> then(fn [first | rest] = list ->
-      if first == "Elixir" do
-        Enum.join(rest, "")
-      else
-        Enum.join(list, "")
-      end
-    end)
+    module |> Module.split() |> Enum.join()
   end
 
   @doc """

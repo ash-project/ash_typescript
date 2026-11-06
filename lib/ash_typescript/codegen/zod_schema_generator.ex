@@ -19,20 +19,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   # Type Constants
   # ─────────────────────────────────────────────────────────────────
 
-  @aggregate_types %{
-    count: "z.number().int()",
-    sum: "z.number()",
-    exists: "z.boolean()",
-    avg: "z.number()",
-    min: "z.any()",
-    max: "z.any()",
-    first: "z.any()",
-    last: "z.any()",
-    list: "z.array(z.any())",
-    custom: "z.any()",
-    integer: "z.number().int()"
-  }
-
   @simple_primitives %{
     Ash.Type.Boolean => "z.boolean()",
     Ash.Type.UUID => "z.uuid()",
@@ -58,18 +44,10 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     Ash.Type.Module => "z.string()"
   }
 
-  @atom_primitives %{
-    map: "z.record(z.string(), z.any())",
-    sum: "z.number()",
-    count: "z.number().int()"
-  }
-
   # ─────────────────────────────────────────────────────────────────
   # SchemaFormatter callbacks
   # ─────────────────────────────────────────────────────────────────
 
-  @impl true
-  def null_schema, do: "z.null()"
   @impl true
   def any_schema, do: "z.any()"
   @impl true
@@ -77,11 +55,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def custom_imports, do: AshTypescript.Rpc.zod_import_into_generated()
   @impl true
-  def aggregate_types, do: @aggregate_types
-  @impl true
   def simple_primitives, do: @simple_primitives
-  @impl true
-  def atom_primitives, do: @atom_primitives
   @impl true
   def format_array(inner, constraints) do
     "z.array(#{inner})"
@@ -95,6 +69,8 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   def wrap_nullable(schema), do: "#{schema}.nullable()"
   @impl true
   def wrap_lazy(schema), do: "z.lazy(() => #{schema})"
+  @impl true
+  def schema_type(type_name), do: "z.ZodType<#{type_name}>"
   @impl true
   def wrap_object(fields), do: "z.object({ #{fields} })"
   @impl true
@@ -155,17 +131,9 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   # Public API (delegates to SchemaCore)
   # ─────────────────────────────────────────────────────────────────
 
-  @doc "Generates a Zod schema definition for an RPC action's input."
+  @doc false
   def generate_zod_schema(resource, action, rpc_action_name),
     do: SchemaCore.generate_action_schema(__MODULE__, resource, action, rpc_action_name)
-
-  @doc "Generates Zod schemas for embedded resources and struct arguments."
-  def generate_zod_schemas_for_resources(resources),
-    do: SchemaCore.generate_schemas_for_resources(__MODULE__, resources)
-
-  @doc "Generates a Zod schema for a single resource."
-  def generate_zod_schema_for_resource(resource),
-    do: SchemaCore.generate_schema_for_resource(__MODULE__, resource)
 
   # ─────────────────────────────────────────────────────────────────
   # Private — string constraint builder (method-chain style)

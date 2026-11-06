@@ -277,4 +277,161 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       assert todo_titles == ["Test Todo 1", "Test Todo 2"]
     end
   end
+
+  # The selections codegen renders as relationship envelopes run as the
+  # generated types describe them.
+  describe "run_typed_query/4 with relationship envelopes" do
+    setup %{todos: [todo | _], user: user} do
+      %{
+        todo: todo,
+        comments: AshTypescript.Test.TestHelpers.create_typed_query_comments!(todo, user)
+      }
+    end
+
+    test "a keyword envelope filters, sorts and slices the relationship", %{
+      todo: todo,
+      comments: comments
+    } do
+      assert %{"success" => true, "data" => data} =
+               AshTypescript.run_typed_query(:list_todos_keyword_envelope, %{}, %Plug.Conn{})
+
+      assert Enum.find(data, &(&1["id"] == todo.id)) == %{
+               "id" => todo.id,
+               "comments" => [
+                 %{"id" => comments["charlie"], "content" => "charlie"},
+                 %{"id" => comments["delta"], "content" => "delta"}
+               ]
+             }
+    end
+
+    test "a map envelope with page returns the page shape", %{todo: todo, user: user} do
+      assert %{"success" => true, "data" => data} =
+               AshTypescript.run_typed_query(:list_todos_map_envelope, %{}, %Plug.Conn{})
+
+      assert %{
+               "id" => todo_id,
+               "comments" =>
+                 %{"results" => [%{"id" => _}], "hasMore" => true, "count" => 4} =
+                   page,
+               "commenters" => commenters,
+               "offsetComments" => offset_comments
+             } = Enum.find(data, &(&1["id"] == todo.id))
+
+      assert todo_id == todo.id
+      assert Enum.uniq(commenters) == [%{"id" => user.id}]
+
+      assert offset_comments == [
+               %{"content" => "alpha"},
+               %{"content" => "delta"},
+               %{"content" => "charlie"}
+             ]
+
+      # A page without an offset on a mixed relationship is a keyset page
+      # (`NestedKeysetPageResult` in the generated type)
+      assert page |> Map.keys() |> Enum.sort() ==
+               ~w(after before count hasMore limit nextPage previousPage results type)
+    end
+  end
+
+  describe "run_typed_query/4 with structured filter values" do
+    test "an envelope filters by keyword, union, tuple, map and array values" do
+      conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
+      run = &AshRpc.run_action(AshTypescript.RpcProfile, conn, &1)
+
+      %{"success" => true, "data" => %{"id" => user_id}} =
+        run.(%{
+          "action" => "create_user",
+          "input" => %{"name" => "Filters", "email" => "filters@example.com"},
+          "fields" => ["id"]
+        })
+
+      for {title, input} <- [
+            {"keyword", %{"options" => %{"priority" => 3, "category" => "work"}}},
+            {"union", %{"content" => %{"priorityValue" => 8}}},
+            {"tuple", %{"coordinates" => %{"latitude" => 1.5, "longitude" => 2.5}}},
+            {"map", %{"customData" => %{"source" => "import"}}},
+            {"array",
+             %{
+               "attachments" => [
+                 %{"file" => %{"filename" => "a.txt", "mimeType" => "text/plain"}}
+               ]
+             }},
+            {"none",
+             %{
+               "options" => %{"priority" => 5},
+               "content" => %{"priorityValue" => 2},
+               "customData" => %{"source" => "manual"}
+             }}
+          ] do
+        %{"success" => true} =
+          run.(%{
+            "action" => "create_todo",
+            "input" => Map.merge(%{"title" => title, "userId" => user_id}, input),
+            "fields" => ["id"]
+          })
+      end
+
+      assert %{"success" => true, "data" => data} =
+               AshTypescript.run_typed_query(:list_users_with_filtered_todos, %{}, %Plug.Conn{})
+
+      assert Enum.find(data, &(&1["id"] == user_id)) == %{
+               "id" => user_id,
+               "todos" => [
+                 %{"title" => "array"},
+                 %{"title" => "keyword"},
+                 %{"title" => "map"},
+                 %{"title" => "tuple"},
+                 %{"title" => "union"}
+               ]
+             }
+    end
+  end
+
+  describe "run_typed_query/4 with list and keyword filters" do
+    test "a list filter is the and of its statements, and a keyword list's entries too" do
+      conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
+      run = &AshRpc.run_action(AshTypescript.RpcProfile, conn, &1)
+
+      %{"success" => true, "data" => %{"id" => user_id}} =
+        run.(%{
+          "action" => "create_user",
+          "input" => %{"name" => "Filter forms", "email" => "filter-forms@example.com"},
+          "fields" => ["id"]
+        })
+
+      for {title, coordinates, completed} <- [
+            {"list", %{"latitude" => 1.5, "longitude" => 2.5}, false},
+            {"done", %{"latitude" => 1.5, "longitude" => 2.5}, true},
+            {"keyword", %{"latitude" => 3.5, "longitude" => 4.5}, false},
+            {"other", %{"latitude" => 1.5, "longitude" => 2.5}, false},
+            {"far", %{"latitude" => 9.5, "longitude" => 9.5}, false}
+          ] do
+        %{"success" => true} =
+          run.(%{
+            "action" => "create_todo",
+            "input" => %{
+              "title" => title,
+              "userId" => user_id,
+              "coordinates" => coordinates,
+              "autoComplete" => completed
+            },
+            "fields" => ["id"]
+          })
+      end
+
+      titles = fn name ->
+        assert %{"success" => true, "data" => data} =
+                 AshTypescript.run_typed_query(name, %{}, %Plug.Conn{})
+
+        data |> Enum.find(&(&1["id"] == user_id)) |> Map.fetch!("todos")
+      end
+
+      assert titles.(:list_users_with_list_filter) == [
+               %{"title" => "list"},
+               %{"title" => "other"}
+             ]
+
+      assert titles.(:list_users_with_keyword_filter) == [%{"title" => "keyword"}]
+    end
+  end
 end

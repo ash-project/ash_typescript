@@ -7,7 +7,7 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
   # its former name (`typescript_type_name/0`, `typescript_alias_name/0`)
   # fails compilation, naming the new callback, or saying to remove
   # `typescript_type_name/0` from a type whose TypeScript comes from its
-  # fields (`CustomTypes.check_renamed_callbacks/2`). Manifests are compiled
+  # fields (`CustomTypes.check_renamed_callbacks/1`). Manifests are compiled
   # with `Module.create/3` under fixed names.
   use ExUnit.Case, async: false
 
@@ -135,6 +135,21 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     end
   end
 
+  # A union NewType with the old `typescript_type_name/0`.
+  defmodule OldUnion do
+    @moduledoc false
+    use Ash.Type.NewType,
+      subtype_of: :union,
+      constraints: [
+        types: [
+          text: [type: :string, tag: :kind, tag_value: "text"],
+          count: [type: :integer, tag: :kind, tag_value: "count"]
+        ]
+      ]
+
+    def typescript_type_name, do: "OldUnion"
+  end
+
   # One generic action per type; each domain below exposes one of them.
   defmodule Holder do
     @moduledoc false
@@ -177,6 +192,10 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
       end
 
       action :typed_struct, T.OldTypedStruct do
+        run fn _input, _context -> {:ok, nil} end
+      end
+
+      action :union, T.OldUnion do
         run fn _input, _context -> {:ok, nil} end
       end
     end
@@ -287,6 +306,21 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     end
   end
 
+  defmodule UnionDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource T.Holder do
+        rpc_action :old_union, :union
+      end
+    end
+
+    resources do
+      resource T.Holder
+    end
+  end
+
   # A typed controller whose route argument is the only use of `OldRouteScalar`.
   defmodule OldRouteSession do
     @moduledoc false
@@ -333,7 +367,7 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
 
   defp remove_message(module) do
     "#{inspect(module)} exports `typescript_type_name/0`: remove it; its TypeScript is " <>
-      "generated from its fields."
+      "generated from its fields or members."
   end
 
   defp alias_message(module) do
@@ -389,10 +423,20 @@ defmodule AshTypescript.Manifest.RenamedCallbacksTest do
     assert message =~ remove_message(T.OldTypedStruct)
   end
 
-  test "a field-bearing NewType without an alias keeps the rename advice" do
+  # Renaming it to `typescript_type/0` would fail too: aliased or not, the
+  # type's TypeScript comes from its fields.
+  test "a field-bearing NewType without an alias is told to remove it" do
     message = compile_error!(PlainStructManifest, domains: [T.TypedStructDomain])
 
-    assert message =~ type_message(T.OldTypedStruct)
+    assert message =~ remove_message(T.OldTypedStruct)
+    refute message =~ "rename it"
+  end
+
+  test "a union NewType exporting typescript_type_name/0 is told to remove it" do
+    message = compile_error!(UnionManifest, domains: [T.UnionDomain])
+
+    assert message =~ remove_message(T.OldUnion)
+    refute message =~ "rename it"
   end
 
   test "a module exporting both gets both messages" do

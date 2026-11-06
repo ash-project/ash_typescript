@@ -278,12 +278,13 @@ defmodule AshTypescript.CustomTypes do
   # custom types and field-bearing NewTypes), then among the scalars it
   # reaches, as `{:error, message}`; `:ok` when there is none. A map-like
   # error is a `typescript_type_alias/0` result that isn't a string where
-  # `alias_name/3` takes it, or an aliased field-bearing NewType that exports
-  # `typescript_type/0` (through `typescript_type_alias/0`; a field-less `map`
-  # entry on such a type is rejected by `NormalizeCustomTypes`). A scalar
-  # error is a `typescript_type_alias/0` result that isn't a string where the
-  # callback names the scalar (`AshTypescript.Codegen.ScalarAliases`); a
-  # scalar may export `typescript_type/0` beside it. Alias strings are
+  # `alias_name/3` takes it, or a field-bearing or union NewType that exports
+  # `typescript_type/0`, aliased or not: its TypeScript comes from its fields
+  # (a field-less `map` entry on such a type is rejected by
+  # `NormalizeCustomTypes`). A scalar error is a `typescript_type_alias/0`
+  # result that isn't a string where the callback names the scalar
+  # (`AshTypescript.Codegen.ScalarAliases`); a scalar may export
+  # `typescript_type/0` beside it. Alias strings are
   # `AshTypescript.Manifest.NameCheck`'s.
   @spec check_alias_names(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
   def check_alias_names(%Manifest{} = manifest, custom_types) do
@@ -298,14 +299,11 @@ defmodule AshTypescript.CustomTypes do
           alias_error(alias_name(type.module, custom_types, true))
 
         field_bearing_new_type?(type) ->
-          case alias_name(type.module, custom_types, false) do
-            {:ok, name} when is_binary(name) ->
-              if exports?(type.module, :typescript_type, 0),
-                do: {:error, type_callback_message(type.module)}
+          with nil <- alias_error(alias_name(type.module, custom_types, false)),
+               do: type_callback_error(type.module)
 
-            result ->
-              alias_error(result)
-          end
+        union_new_type?(type) ->
+          type_callback_error(type.module)
 
         true ->
           nil
@@ -325,6 +323,10 @@ defmodule AshTypescript.CustomTypes do
   defp alias_error({:error, _message} = error), do: error
   defp alias_error(_ok), do: nil
 
+  defp type_callback_error(module) do
+    if exports?(module, :typescript_type, 0), do: {:error, type_callback_message(module)}
+  end
+
   # The callbacks' former names, and their current ones.
   @renamed_callbacks [
     typescript_type_name: :typescript_type,
@@ -337,19 +339,18 @@ defmodule AshTypescript.CustomTypes do
   # that exports a callback under its old name, as `{:error, message}`
   # naming the new one (both, for a module exporting both); `:ok` when there
   # is none. Entries for modules the manifest doesn't reach don't count.
-  # A map-like type whose TypeScript comes from its fields (a declared custom
-  # type, or a field-bearing NewType with an alias, `alias_name/3` with the
-  # persisted `custom_types`) is told to remove `typescript_type_name/0`
-  # instead: `typescript_type/0` is an error there.
-  @spec check_renamed_callbacks(Manifest.t(), custom_types()) :: :ok | {:error, String.t()}
-  def check_renamed_callbacks(%Manifest{types: types} = manifest, custom_types) do
+  # A type whose TypeScript comes from its fields (a declared custom type, a
+  # field-bearing NewType or a union NewType) is told to remove
+  # `typescript_type_name/0` instead: `typescript_type/0` is an error there.
+  @spec check_renamed_callbacks(Manifest.t()) :: :ok | {:error, String.t()}
+  def check_renamed_callbacks(%Manifest{types: types} = manifest) do
     unknown_modules =
       for %Manifest.Type{kind: :unknown, module: module} <-
             AshTypescript.Manifest.TypeUses.nodes(manifest),
           do: module
 
     from_fields =
-      for type <- types, generated_from_fields?(type, custom_types), into: MapSet.new() do
+      for type <- types, generated_from_fields?(type), into: MapSet.new() do
         type.module
       end
 
@@ -364,17 +365,16 @@ defmodule AshTypescript.CustomTypes do
     end)
   end
 
-  defp generated_from_fields?(type, custom_types) do
-    AshRpc.Manifest.Custom.custom_type?(type) or
-      (field_bearing_new_type?(type) and
-         match?({:ok, name} when is_binary(name), alias_name(type.module, custom_types, false)))
+  defp generated_from_fields?(type) do
+    AshRpc.Manifest.Custom.custom_type?(type) or field_bearing_new_type?(type) or
+      union_new_type?(type)
   end
 
   defp renamed_callback_messages(module, from_fields?) do
     for {old, new} <- @renamed_callbacks, exports?(module, old, 0) do
       if old == :typescript_type_name and from_fields? do
         "#{inspect(module)} exports `#{old}/0`: remove it; its TypeScript is generated " <>
-          "from its fields."
+          "from its fields or members."
       else
         "#{inspect(module)} exports `#{old}/0`, which is now `#{new}/0`: rename it."
       end
@@ -382,12 +382,12 @@ defmodule AshTypescript.CustomTypes do
   end
 
   @doc false
-  # The error for an aliased field-bearing NewType that exports
-  # `typescript_type/0`.
+  # The error for a field-bearing or union NewType that exports
+  # `typescript_type/0`, aliased or not.
   @spec type_callback_message(module()) :: String.t()
   def type_callback_message(module) do
-    "#{inspect(module)} exports `typescript_type/0`: remove it; the alias is " <>
-      "generated from the fields."
+    "#{inspect(module)} exports `typescript_type/0`: remove it; its TypeScript is " <>
+      "generated from its fields or members."
   end
 
   @doc false
@@ -470,6 +470,13 @@ defmodule AshTypescript.CustomTypes do
   end
 
   def field_bearing_new_type?(_definition), do: false
+
+  # A union NewType: its TypeScript comes from its members.
+  defp union_new_type?(%Manifest.Type{module: module, kind: :union})
+       when is_atom(module) and not is_nil(module),
+       do: new_type?(module)
+
+  defp union_new_type?(_definition), do: false
 
   @doc false
   # `field_bearing_new_type?/1` for a module, from its own definition
@@ -607,17 +614,33 @@ defmodule AshTypescript.CustomTypes do
   defp composite(module) do
     with true <- ash_type?(module),
          constraints = default_constraints(module),
-         true <- Ash.Type.composite?(module, constraints) do
+         true <- type_callback!(module, :composite?, &Ash.Type.composite?(&1, constraints)) do
       subtype = Ash.Type.NewType.subtype_of(module)
       names = Map.merge(field_names(subtype), field_names(module))
 
       specs =
-        module |> Ash.Type.composite_types(constraints) |> Enum.map(&composite_spec(&1, names))
+        module
+        |> type_callback!(:composite_types, &Ash.Type.composite_types(&1, constraints))
+        |> Enum.map(&composite_spec(&1, names))
 
       {specs, Enum.uniq([module, subtype])}
     else
       _ -> {nil, []}
     end
+  end
+
+  # A raising callback fails manifest compilation with the type's name, which
+  # the raised message alone doesn't carry.
+  defp type_callback!(module, callback, fun) do
+    fun.(module)
+  rescue
+    error ->
+      reraise Spark.Error.DslError,
+              [
+                message: "#{inspect(module)}.#{callback}/1 raised: #{Exception.message(error)}",
+                path: [:custom_types]
+              ],
+              __STACKTRACE__
   end
 
   defp default_constraints(module) do

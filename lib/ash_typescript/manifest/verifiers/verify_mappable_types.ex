@@ -53,8 +53,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
     do_verify(Verifier.get_persisted(dsl, :manifest), Verifier.get_persisted(dsl, :module))
   end
 
-  defp do_verify(nil, _module), do: :ok
-
   defp do_verify(%Ash.Info.Manifest{} = manifest, module) do
     # The mapping reads the `custom_types` entries (and named types) from the
     # manifest being verified, not the configured one.

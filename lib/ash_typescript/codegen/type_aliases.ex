@@ -208,15 +208,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end
   end
 
+  # `types` is the set of type modules `collect_type_modules/2` gathered.
   defp generate_aliases(types) do
     types
-    |> Enum.map(fn type ->
-      case type do
-        {:array, type} -> type
-        type -> type
-      end
-    end)
-    |> Enum.uniq()
     |> Enum.map(&generate_ash_type_alias/1)
     |> Enum.reject(&(&1 == ""))
   end
