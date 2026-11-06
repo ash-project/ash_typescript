@@ -102,4 +102,58 @@ defmodule AshTypescript.Resource.VerifyMappedFieldNamesTest do
     assert {:error, message} = VerifierChecker.check_all_verifiers([__MODULE__.ValueRes])
     assert message =~ "Replacement name :isDone must be a string"
   end
+
+  test "a mapping of an aggregate's name passes" do
+    defmodule AggregateRes do
+      use Ash.Resource,
+        domain: nil,
+        data_layer: Ash.DataLayer.Ets,
+        extensions: [AshTypescript.Resource]
+
+      typescript do
+        type_name "VerifyMappedFieldNamesAggregateRes"
+        field_names children_1: "childrenOne"
+      end
+
+      attributes do
+        uuid_primary_key :id
+        attribute :parent_id, :uuid, public?: true
+      end
+
+      relationships do
+        has_many :children, __MODULE__, destination_attribute: :parent_id, public?: true
+      end
+
+      aggregates do
+        count :children_1, :children, public?: true
+      end
+    end
+
+    assert :ok = VerifierChecker.check_all_verifiers([AggregateRes])
+  end
+
+  test "a key that is no field of the resource is rejected" do
+    capture_io(:stderr, fn ->
+      defmodule MissingRes do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "VerifyMappedFieldNamesMissingRes"
+          field_names line_1: "lineOne"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+      end
+    end)
+
+    assert {:error, message} = VerifierChecker.check_all_verifiers([__MODULE__.MissingRes])
+
+    assert message =~
+             "- Field line_1 does not exist on resource #{inspect(__MODULE__.MissingRes)}"
+  end
 end

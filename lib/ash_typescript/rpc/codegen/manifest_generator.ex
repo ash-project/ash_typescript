@@ -101,7 +101,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
     resource_sections =
       actions_by_resource
-      |> Enum.map_join("\n", fn {resource, resource_actions} ->
+      |> Enum.map_join("\n\n", fn {resource, resource_actions} ->
         generate_resource_actions_section(resource, resource_actions, include_internals?)
       end)
 
@@ -166,7 +166,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
     resource_sections =
       sorted_resources
-      |> Enum.map_join("\n", fn resource_config ->
+      |> Enum.map_join("\n\n", fn resource_config ->
         generate_resource_section(domain, resource_config, include_internals?)
       end)
 
@@ -264,17 +264,13 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       |> Enum.reject(&is_nil/1)
       |> Enum.join("\n")
 
-    table = """
+    # Every action has details (at least its description), and a resource
+    # is only listed for its rpc_actions.
+    """
     #{headers}
     #{separator}
     #{rows}
-    """
-
-    if details != "" do
-      table <> "\n" <> details
-    else
-      table
-    end
+    """ <> "\n" <> details
   end
 
   defp generate_actions_table_from_tuples(actions, include_internals?) do
@@ -314,17 +310,13 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       |> Enum.reject(&is_nil/1)
       |> Enum.join("\n")
 
-    table = """
+    # Every action has details (at least its description), and a namespace
+    # section only exists for its actions.
+    """
     #{headers}
     #{separator}
     #{rows}
-    """
-
-    if details != "" do
-      table <> "\n" <> details
-    else
-      table
-    end
+    """ <> "\n" <> details
   end
 
   defp build_headers(show_validation, schema_flags, show_channel, include_internals?) do
@@ -429,8 +421,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
   defp get_deprecated_text(rpc_action) do
     case Map.get(rpc_action, :deprecated) do
-      nil -> nil
-      false -> nil
+      unset when unset in [nil, false] -> nil
       true -> "⚠️ **Deprecated**"
       message when is_binary(message) -> "⚠️ **Deprecated:** #{message}"
     end

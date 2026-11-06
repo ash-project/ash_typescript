@@ -192,11 +192,11 @@ defmodule AshTypescript.Manifest do
   Generated-name problems raise `Spark.Error.DslError` (path `[:names]`)
   instead, while the inline module compiles.
 
-  The generated module name is deterministic from the domains list (via
-  `:erlang.phash2/1`), so repeated calls with the same arguments reuse the same
-  compiled module instead of triggering a redefinition warning. Each unique
-  call creates one real `AshTypescript.Manifest`-using module at runtime —
-  which means field-selector reads (`Spark.Dsl.Extension.get_persisted/3`)
+  The generated module name is deterministic from the domains list and
+  `:otp_app` (via `:erlang.phash2/1`), so repeated calls with the same arguments
+  reuse the same compiled module instead of triggering a redefinition warning.
+  Each unique call creates one real `AshTypescript.Manifest`-using module at
+  runtime — which means manifest reads (`Spark.Dsl.Extension.get_persisted/3`)
   resolve against that module's persisted state, exactly like the production
   path does.
   """
@@ -225,14 +225,9 @@ defmodule AshTypescript.Manifest do
       AshTypescript.Manifest.Dsl.verifiers()
       |> Enum.filter(&ash_typescript_verifier?/1)
       |> Enum.flat_map(fn verifier ->
-        try do
-          case verifier.verify(dsl) do
-            :ok -> []
-            {:error, error} -> [{verifier, error}]
-          end
-        rescue
-          e -> [{verifier, e}]
-        end
+        verifier
+        |> AshTypescript.VerifierChecker.run_verifier(dsl)
+        |> Enum.map(&{verifier, &1})
       end)
 
     case errors do
@@ -245,7 +240,7 @@ defmodule AshTypescript.Manifest do
           |> Enum.map_join("\n\n", fn {verifier, error} ->
             """
             Verifier: #{inspect(verifier)}
-            Error: #{format_error(error)}
+            Error: #{AshTypescript.VerifierChecker.format_error(error)}
             """
             |> String.trim()
           end)
@@ -253,10 +248,6 @@ defmodule AshTypescript.Manifest do
         {:error, message}
     end
   end
-
-  defp format_error(%Spark.Error.DslError{message: message}), do: message
-  defp format_error(error) when is_binary(error), do: error
-  defp format_error(error), do: Exception.message(error)
 
   # Skip Spark-injected generic verifiers (`VerifyEntityUniqueness` etc.) that
   # expect full DSL section data. We only run ash_typescript-owned ones, which

@@ -35,6 +35,8 @@ defmodule AshTypescript.TypedChannel.Dsl do
         end
 
         typed_channel do
+          topic "org_admin:*"
+
           resource MyApp.Post do
             publish :post_created
             publish :post_updated

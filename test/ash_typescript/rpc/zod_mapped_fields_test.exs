@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.{SchemaCore, ZodSchemaGenerator}
   alias AshTypescript.Test.Task
 
   # The body of TaskStats' named schema, in the custom types section.
@@ -222,11 +222,11 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   end
 
   describe "Zod schemas for embedded resources with mapped field names" do
-    test "generate_zod_schema_for_resource includes mapped field names" do
+    test "an embedded resource's Zod schema includes mapped field names" do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Should contain mapped field names
       assert zod_schema =~ "createdBy: z.string()"
@@ -241,7 +241,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Should have proper structure
       assert zod_schema =~ "export const TaskMetadataZodSchema = z.object({"
@@ -252,7 +252,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # notes is allow_nil?: true, so nullable + omittable
       assert zod_schema =~ "notes: z.string().min(1).nullable().optional()"
@@ -274,7 +274,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Should have mapped field names
       assert zod_schema =~ "createdBy:"
@@ -291,7 +291,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Should only include public attributes with mapped names
       assert zod_schema =~ "notes:"
@@ -330,7 +330,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
 
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Verify all mappings
       assert zod_schema =~ "createdBy"

@@ -11,27 +11,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - Input requirements
   - Return type field selectability
 
-  The return type analysis uses a type-driven classification pattern with
-  `classify_return_type/2` for consistent handling of all type variants.
+  The return type classification comes from ash_rpc
+  (`AshRpc.Introspection.compute_return_classification/2`).
   """
-
-  @doc """
-  Looks up an action in the configured manifest's action lookup and raises on miss.
-
-  Use at runtime sites that have already validated action existence upstream
-  (e.g. `Pipeline.discover_action/2` returns `{:error, {:action_not_found, …}}`
-  before reaching parse-time lookup), so a miss here indicates an internal
-  consistency error rather than user input.
-  """
-  def get_action!(resource, action_name) do
-    case Map.get(AshTypescript.action_lookup(), {resource, action_name}) do
-      %Ash.Info.Manifest.Action{} = action ->
-        action
-
-      nil ->
-        raise "action #{inspect(action_name)} not found on #{inspect(resource)} in manifest"
-    end
-  end
 
   defdelegate action_supports_pagination?(action), to: AshRpc.Introspection
   defdelegate action_supports_offset_pagination?(action), to: AshRpc.Introspection
@@ -39,9 +21,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   defdelegate action_requires_pagination?(action), to: AshRpc.Introspection
   defdelegate action_supports_countable?(action), to: AshRpc.Introspection
   defdelegate action_has_default_limit?(action), to: AshRpc.Introspection
-
-  defdelegate accepted_attribute?(resource, input_name, resource_lookup),
-    to: AshRpc.Introspection
 
   defdelegate compute_action_returns_field_selectable_type?(action, type_lookup),
     to: AshRpc.Introspection,
@@ -62,24 +41,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
       Enum.any?(inputs, & &1.required?) -> :required
       true -> :optional
     end
-  end
-
-  @doc """
-  Computes the client name for an action input from the resource and formatter.
-
-  This is the verifiers' name check (`VerifyUniqueInputFieldNames`), which runs
-  before decoration. Codegen reads the decorated name instead, through
-  `AshTypescript.Codegen.ClientNames.action_input/3`.
-  """
-  def format_input_name(resource, action_name, input_name, resource_lookup, formatter \\ nil) do
-    formatter = formatter || AshTypescript.Rpc.output_field_formatter()
-
-    AshRpc.Introspection.format_input_name(
-      Map.get(resource_lookup || %{}, resource),
-      action_name,
-      input_name,
-      formatter
-    )
   end
 
   @doc """

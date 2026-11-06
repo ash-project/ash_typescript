@@ -32,12 +32,8 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
     end
   end
 
-  defp get_mapped_field_names(dsl) do
-    case Verifier.get_option(dsl, [:typescript], :field_names) do
-      nil -> []
-      mapped_fields -> mapped_fields
-    end
-  end
+  # The option defaults to `[]`.
+  defp get_mapped_field_names(dsl), do: Verifier.get_option(dsl, [:typescript], :field_names)
 
   defp validate_mapped_fields(resource, mapped_fields) do
     errors = []
@@ -130,7 +126,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   end
 
   defp format_error_part({:field_not_found, field_name, resource}) do
-    "- Field #{field_name} does not exist on resource #{resource}"
+    "- Field #{field_name} does not exist on resource #{inspect(resource)}"
   end
 
   defp format_error_part({:field_not_invalid, field_name}) do

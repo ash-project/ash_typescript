@@ -19,37 +19,4 @@ defmodule AshTypescript.Resource.Info do
   rescue
     _ -> false
   end
-
-  @doc """
-  Gets the mapped TypeScript client name for a field, or returns nil if no mapping exists.
-
-  The mapped value is always a string representing the exact TypeScript client name.
-
-  ## Examples
-
-      iex> AshTypescript.Resource.Info.get_mapped_field_name(MyApp.User, :is_active?)
-      "isActive"
-
-      iex> AshTypescript.Resource.Info.get_mapped_field_name(MyApp.User, :normal_field)
-      nil
-  """
-  def get_mapped_field_name(resource, field_name) do
-    mapped_names = __MODULE__.typescript_field_names!(resource)
-    Keyword.get(mapped_names, field_name)
-  end
-
-  @doc """
-  Gets the mapped name for an argument, or returns the original name if no mapping exists.
-
-  ## Examples
-
-      iex> AshTypescript.Resource.Info.get_mapped_argument_name(MyApp.User, :read_with_invalid_arg, :is_active?)
-      :is_active
-  """
-  def get_mapped_argument_name(resource, action_name, argument_name) do
-    argument_mappings = __MODULE__.typescript_argument_names!(resource)
-
-    action_mappings = Keyword.get(argument_mappings, action_name, [])
-    Keyword.get(action_mappings, argument_name, argument_name)
-  end
 end

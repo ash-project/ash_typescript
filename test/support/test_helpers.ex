@@ -8,15 +8,13 @@ defmodule AshTypescript.Test.TestHelpers do
 
   This module provides reusable functions for:
   - Phoenix.Conn setup for RPC testing
-  - Common test data creation (users, todos)
-  - Field selection validation
+  - Common test data creation through RPC actions (users, todos, content)
   - Common assertion patterns
   """
 
   import Phoenix.ConnTest
   import Plug.Conn
   import ExUnit.Assertions
-  alias AshTypescript.Test.{Content, Domain, Todo, User}
 
   @doc """
   Creates a properly configured Plug.Conn for RPC testing.
@@ -40,152 +38,70 @@ defmodule AshTypescript.Test.TestHelpers do
   def rpc_runtime, do: AshRpc.Runtime.new(AshTypescript.RpcProfile)
 
   @doc """
-  Creates a test user with standard test data.
+  Parses a request for `action` selecting `fields` (wire names) through
+  `AshRpc.Pipeline.parse_request/3`, without running it.
+  """
+  def parse_selection(action, fields) do
+    AshRpc.Pipeline.parse_request(
+      rpc_runtime(),
+      AshRpc.Context.from_source(%Plug.Conn{}),
+      %{"action" => action, "fields" => fields}
+    )
+  end
+
+  @doc """
+  Creates a test user through the `create_user` RPC action.
 
   Options:
   - `:name` - User name (default: "Test User")
   - `:email` - User email (default: "test@example.com")
-  - `:fields` - Fields to return (default: ["id"])
-  - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
+  - `:fields` - Fields to return (default: ["id", "name", "email"])
 
   Returns the created user data.
   """
-  def create_test_user(conn_or_opts \\ [], opts \\ [])
-
-  def create_test_user(conn, opts) when is_struct(conn) do
+  def create_test_user(conn, opts \\ []) when is_struct(conn) do
     opts =
       Keyword.merge(
-        [
-          name: "Test User",
-          email: "test@example.com",
-          fields: ["id", "name", "email"],
-          via_rpc: true
-        ],
+        [name: "Test User", email: "test@example.com", fields: ["id", "name", "email"]],
         opts
       )
 
-    if opts[:via_rpc] do
-      create_user_via_rpc(conn, opts)
-    else
-      create_user_direct(opts)
-    end
-  end
-
-  def create_test_user(opts, _) when is_list(opts) do
-    opts =
-      Keyword.merge(
-        [
-          name: "Test User",
-          email: "test@example.com"
-        ],
-        opts
-      )
-
-    create_user_direct(opts)
+    create_user_via_rpc(conn, opts)
   end
 
   @doc """
-  Creates a test todo with standard test data.
+  Creates a test todo through the `create_todo` RPC action.
 
   Options:
   - `:title` - Todo title (default: "Test Todo")
   - `:user_id` - User ID (required)
   - `:completed` - Completion status (default: false)
   - `:fields` - Fields to return (default: ["id", "title"])
-  - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
 
   Returns the created todo data.
   """
-  def create_test_todo(conn_or_opts \\ [], opts \\ [])
-
-  def create_test_todo(conn, opts) when is_struct(conn) do
-    opts =
-      Keyword.merge(
-        [
-          title: "Test Todo",
-          completed: false,
-          fields: ["id", "title"],
-          via_rpc: true
-        ],
-        opts
-      )
+  def create_test_todo(conn, opts \\ []) when is_struct(conn) do
+    opts = Keyword.merge([title: "Test Todo", completed: false, fields: ["id", "title"]], opts)
 
     unless opts[:user_id] do
       raise ArgumentError, "user_id is required for creating test todos"
     end
 
-    if opts[:via_rpc] do
-      create_todo_via_rpc(conn, opts)
-    else
-      create_todo_direct(opts)
-    end
-  end
-
-  def create_test_todo(opts, _) when is_list(opts) do
-    opts =
-      Keyword.merge(
-        [
-          title: "Test Todo",
-          completed: false
-        ],
-        opts
-      )
-
-    unless opts[:user_id] do
-      raise ArgumentError, "user_id is required for creating test todos"
-    end
-
-    create_todo_direct(opts)
+    create_todo_via_rpc(conn, opts)
   end
 
   @doc """
-  Creates a complete test scenario with user and todo.
+  Creates a user and a todo of theirs through RPC actions.
 
   Options:
   - `:user_name` - User name (default: "Test User")
   - `:user_email` - User email (default: "test@example.com")
   - `:todo_title` - Todo title (default: "Test Todo")
   - `:todo_completed` - Todo completion status (default: false)
-  - `:via_rpc` - Create via RPC actions (default: false)
 
   Returns `{user, todo}` tuple.
   """
-  def create_test_scenario(conn_or_opts \\ [], opts \\ [])
-
-  def create_test_scenario(conn, opts) when is_struct(conn) do
-    opts =
-      Keyword.merge(
-        [
-          user_name: "Test User",
-          user_email: "test@example.com",
-          todo_title: "Test Todo",
-          todo_completed: false,
-          via_rpc: true
-        ],
-        opts
-      )
-
-    user =
-      create_test_user(conn,
-        name: opts[:user_name],
-        email: opts[:user_email],
-        via_rpc: opts[:via_rpc]
-      )
-
-    user_id = if opts[:via_rpc], do: user["id"], else: user.id
-
-    todo =
-      create_test_todo(conn,
-        title: opts[:todo_title],
-        completed: opts[:todo_completed],
-        user_id: user_id,
-        via_rpc: opts[:via_rpc]
-      )
-
-    {user, todo}
-  end
-
-  def create_test_scenario(opts, _) when is_list(opts) do
+  def create_test_scenario(conn, opts \\ []) when is_struct(conn) do
     opts =
       Keyword.merge(
         [
@@ -197,24 +113,20 @@ defmodule AshTypescript.Test.TestHelpers do
         opts
       )
 
-    user =
-      create_test_user(
-        name: opts[:user_name],
-        email: opts[:user_email]
-      )
+    user = create_test_user(conn, name: opts[:user_name], email: opts[:user_email])
 
     todo =
-      create_test_todo(
+      create_test_todo(conn,
         title: opts[:todo_title],
         completed: opts[:todo_completed],
-        user_id: user.id
+        user_id: user["id"]
       )
 
     {user, todo}
   end
 
   @doc """
-  Creates a test content item with an article.
+  Creates a test content item with an article through the `create_content` RPC action.
 
   Options:
   - `:title` - Content title (default: "Test Content")
@@ -228,13 +140,10 @@ defmodule AshTypescript.Test.TestHelpers do
   - `:article_summary` - Article summary (default: "Test summary")
   - `:article_body` - Article body (default: "Test body content")
   - `:fields` - Fields to return (default: ["id", "title"])
-  - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
 
   Returns the created content data.
   """
-  def create_test_content(conn_or_opts \\ [], opts \\ [])
-
-  def create_test_content(conn, opts) when is_struct(conn) do
+  def create_test_content(conn, opts \\ []) when is_struct(conn) do
     opts =
       Keyword.merge(
         [
@@ -247,8 +156,7 @@ defmodule AshTypescript.Test.TestHelpers do
           article_hero_image_alt: "Hero Image",
           article_summary: "Test summary",
           article_body: "Test body content",
-          fields: ["id", "title"],
-          via_rpc: true
+          fields: ["id", "title"]
         ],
         opts
       )
@@ -257,52 +165,7 @@ defmodule AshTypescript.Test.TestHelpers do
       raise ArgumentError, "user_id is required for creating test content"
     end
 
-    if opts[:via_rpc] do
-      create_content_via_rpc(conn, opts)
-    else
-      create_content_direct(opts)
-    end
-  end
-
-  def create_test_content(opts, _) when is_list(opts) do
-    opts =
-      Keyword.merge(
-        [
-          title: "Test Content",
-          thumbnail_url: "https://example.com/thumb.jpg",
-          thumbnail_alt: "Thumbnail",
-          published_at: nil,
-          category: :nutrition,
-          article_hero_image_url: "https://example.com/hero.jpg",
-          article_hero_image_alt: "Hero Image",
-          article_summary: "Test summary",
-          article_body: "Test body content"
-        ],
-        opts
-      )
-
-    unless opts[:user_id] do
-      raise ArgumentError, "user_id is required for creating test content"
-    end
-
-    create_content_direct(opts)
-  end
-
-  @doc """
-  Validates that a result contains only the requested fields.
-
-  Args:
-  - `result` - The result map to validate
-  - `expected_fields` - List of expected field names (strings)
-
-  Raises if the result contains unexpected fields.
-  """
-  def assert_only_requested_fields(result, expected_fields) do
-    actual_fields = Map.keys(result) |> Enum.sort()
-    expected_sorted = Enum.sort(expected_fields)
-
-    assert actual_fields == expected_sorted,
-           "Expected only fields #{inspect(expected_sorted)}, but got #{inspect(actual_fields)}"
+    create_content_via_rpc(conn, opts)
   end
 
   @doc """
@@ -318,55 +181,6 @@ defmodule AshTypescript.Test.TestHelpers do
     assert %{"success" => true, "data" => data} = result
     assert expected_data_check.(data), "Data validation failed for: #{inspect(data)}"
     data
-  end
-
-  @doc """
-  Validates that an RPC action result has the expected error structure.
-
-  Args:
-  - `result` - RPC action result
-
-  Returns the error portion of the result.
-  """
-  def assert_rpc_error(result) do
-    assert %{"success" => false, "errors" => error} = result
-    error
-  end
-
-  @doc """
-  Creates application config changes with automatic cleanup.
-
-  Args:
-  - `config_changes` - Keyword list of {app, key, value} tuples
-  - `test_function` - Function to run with the config changes
-
-  Automatically restores original configuration after the test.
-  """
-  def with_application_config(config_changes, test_function) do
-    # Store original values
-    original_values =
-      Enum.map(config_changes, fn {app, key, _value} ->
-        {app, key, Application.get_env(app, key)}
-      end)
-
-    try do
-      # Apply new configuration
-      Enum.each(config_changes, fn {app, key, value} ->
-        Application.put_env(app, key, value)
-      end)
-
-      # Run test
-      test_function.()
-    after
-      # Restore original configuration
-      Enum.each(original_values, fn {app, key, original_value} ->
-        if original_value do
-          Application.put_env(app, key, original_value)
-        else
-          Application.delete_env(app, key)
-        end
-      end)
-    end
   end
 
   @rpc_hook_config_keys [
@@ -395,9 +209,9 @@ defmodule AshTypescript.Test.TestHelpers do
   @doc """
   Snapshots the given application env keys and restores them when the test exits.
 
-  Call this from a `setup` block before mutating global config. Unlike
-  `with_application_config/2` this does not wrap the test body, so individual
-  tests stay free to `put_env`/`delete_env` whatever they need - every key
+  Call this from a `setup` block before mutating global config. It does not
+  wrap the test body, so individual tests stay free to
+  `put_env`/`delete_env` whatever they need - every key
   listed here is returned to its original value (or deleted again if it was
   originally unset) regardless of which path the test took.
 
@@ -442,15 +256,6 @@ defmodule AshTypescript.Test.TestHelpers do
     assert_rpc_success(result)
   end
 
-  defp create_user_direct(opts) do
-    User
-    |> Ash.Changeset.for_create(:create, %{
-      name: opts[:name],
-      email: opts[:email]
-    })
-    |> Ash.create!(domain: Domain)
-  end
-
   defp create_todo_via_rpc(conn, opts) do
     # Build base input
     input = %{
@@ -471,16 +276,6 @@ defmodule AshTypescript.Test.TestHelpers do
 
     result = AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params)
     assert_rpc_success(result)
-  end
-
-  defp create_todo_direct(opts) do
-    Todo
-    |> Ash.Changeset.for_create(:create, %{
-      title: opts[:title],
-      completed: opts[:completed],
-      user_id: opts[:user_id]
-    })
-    |> Ash.create!(domain: Domain)
   end
 
   defp create_content_via_rpc(conn, opts) do
@@ -519,29 +314,31 @@ defmodule AshTypescript.Test.TestHelpers do
     assert_rpc_success(result)
   end
 
-  defp create_content_direct(opts) do
-    # First create the content (without article relationship initially)
-    content =
-      Content
-      |> Ash.Changeset.for_create(:create, %{
-        type: :article,
-        title: opts[:title],
-        thumbnail_url: opts[:thumbnail_url],
-        thumbnail_alt: opts[:thumbnail_alt],
-        published_at: opts[:published_at],
-        category: opts[:category],
-        user_id: opts[:user_id],
-        item: %{
-          hero_image_url: opts[:article_hero_image_url],
-          hero_image_alt: opts[:article_hero_image_alt],
-          summary: opts[:article_summary],
-          body: opts[:article_body]
-        }
-      })
-      |> Ash.create!(domain: Domain)
+  @doc """
+  Creates four comments on `todo` by `user` for the typed-query envelope
+  tests, and returns their ids by content: Ann "alpha", Bob "charlie" (the
+  only helpful one), Ann "delta" and Cy "zulu".
+  """
+  def create_typed_query_comments!(todo, user) do
+    for {author, content, helpful?} <- [
+          {"Ann", "alpha", false},
+          {"Bob", "charlie", true},
+          {"Ann", "delta", false},
+          {"Cy", "zulu", false}
+        ],
+        into: %{} do
+      comment =
+        AshTypescript.Test.TodoComment
+        |> Ash.Changeset.for_create(:create, %{
+          content: content,
+          author_name: author,
+          is_helpful: helpful?,
+          user_id: user.id,
+          todo_id: todo.id
+        })
+        |> Ash.create!()
 
-    # Reload content to get the relationship
-    content
-    |> Ash.load!([:article], domain: Domain)
+      {content, comment.id}
+    end
   end
 end

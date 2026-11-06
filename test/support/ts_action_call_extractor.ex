@@ -58,7 +58,7 @@ defmodule AshTypescript.Test.TsActionCallExtractor do
       # Extract until we find ");" accounting for nesting
       case extract_until_closing(content, start_pos) do
         {:ok, arg_string} ->
-          action_name = AshTypescript.Helpers.camel_to_snake_case(function_name)
+          action_name = AshRpc.Case.camel_to_snake_case(function_name)
 
           case ts_to_map(arg_string) do
             {:ok, config} ->

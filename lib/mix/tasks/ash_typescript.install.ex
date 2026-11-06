@@ -19,7 +19,7 @@ if Code.ensure_loaded?(Igniter) do
     * `--bun` - Use Bun instead of npm for package management.
 
     * `--inertia` - Install with Inertia.js support for SSR.
-      Requires a framework and `--bundler esbuild`.
+      Requires a framework other than solid and `--bundler esbuild`.
 
     ## Examples
 

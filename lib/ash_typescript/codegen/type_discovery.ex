@@ -184,9 +184,8 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   @doc """
   Builds a formatted warning message for resources that may be misconfigured.
 
-  The 1-arity version generates its own spec for resource discovery.
-  The 3-arity version accepts pre-computed `resource_lookup` and `rpc_resources`
-  to avoid redundant spec generation.
+  The 1-arity version reads the resource lookup of the configured manifest.
+  The 3-arity version accepts pre-computed `resource_lookup` and `rpc_resources`.
 
   Returns a formatted warning string, or nil if no warnings are needed.
   """

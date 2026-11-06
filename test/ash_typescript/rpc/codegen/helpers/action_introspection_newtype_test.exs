@@ -16,8 +16,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospectionNewTypeTest do
   alias AshTypescript.Test.{Task, Todo}
 
   defp classify(resource, action_name) do
-    resource
-    |> ActionIntrospection.get_action!(action_name)
+    AshTypescript.action_lookup()
+    |> Map.fetch!({resource, action_name})
     |> ActionIntrospection.compute_action_returns_field_selectable_type?(
       AshTypescript.type_lookup()
     )

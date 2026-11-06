@@ -198,7 +198,6 @@ defmodule AshTypescript.Manifest.Dsl do
       AshTypescript.Manifest.Verifiers.VerifyRpc,
       AshTypescript.Manifest.Verifiers.VerifyMappableTypes,
       AshTypescript.Manifest.Verifiers.VerifyCustomTypeNames,
-      AshTypescript.Manifest.Verifiers.VerifyUniqueInputFieldNames,
       AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields,
       AshTypescript.Manifest.Verifiers.VerifyIdentities,
       AshTypescript.Manifest.Verifiers.VerifyRpcWarnings

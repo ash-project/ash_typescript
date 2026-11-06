@@ -24,6 +24,14 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
   alias AshTypescript.Codegen
   alias AshTypescript.Test.Task
 
+  # The resource's InputSchema block, from the generated schemas.
+  defp input_schema(resource) do
+    name = AshTypescript.Codegen.build_resource_type_name(resource)
+    schemas = Codegen.generate_all_schemas_for_resources([resource], [resource], [resource])
+    [block] = Regex.run(~r/export type #{name}InputSchema = \{.*?\n\};/s, schemas)
+    block
+  end
+
   describe "resource schema generation with mapped field names" do
     test "generate_unified_resource_schema includes mapped field names" do
       result = Codegen.generate_unified_resource_schema(Task, [])
@@ -224,9 +232,9 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
   end
 
   describe "input schema generation with mapped field names" do
-    test "generate_input_schema includes mapped field names" do
+    test "an embedded resource's input schema includes mapped field names" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Codegen.generate_input_schema(embedded_resource)
+      result = input_schema(embedded_resource)
 
       # Should contain mapped field names
       assert result =~ "createdBy: string;"
@@ -238,7 +246,7 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
 
     test "input schema has correct structure" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Codegen.generate_input_schema(embedded_resource)
+      result = input_schema(embedded_resource)
 
       # Should have proper TypeScript interface structure
       assert result =~ "export type TaskMetadataInputSchema = {"
@@ -247,7 +255,7 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
 
     test "input schema required fields are not marked optional" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Codegen.generate_input_schema(embedded_resource)
+      result = input_schema(embedded_resource)
 
       # createdBy is required (allow_nil?: false, no default)
       assert result =~ "createdBy: string;"
@@ -257,7 +265,7 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
 
     test "input schema optional fields are marked optional" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Codegen.generate_input_schema(embedded_resource)
+      result = input_schema(embedded_resource)
 
       # isPublic has a default, should be optional in input
       assert result =~ "isPublic?: boolean;"
@@ -305,7 +313,7 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
     test "schemas are consistent between ResourceSchema and InputSchema" do
       embedded_resource = AshTypescript.Test.TaskMetadata
       resource_schema = Codegen.generate_unified_resource_schema(embedded_resource, [])
-      input_schema = Codegen.generate_input_schema(embedded_resource)
+      input_schema = input_schema(embedded_resource)
 
       # Both should use the same mapped field names
       assert resource_schema =~ "createdBy:"
@@ -380,7 +388,7 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
 
     test "input schemas match TypeScript input expectations" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Codegen.generate_input_schema(embedded_resource)
+      result = input_schema(embedded_resource)
 
       # TypeScript client sends data with mapped names
       assert result =~ "createdBy:"

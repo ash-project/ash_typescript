@@ -7,9 +7,8 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   Generates static TypeScript code that doesn't depend on specific resources.
 
   This includes:
-  - Import statements (Zod, Phoenix Channel, custom imports)
+  - Import statements (Phoenix Channel, custom imports)
   - Hook context type definitions
-  - Utility types (TypedSchema, InferResult, pagination helpers, etc.)
   - Helper functions (CSRF token, RPC request executors)
   """
 
@@ -18,39 +17,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   alias AshTypescript.Codegen.ImportResolver
 
   @doc """
-  Generates TypeScript import statements based on configuration.
-
-  Includes:
-  - Zod import (if zod schemas enabled and not skipped)
-  - Phoenix Channel import (if channel RPC actions enabled)
-  - Custom imports from application config
-
-  ## Options
-
-    * `:skip_zod` - When true, omits the Zod import (for split-file mode where Zod is in ash_zod.ts)
-    * `:output_file` - The target output file path, for resolving custom import paths
+  Generates the RPC file's import statements: the Phoenix `Channel` import
+  (if channel RPC actions are enabled) and the custom imports from
+  `import_into_generated`, resolved against `output_file`. Zod and Valibot
+  are imported by the schema files, not here.
   """
-  def generate_imports(opts \\ []) do
-    skip_zod = Keyword.get(opts, :skip_zod, false)
-    skip_valibot = Keyword.get(opts, :skip_valibot, false)
-    output_file = Keyword.get(opts, :output_file)
-
-    zod_import =
-      if not skip_zod and AshTypescript.Rpc.generate_zod_schemas?() do
-        zod_path = AshTypescript.Rpc.zod_import_path()
-        "import { z } from \"#{zod_path}\";"
-      else
-        ""
-      end
-
-    valibot_import =
-      if not skip_valibot and AshTypescript.Rpc.generate_valibot_schemas?() do
-        valibot_path = AshTypescript.Rpc.valibot_import_path()
-        "import * as v from \"#{valibot_path}\";"
-      else
-        ""
-      end
-
+  def generate_imports(output_file) do
     phoenix_import =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
         phoenix_path = AshTypescript.Rpc.phoenix_import_path()
@@ -64,15 +36,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         nil ->
           ""
 
-        imports when is_list(imports) ->
+        imports ->
           ImportResolver.resolve_custom_imports(output_file, imports)
-
-        _ ->
-          ""
       end
 
     all_imports =
-      [zod_import, valibot_import, phoenix_import, config_imports]
+      [phoenix_import, config_imports]
       |> Enum.reject(&(&1 == ""))
       |> Enum.join("\n")
       |> case do

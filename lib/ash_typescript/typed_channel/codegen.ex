@@ -6,9 +6,9 @@ defmodule AshTypescript.TypedChannel.Codegen do
   @moduledoc """
   Generates TypeScript types and functions for typed channel event subscriptions.
 
-  For each declared event in a typed channel module, introspects the matching
-  Ash PubSub publication's `returns` type (auto-derived via `transform :calc`
-  or explicitly set) and maps it to a TypeScript type.
+  For each declared event in a typed channel module, reads the matching
+  publication's `returns` type from the manifest (auto-derived via
+  `transform :calc` or explicitly set) and maps it to a TypeScript type.
 
   ## Generated Output
 
@@ -56,8 +56,9 @@ defmodule AshTypescript.TypedChannel.Codegen do
   @doc """
   Generates TypeScript type declarations for all configured typed channel modules.
 
-  Accepts a list of `{module, topic}` tuples. The topic (e.g. `"org:*"`) is used
-  to generate a branded `OrgChannel` type that prevents mixing channel instances.
+  Accepts a list of `{module, topic}` tuples. Each module gets a branded type
+  named after its last segment (`MyAppWeb.OrgChannel` → `OrgChannel`) that
+  prevents mixing channel instances.
 
   Emits:
   - Deduplicated payload type aliases

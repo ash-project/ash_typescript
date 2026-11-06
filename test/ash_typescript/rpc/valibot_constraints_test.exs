@@ -16,7 +16,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Codegen.ValibotSchemaGenerator
+  alias AshTypescript.Codegen.{SchemaCore, ValibotSchemaGenerator}
   alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
   alias AshTypescript.Test.Todo
@@ -387,7 +387,9 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
   describe "Regex constraint handling (safe conversion only)" do
     test "simple regex patterns are converted to JavaScript" do
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      schema = ValibotSchemaGenerator.generate_valibot_schema_for_resource(embedded_resource)
+
+      schema =
+        SchemaCore.generate_schemas_for_resources(ValibotSchemaGenerator, [embedded_resource])
 
       assert schema =~ "v.regex(/^https?:\\/\\//)"
     end
@@ -458,7 +460,9 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
 
     test "complex PCRE patterns are skipped to avoid incorrect validation" do
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      schema = ValibotSchemaGenerator.generate_valibot_schema_for_resource(embedded_resource)
+
+      schema =
+        SchemaCore.generate_schemas_for_resources(ValibotSchemaGenerator, [embedded_resource])
 
       assert schema =~ "v.regex("
     end

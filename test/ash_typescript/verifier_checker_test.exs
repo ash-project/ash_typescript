@@ -45,9 +45,50 @@ defmodule AshTypescript.VerifierCheckerTest do
     end
   end
 
-  # `format_error/1`'s string and exception clauses aren't tested: every
-  # verifier of the four extensions returns `{:error, %Spark.Error.DslError{}}`
-  # and none warns, so only a verifier that raises reaches them.
+  # Every verifier of the four extensions returns `:ok` or
+  # `{:error, %Spark.Error.DslError{}}`, so the other results a Spark verifier
+  # may give are checked on stand-ins. `AshTypescript.Manifest.run_verifiers/1`
+  # runs its verifiers through the same functions.
+  describe "run_verifier/2 and format_error/1" do
+    defmodule WarningVerifier do
+      def verify(:many), do: {:warn, ["first", "second"]}
+      def verify(:one), do: {:warn, "only"}
+    end
+
+    defmodule RaisingVerifier do
+      def verify(_dsl), do: raise(ArgumentError, "verifier crashed")
+    end
+
+    defmodule ErrorVerifier do
+      def verify(:dsl_error),
+        do: {:error, Spark.Error.DslError.exception(message: "bad dsl")}
+
+      def verify(:string), do: {:error, "bad string"}
+      def verify(:ok), do: :ok
+    end
+
+    test "a passing verifier gives no errors" do
+      assert VerifierChecker.run_verifier(ErrorVerifier, :ok) == []
+    end
+
+    test "each warning is an error" do
+      assert VerifierChecker.run_verifier(WarningVerifier, :many) == ["first", "second"]
+      assert VerifierChecker.run_verifier(WarningVerifier, :one) == ["only"]
+    end
+
+    test "a raising verifier gives its exception" do
+      assert [%ArgumentError{} = error] = VerifierChecker.run_verifier(RaisingVerifier, :dsl)
+      assert VerifierChecker.format_error(error) == "verifier crashed"
+    end
+
+    test "an error is formatted as its message" do
+      assert [error] = VerifierChecker.run_verifier(ErrorVerifier, :dsl_error)
+      assert VerifierChecker.format_error(error) == "bad dsl"
+
+      assert [error] = VerifierChecker.run_verifier(ErrorVerifier, :string)
+      assert VerifierChecker.format_error(error) == "bad string"
+    end
+  end
 
   # Two resources whose `field_names` maps a name that needs no mapping. At
   # compile time Spark only warns about it.

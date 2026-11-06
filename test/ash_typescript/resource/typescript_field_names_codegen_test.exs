@@ -9,7 +9,7 @@ defmodule AshTypescript.Resource.TypescriptFieldNamesCodegenTest do
     test "generates TypeScript types with mapped field names" do
       # Generate TypeScript code
       resource = AshTypescript.Test.MapFieldResource
-      type_code = AshTypescript.Codegen.generate_all_schemas_for_resource(resource, [resource])
+      type_code = AshTypescript.Codegen.generate_all_schemas_for_resources([resource], [resource])
 
       # Check that mapped field names are used in the generated TypeScript
       assert type_code =~ "field1: string"
@@ -27,7 +27,10 @@ defmodule AshTypescript.Resource.TypescriptFieldNamesCodegenTest do
       resource = AshTypescript.Test.MapFieldResource
 
       zod_code =
-        AshTypescript.Codegen.ZodSchemaGenerator.generate_zod_schema_for_resource(resource)
+        AshTypescript.Codegen.SchemaCore.generate_schemas_for_resources(
+          AshTypescript.Codegen.ZodSchemaGenerator,
+          [resource]
+        )
 
       # Check that mapped field names are used in the generated Zod schemas
       assert zod_code =~ "field1: z.string()"

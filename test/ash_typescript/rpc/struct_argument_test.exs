@@ -135,9 +135,15 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
   end
 
   describe "ResourceSchemas generates InputSchema for struct argument resources" do
-    test "generate_input_schema creates TypeScript input type for resource" do
-      input_schema =
-        AshTypescript.Codegen.ResourceSchemas.generate_input_schema(AshTypescript.Test.User)
+    test "the InputSchema of a struct argument resource" do
+      schemas =
+        AshTypescript.Codegen.ResourceSchemas.generate_all_schemas_for_resources(
+          [AshTypescript.Test.User],
+          [AshTypescript.Test.User],
+          [AshTypescript.Test.User]
+        )
+
+      [input_schema] = Regex.run(~r/export type UserInputSchema = \{.*?\n\};/s, schemas)
 
       assert input_schema =~ "export type UserInputSchema"
       assert input_schema =~ "name"
@@ -147,11 +153,11 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
       refute input_schema =~ "__primitiveFields"
     end
 
-    test "generate_all_schemas_for_resource with input_schema_resources generates InputSchema" do
+    test "generate_all_schemas_for_resources with input_schema_resources generates InputSchema" do
       # Test that passing a resource in input_schema_resources generates InputSchema for it
       result =
-        AshTypescript.Codegen.ResourceSchemas.generate_all_schemas_for_resource(
-          AshTypescript.Test.User,
+        AshTypescript.Codegen.ResourceSchemas.generate_all_schemas_for_resources(
+          [AshTypescript.Test.User],
           [AshTypescript.Test.User],
           [AshTypescript.Test.User]
         )

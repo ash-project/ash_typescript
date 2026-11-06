@@ -56,22 +56,25 @@ defmodule AshTypescript.VerifierChecker do
   end
 
   defp check_single_verifier(module, verifier, dsl_config) do
-    case verifier.verify(dsl_config) do
-      :ok ->
-        []
+    verifier
+    |> run_verifier(dsl_config)
+    |> Enum.map(&{module, verifier, &1})
+  end
 
-      {:warn, warnings} ->
-        warnings_list = List.wrap(warnings)
-
-        Enum.map(warnings_list, fn warning ->
-          {module, verifier, warning}
-        end)
-
-      {:error, error} ->
-        [{module, verifier, error}]
+  @doc false
+  # Runs one Spark verifier against `dsl` and returns its errors: none for
+  # `:ok`, each warning (Spark only prints them at compile time), the error,
+  # or the exception the verifier raised. `AshTypescript.Manifest` runs its
+  # verifiers through this too.
+  @spec run_verifier(module(), term()) :: [term()]
+  def run_verifier(verifier, dsl) do
+    case verifier.verify(dsl) do
+      :ok -> []
+      {:warn, warnings} -> List.wrap(warnings)
+      {:error, error} -> [error]
     end
   rescue
-    e -> [{module, verifier, e}]
+    e -> [e]
   end
 
   defp format_verifier_errors(errors) do
@@ -86,7 +89,10 @@ defmodule AshTypescript.VerifierChecker do
     end)
   end
 
-  defp format_error(%Spark.Error.DslError{message: message}), do: message
-  defp format_error(error) when is_binary(error), do: error
-  defp format_error(error), do: Exception.message(error)
+  @doc false
+  # The message of an error `run_verifier/2` returned.
+  @spec format_error(term()) :: String.t()
+  def format_error(%Spark.Error.DslError{message: message}), do: message
+  def format_error(error) when is_binary(error), do: error
+  def format_error(error), do: Exception.message(error)
 end

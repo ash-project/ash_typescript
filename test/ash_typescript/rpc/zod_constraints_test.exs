@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.{SchemaCore, ZodSchemaGenerator}
   alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
   alias AshTypescript.Test.Todo
@@ -403,7 +403,9 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     test "simple regex patterns are converted to JavaScript" do
       # LinkContent has a simple URL regex: ~r/^https?:\/\//
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+
+      zod_schema =
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # Should include the regex constraint with escaped forward slashes
       # The pattern ^https?:\/ becomes ^https?:\\/\\/ in JavaScript
@@ -480,7 +482,9 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       # but we verify the simple URL pattern works and document the safety mechanism
 
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
+
+      zod_schema =
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, [embedded_resource])
 
       # The simple URL regex should be included
       assert zod_schema =~ ".regex("
