@@ -141,7 +141,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 
 `types_output_file`, `zod_output_file`, and `valibot_output_file` auto-derive from the `output_file` directory — set `output_file` and the others follow. Override individually if needed.
 
-Without `output_file` (a project with only typed controllers or typed channels), the shared types file holds only what the routes and typed channels files use: the aliases their arguments, results and payloads reach, and the channel types. It is written to `types_output_file` (`assets/js/ash_types.ts` unless set), and the routes and channels files import from it and re-export it. When they use no shared name, no types file is written and they neither import nor re-export one.
+Without `output_file` (a project with only typed controllers or typed channels), the shared types file holds only what the routes and typed channels files use: the aliases their arguments, results and payloads reach, and the channel types. It is written to `types_output_file` (`assets/js/ash_types.ts` unless set), and the routes and channels files import from it and re-export it. When they use no shared name, no types file is written and they neither import nor re-export one. The Zod and Valibot files then hold the route schemas and the named schemas of custom types that reach no resource or embedded resource, and no resource schemas: route arguments are plain data, so nothing uses them (set `output_file` to get them).
 
 ## Quick Reference
 

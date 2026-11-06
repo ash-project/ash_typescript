@@ -248,7 +248,9 @@ end
 
 A composite type (`composite?/1` returns `true`) needs nothing more: its
 `composite_types/1` entries are its fields, and they are non-null. A
-`typescript_fields/0` on a composite type replaces them.
+`typescript_fields/0` on a composite type replaces them. A `composite?/1` or
+`composite_types/1` that raises fails manifest compilation with the type and
+the callback in the message (`MyApp.Point.composite_types/1 raised: …`).
 
 ### Where Fields Come From
 
@@ -545,11 +547,11 @@ it gets named zod and valibot schemas (`AddressZodSchema`). Result types keep
 the field-selection form. Its keys are its client names, so
 `typescript_field_names/0` renames them in the aliases and schemas too.
 
-A field-bearing NewType's TypeScript comes from its fields, so an aliased one
-can't export `typescript_type/0`: compiling the manifest fails with "exports
-`typescript_type/0`: remove it; the alias is generated from the fields." A
-NewType without an alias may export it, and its TypeScript is then the
-callback's.
+A field-bearing NewType's TypeScript comes from its fields (a union NewType's
+from its members), so it can't export `typescript_type/0`, aliased or not:
+compiling the manifest fails with "exports `typescript_type/0`: remove it; its
+TypeScript is generated from its fields or members." To export a name for it,
+opt it into an alias.
 
 ## Naming the Type
 

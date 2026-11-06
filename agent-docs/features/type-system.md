@@ -289,8 +289,11 @@ node `TypeUses.nodes/1` returns is a compile dependency of the manifest
 
 A field-bearing NewType (`CustomTypes.field_bearing_new_type?/1`) that opts in
 (a field-less `map` entry or `typescript_type_alias/0`) gets `type_alias_names`
-too, by the same precedence, beside its `type_name` when it has one. `CustomTypes.check_alias_names/2` also rejects such a type
-when it exports `typescript_type/0`.
+too, by the same precedence. `CustomTypes.check_alias_names/2` rejects a
+field-bearing NewType or a union NewType that exports `typescript_type/0`,
+aliased or not ("Mod exports `typescript_type/0`: remove it; its TypeScript is
+generated from its fields or members."), so `ResourceSchemas` never renders a callback
+string for a complex field: a field-bearing type keeps its field selection.
 
 Scalar names (`AshTypescript.Codegen.ScalarAliases.name/2`, over the node
 `TypeMapper` maps a scalar from: an `:unknown` use of a non-NewType module, or a
@@ -334,10 +337,10 @@ A type module the manifest reaches (a `manifest.types` definition, or an
 returns) that still exports `typescript_type_name/0` or
 `typescript_alias_name/0`, the names before v0.20, is a
 `DslError` naming `typescript_type/0` / `typescript_type_alias/0`
-(`CustomTypes.check_renamed_callbacks/2`, from `DecorateManifest` before
-`check_alias_names/2`); a declared custom type or an aliased field-bearing
-NewType exporting `typescript_type_name/0` is told to remove it instead (its
-TypeScript comes from its fields). A map-like `:unknown` type with the old callback and no
+(`CustomTypes.check_renamed_callbacks/1`, from `DecorateManifest` before
+`check_alias_names/2`); a declared custom type, a field-bearing NewType or a
+union NewType exporting `typescript_type_name/0` is told to remove it instead
+(its TypeScript comes from its fields). A map-like `:unknown` type with the old callback and no
 fields fails ash_rpc's undeclared-type check first.
 
 `TypeUses.positions/1` returns the same nodes with each one's owner (the field,
@@ -357,8 +360,12 @@ that content is empty no file is written, and the routes and channels files get
 `import_paths: %{types: nil}` (no import, no `export type *`). The codegen alias
 checks (`ScalarAliases.aliases/1`'s two-bodies check, the `import_name` check,
 the name hints) run over the same roots and `reachable/1` definitions, so they
-see what the standalone file emits and never the app's RPC resources. The RPC
-branch is unchanged (`no_rpc_types_file_test.exs`).
+see what the standalone file emits and never the app's RPC resources. The
+schema files get no resource schemas (`generate_schema_file/8` passes no
+resources) and `SchemaCore.generate_custom_type_schemas(formatter, resources?:
+false)` leaves out custom-type schemas that reach a resource or embedded
+resource (`CustomTypeAliases.reaches_any_resource?/1`), so they import no input types and reference nothing undeclared. The
+RPC branch is unchanged (`no_rpc_types_file_test.exs`).
 
 `AshTypescript.Codegen.CustomTypeAliases` renders the block appended to the
 type aliases (`// Declared custom types`, sorted by name): the plain alias
@@ -380,7 +387,7 @@ terminate (`input_name/1` hung before this check). References:
 |----------|---------|
 | Inputs, calculation arguments, identity and `getBy` (`config_builder.ex`) | `map_type/3` `:input` → `input_name/1` (`map_plain_type(t, :input)` for identity/`getBy`) |
 | Route results, channel payloads | `map_route_result_type/1` / `map_channel_payload_type/1` → `plain_name/1` |
-| Filter operator values (`filter_types.ex`) | `map_plain_type(t, :input)`: ash_rpc formats them as input (client keys, `unknown_input` for others), so the input alias / input schema, unions as `{ member: input }` (members that are records left out). Which operators a field gets is ash_rpc's runtime rule, `AshRpc.Introspection.filter_operator_allowed?/3` (`filter_value_kind/2`): a value that is or reaches a resource or embedded resource keeps `isNil` only, a structured value that isn't a declared custom type has no ordering operators. ash_rpc casts structured values to the field's type, since Ash's `==`/`has` don't (`test/ash_typescript/rpc/rpc_run_action_structured_filter_test.exs`, `test/ts/shouldPass/structuredFilters.ts`, `shouldFail/structuredFilters.ts`) |
+| Filter operator values (`filter_types.ex`) | Keys: each operator's, function's and connective's client name in ash_rpc's `:filter_ops` vocabulary (`ClientNames.vocabulary!/2`). Values: `map_plain_type(t, :input)`: ash_rpc formats them as input (client keys, `unknown_input` for others), so the input alias / input schema, unions as `{ member: input }` (members that are records left out). Which operators a field gets is ash_rpc's runtime rule, `AshRpc.Introspection.filter_operator_allowed?/3` (`filter_value_kind/2`): a value that is or reaches a resource or embedded resource keeps `isNil` only, a structured value that isn't a declared custom type has no ordering operators. ash_rpc casts structured values to the field's type, since Ash's `==`/`has` don't (`test/ash_typescript/rpc/rpc_run_action_structured_filter_test.exs`, `test/ts/shouldPass/structuredFilters.ts`, `shouldFail/structuredFilters.ts`) |
 | Action metadata (`metadata_types.ex`) | `map_plain_type(t, :output)`: typed containers plain, aliased types the alias, resources as plain objects of their public attributes, unions as `{ member: value }` objects |
 | Resource schemas, field selection, generic action results | inline `TypedMap` (unchanged) |
 
@@ -453,7 +460,7 @@ manifest `scalar` with only `zod`/`valibot` keeps `typescript_type/0`. The
 base type maps with the entry's constraints, or with the node's own when it is a
 field of a declared custom type (`custom_fields?: true`).
 
-**Decision rule**: A `scalar` entry in the manifest is the normal path, for any type module; `typescript_type/0` on the type is the alternative when the type should carry its own TypeScript (an entry's `ts_type` wins over it). A `scalar` entry must name a scalar module over a scalar base type (`NormalizeCustomTypes` rejects enums, NewTypes with fields, primitive-table modules and map/keyword/tuple/struct/union/resource bases).
+**Decision rule**: A `scalar` entry in the manifest is the normal path, for any type module; `typescript_type/0` on the type is the alternative when the type should carry its own TypeScript (an entry's `ts_type` wins over it; a NewType with fields or over a union can't export it). A `scalar` entry must name a scalar module over a scalar base type (`NormalizeCustomTypes` rejects enums, NewTypes with fields, primitive-table modules and map/keyword/tuple/struct/union/resource bases).
 
 ### Unmappable Types (0.18)
 
@@ -520,6 +527,7 @@ Custom types integrate at multiple levels:
 - **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type/0` or a `custom_types` `scalar` entry for each listed module
 - **`Undeclared map-like custom types found`** / **`returns an undeclared custom type`**: a `storage_type :map` or composite custom type with no declared fields. Declare them (a `map` entry, `typescript_fields/0`, or `composite?/1` + `composite_types/1`)
 - **`Map-like custom types that declare a TypeScript type`**: remove `typescript_type/0` (or turn the `scalar` entry into a `map` one); the TypeScript is generated from the fields
+- **"exports `typescript_type/0`: remove it; its TypeScript is generated from its fields or members."**: a field-bearing or union NewType names its own TypeScript (`CustomTypes.check_alias_names/2`). Remove the callback; opt into an alias to export a name
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
 - **`Types with colliding TypeScript names found`**: `VerifyCustomTypeNames`. Set `ts_alias "…"` on one type's `map` entry, or `typescript_type_alias/0` on the type when no entry sets `ts_alias`
 - **`Duplicate exported type names in …`** / **`… imports types from … that it also declares`** / **`… imports names that it also imports from … or declares`** / an alias or schema that is an `import_name`: the orchestrator backstop; the message names the custom type and how to rename its alias

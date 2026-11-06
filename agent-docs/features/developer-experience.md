@@ -109,8 +109,11 @@ config :ash_typescript,
 This generates one file per namespace in `namespace_output_dir` (default: the directory of
 the main `output_file`):
 
-- `rpc/todos.ts` — re-exports the "todos" namespace's functions, input types and Zod/Valibot
-  schemas **from** the main output file
+- `rpc/todos.ts` — re-exports everything the main output file exports for the "todos"
+  namespace's actions (functions, `Input`, `Result`, `Fields`, `Infer…Result`, `Config`,
+  `Metadata` types) and their Zod/Valibot schemas **from** the main output file. The names
+  come from `AshTypescript.Rpc.Codegen.ActionExports`, the one descriptor of an action's
+  exports that the RPC file's function shapes and the JSON manifest also read
 - `rpc/admin.ts` — same for "admin"
 
 The main output file is unchanged and does **not** import the namespace files — the
@@ -394,9 +397,9 @@ routes when `generate_valibot_schemas` is on.)
 | `types.result` | string | Always present. Success/error wrapper type |
 | `types.fields` | string | Field selection type. Absent for destroy actions and for generic actions whose return isn't field-selectable (e.g. an unconstrained map) |
 | `types.inferResult` | string | Inferred result type. Absent in the same cases as `types.fields` |
-| `types.input` | string | Input argument type. Absent for destroy actions and when the action has no inputs (the manifest's unified arguments + accepted attributes) |
+| `types.input` | string | Input argument type. Absent when the action has no inputs (the manifest's unified arguments + accepted attributes) |
 | `types.config` | string | Pagination config type. Only for optional-pagination reads |
-| `types.filterInput` | string | Filter type (per-resource). Only for reads with filtering enabled |
+| `types.filterInput` | string | Filter type (per-resource). Only when the function's config takes a `filter`: list reads (not get actions) with filtering enabled |
 | `pagination` | object | Pagination capabilities |
 | `enableFilter` | boolean | Whether client-side filtering is enabled |
 | `enableSort` | boolean | Whether client-side sorting is enabled |
@@ -560,6 +563,7 @@ config :ash_typescript,
 | `lib/ash_typescript/rpc.ex` | DSL definitions and config accessors (`json_manifest_file`, `json_manifest_filename_format`) |
 | `test/ash_typescript/rpc/namespace_test.exs` | Namespace and JSDoc tests |
 | `test/ash_typescript/rpc/json_manifest_generator_test.exs` | JSON manifest tests |
+| `test/ash_typescript/rpc/manifest_generator_test.exs`, `manifest_generator_domain_grouped_test.exs` | Markdown manifest tests (namespace and domain grouping) |
 
 ## Testing
 

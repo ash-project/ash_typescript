@@ -28,8 +28,8 @@ to the page that documents the current behaviour where there is one.
    `typescript_field_names/0` to `field_names` ([Configuration](#configuration)).
 3. Fix what the manifest now rejects when it compiles: untyped structs,
    invalid generated names (client names, function and schema names, type
-   aliases), metadata names that collide with fields
-   ([Compile-time checks](#compile-time-checks)).
+   aliases), metadata names that collide with fields, load restrictions
+   with entries under leaf fields ([Compile-time checks](#compile-time-checks)).
 4. Check hand-written clients, error handling and error handlers: request keys,
    `required` errors, `unknown_*` errors, the `tenant` param, untyped data,
    `typed_query_action`, validation without AshPhoenix
@@ -41,7 +41,8 @@ to the page that documents the current behaviour where there is one.
    `returns` that aren't plain data, structured route arguments sent in the
    URL, and reserved route, action and typed query names
    ([Typed controllers](#typed-controllers), [Typed channels](#typed-channels)).
-7. Rename `typescript_type_name/0`, declare the fields of map-like custom types,
+7. Rename `typescript_type_name/0`, remove `typescript_type/0` from NewTypes
+   with fields or over a union, declare the fields of map-like custom types,
    update client field selections and filter values, and check the Money,
    ULID, Ltree and AshUUID changes ([Custom types](#custom-types)).
 8. If you call internal modules or implement a schema formatter, see
@@ -311,8 +312,7 @@ names generated for RPC actions, typed queries and typed controller routes, and
 type aliases. Every problem is reported at once, in one error that replaces the
 old per-check messages ("Invalid field names found …", "Invalid metadata field
 names found …", "Invalid names found that contain question marks …", "Invalid
-names for TypeScript generation found.", "… generates the function …", the
-stand-alone "The ts_alias …" and "The client_name …" errors). The verifier
+names for TypeScript generation found."). The verifier
 modules behind those messages are removed:
 `AshTypescript.Resource.Verifiers.VerifyFieldNames`,
 `AshTypescript.Resource.Verifiers.VerifyMapFieldNames`,
@@ -390,10 +390,9 @@ Update anything that matches the old messages. What changes:
     (`argument_names [act: [line_1: "line_1"]]`, `metadata_field_names
     [field_1: "field_1"]`): it is a valid identifier, used as written;
   - names in anything the manifest never reaches, since nothing is generated
-    for them: fields of resources in no `typescript_rpc` block, typed
-    controllers not listed in `typed_controllers:`, and the `client_name` and
-    `ts_alias` of `custom_types` entries for types nothing uses. The "not
-    listed" warnings still point at unlisted resources and controllers.
+    for them: fields of resources in no `typescript_rpc` block and typed
+    controllers not listed in `typed_controllers:`. The "not listed" warnings
+    still point at unlisted resources and controllers.
 
 The `field_names` checks that run when the resource compiles ("Invalid
 field_names configuration found": a key that isn't a field or doesn't need a
@@ -411,7 +410,24 @@ fails with "Client name collision in metadata of entrypoint"
 (`AshRpc.Manifest.NameCollisionError`) instead of "Metadata field conflicts
 with resource field". Update anything that matches the old message. Metadata of
 create, update and destroy actions is returned under its own `metadata` key
-and is no longer checked. See [Troubleshooting](../reference/troubleshooting.md).
+and is no longer checked. Two inputs of an action with the same client name
+fail the same way ("Client name collision in action :create on MyApp.Todo:
+…") instead of with "Duplicate input field names found in RPC
+configuration.". See [Troubleshooting](../reference/troubleshooting.md).
+
+### Load restrictions are checked under every field
+
+An `allowed_loads` / `denied_loads` entry with entries under an aggregate or
+a calculation that holds no resource, embedded resource or union
+(`denied_loads: [comment_count: [:x]]`) now fails manifest compilation with
+"contains invalid load paths"; before, the nested entries were ignored. Remove
+them. Entries under a union name its members
+(`denied_loads: [content: [text: [:display_text]]]`), and entries under an
+aggregate that returns an embedded resource are checked against that
+resource. A restricted union is typed in the union's own shape, with only the
+restricted members replaced; code that named the old `__members` shape of a
+restricted schema reads the union's members directly. See
+[RPC Action Options](../features/rpc-action-options.md).
 
 ## Requests and errors
 
@@ -680,6 +696,11 @@ gets the shared types file (`types_output_file`, by default
 Before, those files re-exported a types file that was never generated. See
 [Multi-File Output](../reference/configuration.md#multi-file-output).
 
+Its Zod and Valibot files no longer contain resource schemas, nor the named
+schemas of custom types that contain a resource: nothing in such a project
+uses them, and some of them didn't compile. Set `output_file` if you import
+them directly.
+
 ## Typed channels
 
 ### Publications need a typed-map `returns`
@@ -738,12 +759,47 @@ Compiling the manifest fails while a type module it reaches still exports
 `typescript_type_name/0`: "MyApp.HexColor exports `typescript_type_name/0`,
 which is now `typescript_type/0`: rename it." A type whose TypeScript comes
 from its fields (a map-like type with declared fields, or an
-`Ash.Type.NewType` with fields that has an alias) is told to remove it
+`Ash.Type.NewType` with fields or over a union) is told to remove it
 instead: "MyApp.Palette exports `typescript_type_name/0`: remove it; its
-TypeScript is generated from its fields." A map-like type that still has it and
+TypeScript is generated from its fields or members." A map-like type that still has it and
 declares no fields reports the undeclared custom type error first (see the next
 section). The callback that names an alias, new in this release, is
 `typescript_type_alias/0`.
+
+### `typescript_type/0` on NewTypes with fields is rejected
+
+An `Ash.Type.NewType` with fields (a typed map, keyword or tuple, an
+`Ash.TypedStruct`, a struct with `fields`) or over a union that exports
+`typescript_type/0` fails manifest compilation, aliased or not:
+"MyApp.Address exports `typescript_type/0`: remove it; its TypeScript is
+generated from its fields or members." Before, only an aliased one failed; an unaliased
+one was typed with the callback's string in `XResourceSchema` but inline in
+`XAttributesOnlySchema`, so its sub-field selection wasn't typed.
+
+```elixir
+# Before
+defmodule MyApp.Address do
+  use Ash.TypedStruct
+  def typescript_type, do: "MyAddress"
+
+  typed_struct do
+    field :street, :string
+  end
+end
+
+# After: remove the callback. To export a name, opt into an alias
+defmodule MyApp.Address do
+  use Ash.TypedStruct
+  def typescript_type_alias, do: "MyAddress"
+
+  typed_struct do
+    field :street, :string
+  end
+end
+```
+
+Clients select its sub-fields (`{ address: ["street"] }`). See
+[NewTypes With Fields](../advanced/custom-types.md#newtypes-with-fields).
 
 ### Map-like custom types declare fields
 
@@ -885,13 +941,48 @@ These are built-in declarations now. See
   remains for codegen.
 - `AshTypescript.Rpc.ValidationErrorSchemas` is removed.
 - An `AshTypescript.Codegen.SchemaFormatter` implementation drops
-  `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0` and
-  `ltree_union/0`, and gains `library/0` (`:zod` or `:valibot`) and
+  `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0`,
+  `ltree_union/0`, `null_schema/0`, `aggregate_types/0` and
+  `atom_primitives/0`, and gains `library/0` (`:zod` or `:valibot`),
   `wrap_lazy/1` (a deferred reference: `z.lazy(() => schema)`,
-  `v.lazy(() => schema)`).
+  `v.lazy(() => schema)`) and `schema_type/1` (the type of a schema for a
+  TypeScript type: `z.ZodType<T>`, `v.GenericSchema<T>`).
 - `AshTypescript.TypedChannel.PayloadFormatter` takes the channel module:
   `format_payload(channel_module, resource, event, payload)` and
   `push_formatted(socket, channel_module, resource, event, payload)`. See
   [Payload Formatting](../guides/typed-channels.md#payload-formatting).
 - Other removed and changed public functions are listed in the
-  [changelog](../../CHANGELOG.md).
+  [changelog](../../CHANGELOG.md); the helpers below are the ones apps and
+  extensions most likely call.
+
+### Removed helpers
+
+| Removed | Replacement |
+|---|---|
+| `AshTypescript.Rpc.Info.get_mapped_metadata_field_name/2` | `Keyword.get(rpc_action.metadata_field_names, field, field)` (the rpc_action's `metadata_field_names`) |
+| `AshTypescript.Resource.Info.get_mapped_field_name/2`, `get_mapped_argument_name/3` | `AshTypescript.Resource.Info.typescript_field_names!/1` / `typescript_argument_names!/1` (keyword lists of the explicit `field_names` / `argument_names` entries) |
+| `AshTypescript.TypeSystem.Introspection.get_typescript_field_names_map/1` | `Map.new(module.typescript_field_names())` when the type exports it |
+| `AshTypescript.Manifest.Custom.field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings/1`, `reverse_type_field_name_mappings/1`, `type_field_name_mappings_pair/1` | the `AshRpc.Manifest.Custom` readers they delegated to: `field_name_overrides/1`, `field_name_override/2`, `original_field_name/2`, `argument_name_override/3`, `original_argument_name/3`, `type_field_name_overrides/1`, `type_field_name_overrides_pair/1` |
+| `AshTypescript.Manifest.Custom.relationship_read_action/1`, `action_input_field_types/1` | `AshRpc.Manifest.Custom.relationship_read_action/1`, `action_input_field_types/1` |
+| `AshTypescript.Manifest.Custom.ash_typescript/1`, `resource_config/1` | none |
+| `AshTypescript.Manifest.Custom.metadata_field_mappings/1`, `reverse_metadata_field_mappings/1`, `exposed_metadata_fields/1`, `load_restrictions/1`, `filtering_enabled?/1`, `sorting_enabled?/1` | the fields of the wire `AshRpc.Entrypoint`, from `AshRpc.Manifest.entrypoint_lookup/1` |
+| `SchemaFormatter` callbacks `null_schema/0`, `aggregate_types/0`, `atom_primitives/0` | none (never called) |
+| `AshTypescript.Codegen.generate_all_schemas_for_resource/2,3`, `generate_input_schema/1` (and their `ResourceSchemas` twins), `SchemaCore.generate_schema_for_resource/2,3`, `ZodSchemaGenerator.generate_zod_schemas_for_resources/1`, `generate_zod_schema_for_resource/1`, `ValibotSchemaGenerator.generate_valibot_schema_for_resource/1` | `mix ash_typescript.codegen`, or `AshTypescript.Codegen.Orchestrator` |
+| `AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection.get_action!/2` | `Ash.Info.Manifest.get_action(Ash.Info.Manifest.action_lookup(manifest), resource, action)` (`nil` on a miss instead of raising) |
+| `ActionIntrospection.format_input_name/4,5`, `accepted_attribute?/3` | none (ash_rpc reports input name collisions) |
+| `AshTypescript.Helpers.camel_to_snake_case/1`, `formatted_args_field/0` | none |
+| `AshTypescript.Rpc.output_field_formatter/0` | `AshTypescript.output_field_formatter/0` |
+| `AshTypescript.Rpc.Codegen.RpcConfigCollector.entrypoint_for/2` | the wire `AshRpc.Entrypoint`, from `AshRpc.Manifest.entrypoint_lookup/1` |
+| `AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields/2` | `AshRpc.Introspection.get_exposed_metadata_fields/2` |
+
+Changed codegen functions:
+
+| Before | After |
+|---|---|
+| `RestrictedSchema.get_schema_and_reference/4` | `get_schema_and_reference/3`, the schema name from the rpc_action's name |
+| `MetadataTypes.generate_action_metadata_type(resource, action, rpc_action, pascal_name)` | `generate_action_metadata_type(action, rpc_action, rpc_action_name)` |
+| `MetadataTypes.exposed_metadata_fields(resource, rpc_action)` | `exposed_metadata_fields(rpc_action)` |
+| `PaginationTypes.generate_pagination_result_type/5`, `generate_conditional_pagination_result_type/5` with the PascalCase name | the same, with the rpc_action's name |
+| `TypescriptStatic.generate_imports(opts)` (`:skip_zod`, `:skip_valibot`, `:output_file`) | `generate_imports(output_file)` |
+| `Rpc.Codegen.generate_namespace_reexport_content/3,4` | `generate_namespace_reexport_content/5` (the zod and valibot file paths as `nil` when there are none) |
+| `Manifest.Decorator.decorate/1`, `HttpRenderer` / `ChannelRenderer.render_execution_function/4`, `FunctionCore.build_execution_function_shape/4`, `TypedController.Codegen.collect_route_zod_schemas/0`, `collect_route_valibot_schemas/0`, `get_routes_by_namespace/0`, `RouteRenderer.render_no_zod/1` | the arity that takes every argument (the options as `[]`) |

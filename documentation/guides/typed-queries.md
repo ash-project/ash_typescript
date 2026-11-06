@@ -250,6 +250,57 @@ The generated fields constant allows client-side re-fetching with the same shape
 </ul>
 ```
 
+## Selecting Fields
+
+`fields` takes every selection an RPC call's `fields` takes, and is checked
+against the resource when the manifest compiles. A has_many or many_to_many
+relationship can take the same query options as in TypeScript, in keyword or
+map form:
+
+```elixir
+typed_query :todos_with_recent_comments, :read do
+  fields [
+    :id,
+    comments: %{
+      filter: %{author_name: %{in: ["Ann", "Bob"]}},
+      sort: [:inserted_at],
+      limit: 3,
+      fields: [:id, :content]
+    }
+  ]
+end
+```
+
+The fields constant writes the options in the client's form, so the result type
+infers them (a `page` option makes the relationship a page, as in an RPC call):
+
+```typescript
+export const todosWithRecentComments = ["id", { comments: { filter: { authorName: { in: ["Ann", "Bob"] } }, sort: ["insertedAt"], limit: 3, fields: ["id", "content"] } }] satisfies ListTodosFields;
+```
+
+Atoms are the Elixir names. Strings are client names, as a client sends them
+(`"isActive"`, `"authorName"`, `%{"comments" => %{"limit" => 3, "fields" => ["id"]}}`
+under `:camel_case`), so they only hold under the `output_field_formatter`
+they were written for; a sort direction (`"-insertedAt"`) is only available as
+a string. Structured filter values are written as the runtime takes them (a
+union value wrapped in its member, `%{content: %{eq: %{priority_value: 8}}}`; a
+typed map, keyword or tuple as a map of its fields) and rendered in the input
+shape the generated filter types take, with client names. Filters and sorts are
+checked when the manifest compiles as the runtime checks them: an unknown field,
+a value an operator can't take or a sort that isn't a list of names fails the
+compile with a line naming the relationship ("Invalid filter for relationship
+'comments' at path []: No such field bogus for resource MyApp.Comment").
+A filter written as a list is the `and` of its statements, as the runtime reads
+it (`filter: [title: [eq: "x"], completed: false]` becomes
+`{ and: [{ title: { eq: "x" } }, { completed: { eq: false } }] }`), operators may
+be a keyword list, and a tuple field's value may be an Elixir tuple of its
+elements (`coordinates: %{eq: {1.5, 2.5}}` becomes
+`{ latitude: 1.5, longitude: 2.5 }`). Calculation arguments in a filter
+(`input`), a filter that is a boolean, a tuple value for a field that isn't a
+tuple, and a list value for an operator that takes one value
+(`title: %{eq: ["a"]}`; `in` and array fields take lists) have no form in the
+generated filter types, and codegen raises.
+
 ## Passing Arguments
 
 Use **atom keys** for arguments (you're in Elixir), wrapped in `:input`. Atom

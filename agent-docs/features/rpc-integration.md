@@ -91,6 +91,16 @@ and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 
 `RpcMappingSource.entrypoint/1` turns each `rpc_action` into the per-action contract
 that the runtime reads. It is stored under `custom.ash_rpc`, keyed by the wire action name.
+Codegen reads the same struct: every option below goes through
+`AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions` (`entrypoint!/1`, `get?/2`, `get_by/1`,
+`filter_enabled?/1`, `sort_enabled?/1`, `load_restrictions/1`, `not_found_error?/1`,
+`identities/1`, `exposed_metadata_fields/1`), so the generated types follow what the
+runtime does. `test/ash_typescript/codegen_entrypoint_source_guard_test.exs` bans reading
+the options off an rpc_action in codegen, and
+`test/ash_typescript/rpc/entrypoint_options_agreement_test.exs` checks the generated
+output against each entrypoint. `ConfigBuilder.optional_pagination?/3` is the one
+"takes an optional `page`" predicate (the `<Action>Config` type, its export and the JSON
+manifest's `config` type).
 
 | DSL option (`rpc_action`) | `AshRpc.Entrypoint` field | Default / resolution | Codegen effect | Client sees at runtime |
 |---|---|---|---|---|
@@ -133,8 +143,8 @@ rpc_action :list_todos_minimal, :read, enable_filter?: false, enable_sort?: fals
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
 - Action context: `lib/ash_typescript/rpc/codegen/helpers/config_builder.ex` (`get_action_context/3`)
 - Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex` (`add_filtering_fields/3`)
-- Runtime: reads `entrypoint.enable_filter?` / `entrypoint.enable_sort?`, never the `RpcAction` struct.
-  Codegen reads the `custom.ash_typescript` copy (`AshTypescript.Manifest.Custom.filtering_enabled?/1`, `sorting_enabled?/1`)
+- Runtime and codegen both read `entrypoint.enable_filter?` / `entrypoint.enable_sort?`, never the
+  `RpcAction` struct (codegen through `EntrypointOptions.filter_enabled?/1`, `sort_enabled?/1`)
 
 ### `get?` / `get_by` / `identities` / `not_found_error?`
 
@@ -176,6 +186,11 @@ server-side call. It is never a wire action.
 - **Off the wire.** `entrypoint/1` returns `nil` for typed queries, so they're absent
   from `custom.ash_rpc`'s entrypoints. A wire request without `action` gets
   `missing_required_parameter`.
+- **Checked at manifest compile.** `VerifyTypedQueryFields` runs `fields` through
+  `AshRpc.RequestedFieldsProcessor.process/5`, which throws for a bad selection and
+  adds a bad relationship `filter` / `sort` (`AshRpc.FilterInput`) to that
+  relationship's `Ash.Query` errors; the verifier reports both, so `TypedQueries`
+  only sees filters and sorts the runtime takes.
 - **Unknown name.** `run_typed_query/4` returns `typed_query_not_found`, built locally
   and wrapped with `AshRpc.failure_response/3`.
 
@@ -247,9 +262,67 @@ had no effect on field selection. Omit keys are built with the resource-aware
 `format_client_field_name/2`. With `format_output_field/1`, a mapped name
 (`field_names is_active?: "isActive"`) came out as `'isActive?'` and the `Omit`
 silently did nothing. A flat `allowed_loads` entry is omitted only when an
-override replaces it (relationships/embedded/unions get an `AttributesOnlySchema`
-override). Scalar allows have no override, so omitting them would forbid the very
+override replaces it (relationships/embedded get an `AttributesOnlySchema`
+override, unions one for each resource member). Scalar allows have no override, so omitting them would forbid the very
 field the action allows.
+
+**One walk** (`AshTypescript.Manifest.LoadPaths`): `step/4` classifies a field over the
+manifest's resource and type lookups (public relationship, attribute or aggregate holding an
+embedded resource or an array of one, calculation returning a resource, union, or a leaf: any
+other aggregate or calculation), `member_step/2` classifies a union member (holding a
+resource, or scalar), and `invalid_paths/4` walks a restriction list with them. `VerifyRpc`
+rejects what `invalid_paths/4` returns (an unknown name, entries under a leaf, an unknown
+member, or entries under a scalar member), and `RestrictedSchema.resolve_field_info/3`
+renders each `step/4`, so the verifier accepts exactly the paths the restricted schemas
+render.
+
+**Union members**: a union (an attribute, calculation or aggregate holding an
+`Ash.Type.Union`, an array of one, or a NewType of one) takes member names at the next
+level, as client field selection does:
+
+```elixir
+rpc_action :list_todos_deny_union_member, :read,
+  denied_loads: [content: [text: [:display_text]]]
+```
+
+ash_rpc checks every load against its full path, member included
+(`load_denied` with `[:content, :text, :display_text]`). The restricted schema keeps the
+union's own shape (`__primitiveFields`, optional member keys, scalar members, `| null`,
+`__array` for an array of unions) and replaces only the restricted members: a
+`{member, fields}` entry gets a nested `<Schema><Field><Member>` schema, a bare resource
+member in `denied_loads` gets its `AttributesOnlySchema`, and under `allowed_loads` (or a
+flat allowed union) every resource member the entries don't restrict further gets its
+`AttributesOnlySchema`. A calculation with arguments keeps its `__args` when it is
+restricted (a calculation returning a resource, or a union), and an aggregate holding an
+embedded resource restricts its `AttributesOnlySchema`, the schema the base schema gives it.
+
+**Types follow the runtime**: ash_rpc checks loads only (relationships, calculations,
+aggregates), never attributes, so the restricted schemas never remove an attribute:
+
+- A bare embedded or union *attribute* in `denied_loads` (`[:metadata]`), or a bare member,
+  denies only the loads under it: it gets its `AttributesOnlySchema` (a union: each resource
+  member's, scalar members unchanged). A bare relationship, calculation or aggregate is a
+  load and is omitted.
+- Under `allowed_loads`, at every level, each embedded attribute and each union attribute
+  with resource members that the entries don't name gets the same attributes-only override
+  (`RestrictedSchema.unnamed_attribute_overrides/3`).
+- Everywhere a restricted schema allows no loads under a resource (a flat allowed relationship,
+  embedded attribute or resource calculation, a bare denied attribute, an unnamed attribute or
+  member), it is typed by `RestrictedSchema.attributes_only_type/3`: the resource's
+  `AttributesOnlySchema`, or, when that still types a union attribute's resource members in
+  full (directly or through an embedded attribute), an inline
+  `(Omit<XAttributesOnlySchema, 'u'> & { u: … })` with those members' attributes only, down
+  to a resource already on the way. The base `AttributesOnlySchema` stays as it is: aggregates
+  use it on unrestricted actions, where ash_rpc accepts loads under an aggregate's value.
+- Relationship overrides render through `ResourceSchemas.relationship_field_type/2`, the
+  base schema's own rendering, so a restricted has_many / many_to_many keeps its
+  `__pagination` / `__filterInput` / `__sortField` markers.
+
+`test/ash_typescript/rpc/restricted_schema_agreement_test.exs` sends the selections
+`test/ts/shouldPass/restrictedSchemaAgreement.ts` makes (accepted by the types) and the loads
+`test/ts/shouldFail/restrictedSchemaAgreement.ts` makes (rejected by them) through
+`Pipeline.parse_request`, one of each per restricted rpc_action of the test domain; a new
+restricted rpc_action fails it until both files sample it.
 
 **Mutual Exclusivity**: `allowed_loads` and `denied_loads` cannot be used together on the same rpc_action. The verifier raises a compile-time error.
 
@@ -267,12 +340,13 @@ mechanism: Ash policies apply to every load regardless of these options.
 **Implementation locations**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
 - Entrypoint: `lib/ash_typescript/rpc_mapping_source.ex` puts the spec on
-  `%AshRpc.Entrypoint{load_restrictions: …}`, which the runtime reads as `entrypoint.load_restrictions`.
-  Codegen reads the `custom.ash_typescript` copy via `AshTypescript.Manifest.Custom.load_restrictions/1`
+  `%AshRpc.Entrypoint{load_restrictions: …}`, which the runtime reads as `entrypoint.load_restrictions`
+  and codegen through `EntrypointOptions.load_restrictions/1`
 - Codegen: `lib/ash_typescript/rpc/codegen/type_generators/restricted_schema.ex`
 - Verifier: `lib/ash_typescript/manifest/verifiers/verify_rpc.ex`, which runs when the manifest module
   compiles
-- Tests: `test/ash_typescript/rpc/load_restrictions_test.exs`, `test/ash_typescript/rpc/restricted_schema_codegen_test.exs`
+- Tests: `test/ash_typescript/rpc/load_restrictions_test.exs`, `test/ash_typescript/rpc/restricted_schema_codegen_test.exs`,
+  `test/ash_typescript/rpc/restricted_schema_agreement_test.exs`
 
 ## Compile-Time Config
 
@@ -329,13 +403,16 @@ These tests exercise the DSL → Entrypoint → runtime path, `RpcProfile` and t
 | `test/ash_typescript/rpc_profile_test.exs` | `manifest/0`, `error_handler/1` (from the DSL; `nil` before resolution), `show_raised_errors?/1`, `show_policy_breakdowns?/0`, `stale_client_hint/0` |
 | `test/ash_typescript/with_manifest_test.exs` | `with_manifest/2` scoping and restoration; `CodegenTestHelper` honours `manifest:` |
 | `test/ash_typescript/rpc/entrypoint_resolution_test.exs` | Every `rpc_action` name resolves to exactly one decorated entrypoint |
-| `test/ash_typescript/rpc/run_typed_query_test.exs` | `run_typed_query/4`: not-found error; passing `input`/`page`/`filter`/`sort` |
+| `test/ash_typescript/rpc/run_typed_query_test.exs` | `run_typed_query/4`: not-found error; passing `input`/`page`/`filter`/`sort`; relationship envelopes in the preset fields |
+| `test/ash_typescript/rpc/typed_query_client_names_test.exs` | Typed queries written with client-name strings render and run like their internal-name twin (inline manifest) |
 | `test/ash_typescript/rpc/typed_query_wire_test.exs` | A wire request without `action` gets `missing_required_parameter`; preset fields; unknown typed query |
 | `test/ash_typescript/rpc/error_protocol_test.exs` | Policy breakdown on/off via `config :ash_typescript, policies:` (the "Forbidden policy error…" tests) |
 | `test/ash_typescript/rpc/channel_tenant_override_test.exs` | A `tenant` param overrides `socket.assigns[:ash_tenant]` through `RpcProfile` |
 | `test/ash_typescript/rpc/enable_filter_test.exs`, `test/ash_typescript/rpc/enable_sort_test.exs` | DSL flag → wire rejection, plus the "TypeScript codegen" describe blocks |
 | `test/ash_typescript/rpc/load_restrictions_test.exs` | `allowed_loads` / `denied_loads` DSL → wire errors (CVE-3210 included) |
 | `test/ash_typescript/rpc/restricted_schema_codegen_test.exs` | Restricted `<Action>Schema` codegen |
+| `test/ash_typescript/rpc/restricted_schema_agreement_test.exs` | Restricted schemas agree with the runtime: the TS agreement samples through `Pipeline.parse_request` |
+| `test/ash_typescript/rpc/union_load_restrictions_test.exs` | Restrictions through union members: verifier, runtime, restricted schema of array members and calculations with arguments |
 | `test/ash_typescript/rpc/rpc_get_actions_test.exs` | `get?`, `get_by`, `not_found_error?` through the DSL; `redecorate/2` for the global setting |
 | `test/ash_typescript/rpc/rpc_run_action_user_test.exs` | `field_names` mappings under `pascal_case`/`snake_case` via `redecorate/2` + `manifest:` |
 | `test/ash_typescript/rpc/runtime_source_of_truth_guard_test.exs` | ash_rpc's runtime files (`pipeline.ex`, `field_selector.ex`, …) contain no `AshTypescript.Resource.Info` / `AshTypescript.Rpc.Info` reads |

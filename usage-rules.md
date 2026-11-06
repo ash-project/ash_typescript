@@ -259,7 +259,7 @@ updateProvider({ provider: "github" }, { enabled: true })
 - Not an Ash resource — standalone Spark DSL with colocated arguments
 - Path param `allow_nil?` must match presence: always present → `false`, sometimes present (multi-mount) → `true`
 - Arguments follow Ash action-argument semantics: `constraints:` are validated at compile time and enforced at runtime — a failure returns 422 without invoking the handler
-- Empty string on a required string argument → 422 `is required`; on a nilable string argument the handler receives `nil`. Strings are trimmed by default (`trim?`)
+- An omitted argument gets its `default`, whatever `allow_nil?` (like a create/update action argument); a sent `null` stays `nil`. An empty string on a non-nilable (`allow_nil?: false`) string argument → 422 `is required`, default or not; on a nilable string argument the handler receives `nil`. Strings are trimmed by default (`trim?`)
 - Route arguments accept any Ash type form, including `{:array, inner}`; item constraints go under `constraints: [items: [...]]`. They are plain data like `returns`: no resources, embedded resources, unions or recursive types (use a typed map or an `Ash.TypedStruct`)
 - Validation schemas are generated for every route with non-path arguments (GET query params included), not just mutations — they live in the shared `ash_zod.ts`/`ash_valibot.ts`, and the JSON manifest advertises them under `typedControllerRoutes[].types`
 
@@ -396,13 +396,13 @@ for (const action of manifest.actions) {
 | "Types with colliding TypeScript names found" (compile warning, codegen error), "Duplicate exported type names" / "imports types from ... that it also declares" / "imports names that it also imports from ... or declares" / "is an `import_name`" / "Duplicate Zod schema names detected" (codegen) | Rename the alias (and so its schemas) with `ts_alias "…"` on its `map` or `scalar` entry, or `typescript_type_alias/0` on the type when no entry sets `ts_alias` |
 | "These aliased types contain themselves" | Recursive aliased types aren't supported: expand the type to a fixed depth |
 | "exports `typescript_type_name/0`, which is now `typescript_type/0`" | Rename the callback to `typescript_type/0` (the alias callback is `typescript_type_alias/0`) |
-| "exports `typescript_type_name/0`: remove it; its TypeScript is generated from its fields" | A map-like type with declared fields, or an aliased NewType with fields: remove the callback |
+| "exports `typescript_type_name/0`: remove it; its TypeScript is generated from its fields or members" | A map-like type with declared fields, or a NewType with fields or over a union: remove the callback |
 | "is not a TypeScript identifier" / "is a TypeScript reserved word" / "is a global TypeScript name the generated code uses" (under "Type aliases:" in "Invalid generated names found.") | An alias name (`ts_alias`, `typescript_type_alias/0`) must be an identifier that isn't reserved and isn't a global the generated code uses (`Array`, `Promise`, `Record`, …) |
 | "is its ts_type, so the alias would alias itself" | A `scalar`'s `ts_alias` can't equal its `ts_type`: remove `ts_alias` or rename it |
 | "a `scalar` entry never applies to it" / "is not a scalar (a map, keyword, tuple, struct, union or resource)" | `scalar` entries are for scalar modules over scalar bases: remove it, use a field-less `map` entry for a NewType with fields, or a `map` entry with fields |
 | "The result … of the `ts_alias` MFA …" (codegen) | An MFA `ts_alias` returned an invalid, reserved, generated (`UUID`, …) or self-referencing name: return another name or `nil` |
 | "a field-less `map` entry is only for an `Ash.Type.NewType` with fields" / "The fields of … come from the type" | Field-less `map` entries only opt NewTypes with fields into an alias; custom types declare their fields, NewTypes don't |
-| "exports `typescript_type/0`: remove it; the alias is generated from the fields" | An aliased NewType with fields can't name its TypeScript: remove the callback or the opt-in |
+| "exports `typescript_type/0`: remove it; its TypeScript is generated from its fields or members" | A NewType with fields or over a union can't name its TypeScript, aliased or not: remove the callback (opt into an alias to export a name) |
 | "an MFA `ts_alias` needs an MFA `ts_type`" / "The TypeScript alias `X` of a scalar has more than one body" | One scalar alias name names one TypeScript type: MFA `ts_alias` with an MFA `ts_type`, a name per body |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
@@ -420,7 +420,7 @@ for (const action of manifest.actions) {
 | "a JavaScript reserved word" / "a predefined TypeScript type name" | Rename the route, `rpc_action` or `typed_query` (`:delete` → `:delete_item`), or change the option the line names (`ts_fields_const_name`, `ts_result_type_name`, `zod_schema_name`, `valibot_schema_name`) |
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
 | "show_metadata contains unknown metadata fields" | Only list fields the action's `metadata` declarations define |
-| "allowed_loads contains invalid load paths" | Entries must be public relationships/calculations/aggregates/embedded attributes; nested keys checked against the destination resource |
+| "allowed_loads contains invalid load paths" | Entries must be loadable public fields; nested entries only under relationships, embedded attributes, unions (member names at the next level: `content: [text: [:display_text]]`) and calculations or aggregates holding a resource, embedded resource or union; nested keys are checked against the destination, embedded or returned resource |
 | "allow_nil?: true" + path param | Set `allow_nil?: false` for always-present path params |
 | "allow_nil?: false" + sometimes-present | Use `allow_nil?: true` for multi-mount path params |
 | "No publication with event X found" | Check `event:` option on resource's `pub_sub` block |

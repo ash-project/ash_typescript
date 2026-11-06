@@ -112,6 +112,30 @@ type Todo = {
 };
 ```
 
+## Recursive Embedded Resources
+
+An embedded resource can contain itself (or another embedded resource that
+contains it) through a `:struct` with `instance_of`:
+
+```elixir
+attribute :replies, {:array, :struct},
+  public?: true,
+  constraints: [items: [instance_of: __MODULE__]]
+```
+
+Its Zod and Valibot schemas are lazy and cast to its input type, so they can
+reference themselves:
+
+```typescript
+export const NoteZodSchema = z.lazy(() => z.object({
+  body: z.string().min(1),
+  replies: z.array(NoteZodSchema).nullable().optional(),
+})) as z.ZodType<NoteInputSchema>;
+```
+
+The schema files import those input types from the shared types file. The
+schemas compile with and without `exactOptionalPropertyTypes`.
+
 ## Client Names
 
 An embedded resource's fields have client names like any resource's: the

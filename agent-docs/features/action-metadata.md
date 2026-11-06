@@ -397,9 +397,8 @@ end
 |------|---------|
 | `lib/ash_typescript/rpc.ex` | DSL definition for show_metadata and metadata_field_names |
 | `lib/ash_typescript/manifest/name_check.ex` | Metadata name check, with every other client name (runs at manifest-module compile; collisions are ash_rpc's) |
-| `lib/ash_typescript/manifest/custom.ex` | Codegen-side accessors: `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
-| `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `exposed_metadata_fields/2`, `generate_action_metadata_type/4`, metadata TS types |
-| `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` |
+| `lib/ash_typescript/rpc/codegen/helpers/entrypoint_options.ex` | `exposed_metadata_fields/1`: the wire entrypoint's exposed fields, for codegen |
+| `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `exposed_metadata_fields/1` (reads the wire entrypoint), `generate_action_metadata_type/3`, metadata TS types |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
 | `test/ash_typescript/manifest/name_check/metadata_field_names_test.exs` | Metadata name check and collision tests, end to end |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |

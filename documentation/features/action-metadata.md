@@ -160,6 +160,12 @@ result.metadata.cacheStatus        // Formatted
 A metadata field of a typed map or struct type is sent with its declared fields
 only, under their client names.
 
+Metadata values are plain data: there is no field selection inside them. A
+resource value (embedded or not) is typed as an object of its public
+attributes, and a union as one `{ member: value }` object per member. A
+resource that contains itself is expanded once; inside it, its own type is
+`Record<string, any>`.
+
 ## Type Safety
 
 Generated TypeScript types include metadata fields with full type inference:

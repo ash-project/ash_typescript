@@ -34,6 +34,8 @@ declared publication needs a typed-map `returns`.
       end
 
       typed_channel do
+        topic "org_admin:*"
+
         resource MyApp.Post do
           publish :post_created
           publish :post_updated

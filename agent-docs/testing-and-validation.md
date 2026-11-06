@@ -31,6 +31,9 @@ sorting, load restrictions, metadata, identities, channels, and lifecycle hooks.
 # Generate and validate TypeScript
 mix test.codegen
 cd test/ts && npm run compileGenerated
+npm run compileGeneratedRoutes # generated_routes.ts
+npm run compileGeneratedTypedChannels # generated_typed_channels.ts
+npm run compileGeneratedSchemas # ash_zod.ts / ash_valibot.ts, with exactOptionalPropertyTypes
 
 # Test usage patterns (type-level only)
 npm run compileShouldPass     # Valid patterns (must pass)
@@ -42,6 +45,13 @@ npm run testValibot
 
 # Execute the generated channel push helpers against a fake channel
 npm run testChannelHooks
+
+# Execute the generated route helpers (query strings, fetch requests)
+npm run testRouteHelpers
+
+# Codegen variants (non-default settings), compiled against their usage.ts
+cd ../.. && mix test.codegen_variants
+cd test/ts && npm run compileVariants
 
 # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 mix test
@@ -56,7 +66,50 @@ entries, built-ins), constraint generation, or any other validation codegen. Roo
 `executeActionChannelPush` / `executeValidationChannelPush` helpers against a
 fake channel, with the `beforeChannelPush` hooks of `channelHooks.ts`: run it
 after touching the channel push helpers in `rpc/codegen/typescript_static.ex`.
-Root-level equivalent: `mix test.test_channel_hooks`.
+Root-level equivalent: `mix test.test_channel_hooks`. Its cases also call
+generated `validate…Channel` functions (result and error replies, `getBy` in
+the payload).
+
+`testRouteHelpers` (`runRouteHelperTests.ts`) runs the generated GET helper of
+the `search` route: the query string (array arguments as repeated `tags[]`
+pairs) and the request its fetch function makes through `customFetch`.
+Root-level equivalent: `mix test.test_route_helpers`.
+
+The compile-only scripts pass `--noEmit`; each runtime script (`testZod`,
+`testValibot`, `testChannelHooks`, `testRouteHelpers`) emits into its own
+`test/ts/build/<name>/` (gitignored). Keep it that way: `mix check` runs them in
+parallel, and a shared `.js` output let one script load another's ES-module
+build.
+
+### Coverage
+
+`mix check` runs the suite as `mix test --cover`, which fails below the 90%
+`test_coverage` threshold in `mix.exs`. The total measures the library: the
+installer, the modules Spark generates for each DSL section and entity, and
+the `test/support` fixtures (`AshTypescript.Test.*`, their derived `Inspect`
+impls, `AshTypescript.TestApp` and the `AshMoney` / `AshDoubleEntry` stubs)
+are in `ignore_modules`. `cover/` holds one HTML page per module
+(`cover/Elixir.<Module>.html`); a missed line is a `<tr class="miss">` row.
+New code comes with a test that reaches it, or is removed when nothing can
+reach it.
+
+### Codegen variants
+
+`mix test.codegen_variants` (`AshTypescript.Test.CodegenVariants`,
+`test/support/codegen_variants.ex`) generates the codegen output under
+non-default settings into gitignored `test/ts/variants/<name>/`, one `mix run`
+process setting each variant's config with `Application.put_env`:
+`no_rpc_types` (no `output_file`), `paths_only` (`typed_controller_mode`),
+`path_params_args` (`typed_controller_path_params_style: :args`, with
+`Session`'s `item_page` route whose path param `new` is bound as `newParam`),
+`base_path_string` and `base_path_runtime` (`typed_controller_base_path`), and
+`pascal_rpc` (the manifest redecorated `:pascal_case`, with its own committed
+`rpcHooks.ts` / `channelHooks.ts`). Each variant has a committed `usage.ts`:
+calls that must type-check and `@ts-expect-error` calls that must not.
+`npm run compileVariants` compiles them all, each with its `ash_zod.ts` and
+`ash_valibot.ts` (`test/ts/variants/tsconfig.json`, the `compileGenerated`
+flags). To add a variant, add it to `variants/0`, write
+its `usage.ts`, and run both commands.
 
 ## Test Categories
 
@@ -95,11 +148,16 @@ Run these before making changes to establish working baseline:
 mix test                              # All Elixir tests passing
 mix test.codegen                      # TypeScript generation successful
 cd test/ts && npm run compileGenerated # Generated TypeScript compiles
+cd test/ts && npm run compileGeneratedRoutes # Generated route helpers compile
+cd test/ts && npm run compileGeneratedTypedChannels # Generated typed channels compile
+cd test/ts && npm run compileGeneratedSchemas # Zod/Valibot schema files compile
 cd test/ts && npm run compileShouldPass # Valid patterns work
 cd test/ts && npm run compileShouldFail # Invalid patterns rejected
 cd test/ts && npm run testZod          # Zod schemas execute against fixtures
 cd test/ts && npm run testValibot      # Valibot schemas execute against fixtures
 cd test/ts && npm run testChannelHooks # Channel push helpers run with channelHooks.ts
+cd test/ts && npm run testRouteHelpers # Route helpers build URLs and requests
+mix test.codegen_variants && (cd test/ts && npm run compileVariants) # Non-default settings compile
 ```
 
 **If any baseline check fails, STOP and fix before proceeding.**
@@ -472,11 +530,16 @@ inventing fixtures:
 - [ ] `mix test` - All Elixir tests pass
 - [ ] `mix test.codegen` - TypeScript generates without errors
 - [ ] `cd test/ts && npm run compileGenerated` - Generated TypeScript compiles
+- [ ] `cd test/ts && npm run compileGeneratedRoutes` - Generated route helpers compile
+- [ ] `cd test/ts && npm run compileGeneratedTypedChannels` - Generated typed channels compile
+- [ ] `cd test/ts && npm run compileGeneratedSchemas` - Generated Zod/Valibot schema files compile under `exactOptionalPropertyTypes`
 - [ ] `cd test/ts && npm run compileShouldPass` - Valid patterns work
 - [ ] `cd test/ts && npm run compileShouldFail` - Invalid patterns fail correctly
 - [ ] `cd test/ts && npm run testZod` - Zod schemas execute against fixtures
 - [ ] `cd test/ts && npm run testValibot` - Valibot schemas execute against fixtures
 - [ ] `cd test/ts && npm run testChannelHooks` - Channel push helpers run with `channelHooks.ts`
+- [ ] `cd test/ts && npm run testRouteHelpers` - Route helpers build URLs and requests
+- [ ] `mix test.codegen_variants` then `cd test/ts && npm run compileVariants` - Codegen variants compile
 - [ ] `mix format --check-formatted` - Code formatting maintained
 - [ ] `mix credo --strict` - No linting issues
 - [ ] Every generated-output delta classified as intentional

@@ -57,7 +57,7 @@ end
 
 Embedded resources are **not** merged into a relationship schema — no `*RelationshipSchema`
 type exists. Each embedded resource gets its own three schemas
-(`ResourceSchemas.generate_all_schemas_for_resource/4`; `InputSchema` is generated whenever
+(`ResourceSchemas.generate_all_schemas_for_resources/4`; `InputSchema` is generated whenever
 `api_resource.embedded?`):
 
 - `{Name}ResourceSchema`

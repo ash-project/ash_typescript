@@ -41,9 +41,9 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
     * `AshTypescript.rpc_action_lookup/1`
 
-    * `AshTypescript.FieldFormatter.format_fields/2`, `parse_input_fields/2`, `parse_input_value/2`, `format_output_field_names/2`, `format_sort_string/2` and `resolve_field_name/2` (same signatures in `AshRpc.FieldFormatter`), and `compute_field_name/2`
+    * `AshTypescript.FieldFormatter.format_fields/2` and `format_output_field_names/2` (same signatures in `AshRpc.FieldFormatter`), and `parse_input_field/2`, `parse_input_fields/2`, `parse_input_value/2`, `format_sort_string/2`, `resolve_field_name/2` and `compute_field_name/2` (no replacement: request keys are matched exactly; `format_field_name/2` remains)
 
-    * `AshTypescript.Manifest.Custom.authorize_bulk_strategy/1` (now `AshRpc.Manifest.Custom.authorize_bulk_strategy/1`), `reverse_field_name_mappings/1`, `argument_name_mappings_for_action/2` and `action_input_expected_keys/2`
+    * `AshTypescript.Manifest.Custom.authorize_bulk_strategy/1` (now `AshRpc.Manifest.Custom.authorize_bulk_strategy/1`), `reverse_field_name_mappings/1` (look names up with `AshRpc.Manifest.Custom.original_field_name/2`), `argument_name_mappings_for_action/2` (now `AshRpc.Manifest.Custom.argument_name_overrides/2`) and `action_input_expected_keys/2` (now `AshRpc.Manifest.Custom.action_expected_input_keys/1`, without the formatter)
 
     * `AshTypescript.Helpers.snake_to_camel_case/1`, `pascal_to_snake_case/1` and `ash_resource?/1`
 
@@ -52,6 +52,8 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
     * `AshTypescript.FieldFormatter.format_field_for_client/3`, `AshTypescript.Helpers.format_mapped_output_field/2` and `typescript_field_names_reverse/1`, `AshTypescript.Resource.Info.get_formatted_field/3` and the `AshTypescript.Resource.Transformers.PersistFormattedFields` transformer, and `AshTypescript.Manifest.Custom.formatted_field_name/3` (codegen reads client names from the `custom.ash_rpc` decoration)
 
     * `AshTypescript.Manifest.Custom.typescript_resource?/1` (use `AshRpc.Manifest.Custom.exposed?/1`)
+
+    * `AshTypescript.Manifest.Custom.metadata_field_mappings/1`, `reverse_metadata_field_mappings/1`, `exposed_metadata_fields/1`, `load_restrictions/1`, `filtering_enabled?/1` and `sorting_enabled?/1`, and those keys of an entrypoint's `custom.ash_typescript` (read the options off the wire `AshRpc.Entrypoint`, from `AshRpc.Manifest.entrypoint_lookup/1`)
 
     * `AshTypescript.Codegen.Helpers.is_complex_return_type/2`, `AshTypescript.Codegen.ZodSchemaGenerator.get_zod_type/2` and `AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema.has_load_restrictions?/1`
 
@@ -65,6 +67,24 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
     * `AshTypescript.TypedChannel.Codegen.generate_channel_types/1,2` and `generate_channel_functions/1,2` (use `generate_all_channel_types/1` / `generate_all_channel_functions/1`)
 
+    * `AshTypescript.Rpc.Info.get_mapped_metadata_field_name/2`, `AshTypescript.Resource.Info.get_mapped_field_name/2` and `get_mapped_argument_name/3`, and `AshTypescript.TypeSystem.Introspection.get_typescript_field_names_map/1` (the explicit overrides are `AshTypescript.Resource.Info.typescript_field_names!/1` / `typescript_argument_names!/1`, the rpc_action's `metadata_field_names` and a type's `typescript_field_names/0`)
+
+    * `AshTypescript.Manifest.Custom.ash_typescript/1`, `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings/1`, `reverse_type_field_name_mappings/1`, `type_field_name_mappings_pair/1`, `relationship_read_action/1`, `action_input_field_types/1` and `resource_config/1`, and the `resource_config` key of an entrypoint's `custom.ash_typescript` (the `custom.ash_rpc` readers they delegated to are in `AshRpc.Manifest.Custom`: `field_name_overrides/1`, `field_name_override/2`, `original_field_name/2`, `argument_name_override/3`, `original_argument_name/3`, `type_field_name_overrides/1`, `type_field_name_overrides_pair/1`, `relationship_read_action/1`, `action_input_field_types/1`)
+
+    * `AshTypescript.Codegen.generate_all_schemas_for_resource/2,3` and `generate_input_schema/1` and their `ResourceSchemas` twins, `SchemaCore.generate_schema_for_resource/2,3`, `ZodSchemaGenerator.generate_zod_schemas_for_resources/1` and `generate_zod_schema_for_resource/1`, and `ValibotSchemaGenerator.generate_valibot_schema_for_resource/1` (run `mix ash_typescript.codegen`, or `AshTypescript.Codegen.Orchestrator`)
+
+    * `AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection.get_action!/2` (use `Ash.Info.Manifest.get_action/3` over `Ash.Info.Manifest.action_lookup/1`, which returns `nil` on a miss), `format_input_name/4,5` and `accepted_attribute?/3` (ash_rpc checks input name collisions); `AshTypescript.Helpers.camel_to_snake_case/1` and `formatted_args_field/0`; `AshTypescript.Rpc.output_field_formatter/0` (use `AshTypescript.output_field_formatter/0`)
+
+    * `AshTypescript.Rpc.Codegen.RpcConfigCollector.entrypoint_for/2` (read the wire `AshRpc.Entrypoint` from `AshRpc.Manifest.entrypoint_lookup/1`) and `AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields/2` (call `AshRpc.Introspection.get_exposed_metadata_fields/2`, which it delegated to)
+
+    * `AshTypescript.Rpc.ResultProcessor.normalize_value_for_json/1` (`AshRpc.ResultProcessor.normalize_primitive/2` does the same conversion)
+
+    * `TypedController.Codegen.RouteConfigCollector.get_typed_controllers/0` (replaced by `manifest_routes_config/1`) and `TypedController.Codegen.collect_referenced_resources/1` (internal; route arguments can no longer be resources)
+
+  * functions now `@doc false` (test seams, no longer public API; run `mix ash_typescript.codegen` or `AshTypescript.Codegen.Orchestrator` instead):
+
+    * `AshTypescript.Codegen.generate_ash_type_aliases/1` and `generate_unified_resource_schema/2` (and `ResourceSchemas.generate_unified_resource_schema/2`), `AshTypescript.Codegen.FilterTypes.generate_filter_type/1`, `AshTypescript.Codegen.ZodSchemaGenerator.generate_zod_schema/3` and `AshTypescript.Codegen.ValibotSchemaGenerator.generate_valibot_schema/3`
+
   * changed public functions:
 
     * `AshTypescript.Codegen.build_map_type/3` → `build_map_type/2`, which takes a decorated `%Ash.Info.Manifest.Type{}` and an optional field selection
@@ -75,9 +95,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
     * `AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes.generate_input_type/4` → `generate_input_type/3` (the `resource_lookup` argument is gone)
 
+    * `SchemaCore.get_type/3` no longer takes an aggregate kind atom
+
+    * `TypeMapper.map_route_result_type/2` and `map_channel_payload_type/2` → `/1`, taking an `%Ash.Info.Manifest.Type{}`
+
+    * `AshTypescript.TypedChannel.PayloadFormatter.format_payload/3` → `format_payload/4` and `push_formatted/4` → `push_formatted/5`; both take the channel module first (after the socket, for `push_formatted/5`)
+
+    * `AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema.get_schema_and_reference/4` → `get_schema_and_reference/3` (the schema name comes from the rpc_action's name), `PaginationTypes.generate_pagination_result_type/5` and `generate_conditional_pagination_result_type/5` take the rpc_action's name instead of its PascalCase form, and `MetadataTypes.generate_action_metadata_type/4` → `generate_action_metadata_type/3` (`action, rpc_action, rpc_action_name`: no resource, and the rpc_action's name instead of its PascalCase form)
+
+    * `AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.exposed_metadata_fields/2` → `exposed_metadata_fields/1` (the rpc_action only)
+
+    * `AshTypescript.Rpc.Codegen.TypescriptStatic.generate_imports/0,1` (keyword options) → `generate_imports/1` (the output file; the RPC file never imported zod or valibot, so `:skip_zod` / `:skip_valibot` are gone), and the arities without options are removed from `AshTypescript.Rpc.Codegen.generate_namespace_reexport_content/3,4` (now `/5`), `AshTypescript.Manifest.Decorator.decorate/1`, `HttpRenderer.render_execution_function/4`, `ChannelRenderer.render_execution_function/4`, `FunctionCore.build_execution_function_shape/4`, `AshTypescript.TypedController.Codegen.collect_route_zod_schemas/0`, `collect_route_valibot_schemas/0`, `get_routes_by_namespace/0` and `RouteRenderer.render_no_zod/1`
+
   * request errors a generated client never produces no longer carry `details.hint` (the "generated typescript file is not up to date" hint): `invalid_input_format`, `invalid_fields_type`, `invalid_pagination` (page not a map, unknown page keys), `duplicate_field`, `empty_fields_array`, `invalid_union_input` with several member keys, non-scalar `invalid_identity` / `invalid_get_by` values, `invalid_query_opts` for args combined with query options or `page` combined with `limit`/`offset`, and `unknown_error`. The hint text is set by `AshTypescript.RpcProfile.stale_client_hint/0`
 
-* rpc: `input_field_formatter` is removed (the config key, `AshTypescript.input_field_formatter/0`, `AshTypescript.Rpc.input_field_formatter/0`, `AshTypescript.RpcMappingSource.input_formatter/0` and the installer entry). Request keys must be the client names the `output_field_formatter` produces, matched exactly
+* rpc: `input_field_formatter` is removed (the config key, `AshTypescript.input_field_formatter/0`, `AshTypescript.Rpc.input_field_formatter/0`, `AshTypescript.RpcMappingSource.input_formatter/0` and the installer entry). Request keys must be the client names the `output_field_formatter` produces, matched exactly. A leftover config key is ignored and triggers a compile-time warning (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#input_field_formatter-is-removed))
 
 * rpc: a `metadataFields` entry that isn't the client name of a metadata field the action exposes is now an `unknown_metadata_fields` error (misses in `fields`, allowed names in `details.allowedFields`) instead of being dropped silently
 
@@ -95,57 +127,63 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * codegen: the typed controller route set and the typed channel set come from the manifest (stored when it compiled). Code that changed `:typed_controllers` / `:typed_channels` at runtime to change codegen output must build a scoped manifest and use `AshTypescript.with_manifest/2`
 
-* typed-channel: `AshTypescript.TypedChannel.PayloadFormatter.format_payload/3` → `format_payload/4` and `push_formatted/4` → `push_formatted/5`; both take the channel module first (after the socket, for `push_formatted/5`)
-
-* codegen: `TypedController.Codegen.RouteConfigCollector.get_typed_controllers/0` is replaced by `manifest_routes_config/1`. `TypeMapper.map_route_result_type/1` and `map_channel_payload_type/1` take an `%Ash.Info.Manifest.Type{}`. `TypedController.Codegen.collect_referenced_resources/1` (internal) is replaced by `referenced_embedded_resources/1`
-
 * codegen: a `typescript_field_names/0` function on a resource is ignored, as it already was by the runtime. Resources take name overrides only from `field_names` / `argument_names` in the `typescript` section; `typescript_field_names/0` applies to types
 
 * rpc: manifest compilation fails, with an error naming the entrypoint, the struct and the path, when an RPC action or typed query accepts or returns an untyped struct (`:struct` without `fields`: `instance_of` a plain struct, `instance_of` an Ash type such as an `Ash.TypedStruct`, or no constraints; or `:struct` with `fields: []` unless `instance_of` is an Ash type, so with no `instance_of` or a plain one) anywhere it can reach: arguments, accepted attributes, the return, the records of the action's resource and of exposed resources reached through relationships, embedded resources, union members, named types and exposed metadata. Use an `Ash.TypedStruct` (as the type itself, not through `instance_of`), a NewType over `:struct` with `fields` constraints, `instance_of` an Ash resource, or an unconstrained `:map` you build in the action. Plain structs with `typed_struct_fields/0` are rejected the same way
 
 * typed-controller, typed-channel: compiling the manifest raises `Spark.Error.DslError` for a route argument, route `returns` or publication `returns` that is an untyped struct, naming the route or publication and the path, with the same alternatives
 
-* rpc, typed-controller, typed-channel: the untyped-struct check also looks inside composite custom types (a `use Ash.Type` module whose `composite?/1` is true). A `composite_types/1` entry that is an untyped struct (`:struct` without `fields`, including `instance_of` an `Ash.TypedStruct`), at any depth, fails manifest compilation with the entry's name in the path (`returns → point`). Type the entry as the TypedStruct itself, a NewType over `:struct` with `fields`, `instance_of` an Ash resource, or an unconstrained `:map`. A `composite?/1` or `composite_types/1` that raises now fails manifest compilation. Custom types that aren't composite aren't inspected. The `typed_struct_fields/0` function is no longer read: the action-type verifier no longer checks field names declared only through it
+* rpc, typed-controller, typed-channel: the untyped-struct check also looks inside composite custom types (a `use Ash.Type` module whose `composite?/1` is true). A `composite_types/1` entry that is an untyped struct (`:struct` without `fields`, including `instance_of` an `Ash.TypedStruct`), at any depth, fails manifest compilation with the entry's name in the path (`returns → point`). Type the entry as the TypedStruct itself, a NewType over `:struct` with `fields`, `instance_of` an Ash resource, or an unconstrained `:map`. A `composite?/1` or `composite_types/1` that raises now fails manifest compilation, naming the type and the callback (`MyApp.Point.composite_types/1 raised: …`). Custom types that aren't composite aren't inspected. The `typed_struct_fields/0` function is no longer read, so field names declared only through it are no longer checked
 
 * rpc: untyped data (an unconstrained `:map`, `{:array, :map}` or `:term` return, attribute, typed-map field or union member) is sent exactly as the action produced it and encoded by Jason. Nothing converts it any more: keyword lists, tuples, `Duration`s, resource structs, `Ash.TypedStruct`s and other structs are no longer turned into maps or strings, a `ForbiddenField` or `NotLoaded` inside untyped data is no longer turned into `null` (a forbidden or unloaded untyped attribute as a whole is still redacted or skipped), and an `Ash.Union` encodes as its value instead of `{member: value}`. A value Jason can't encode raises when the response is encoded: the RPC controller (`AshRpc.Plug`) answers 500, and an RPC channel crashes. The error message inspects the value, so private attributes not marked `sensitive?: true` show up in server logs. Callers of `AshRpc.run_action/4` that encode the result themselves get the raw structs. Convert the data in the action, or declare the type (the resource, an `Ash.TypedStruct`, a typed map). A resource selected whole as a typed field is still normalized
 
-* rpc: `AshTypescript.Rpc.ResultProcessor.normalize_value_for_json/1` is removed. `AshRpc.ResultProcessor.normalize_primitive/2` does the same conversion
-
 * rpc, codegen: every top-level request key goes through the `output_field_formatter`, `action`, `input` and `identity` included, and so do the filter connectives (`and`/`or`/`not`). Under `:pascal_case` or a custom formatter the generated clients send `Action`, `Input`, `Identity` and `And` (lifecycle hooks still receive the action name as their first argument). `AshTypescript.run_typed_query/4` sends formatted keys too. Under `:camel_case` and `:snake_case` nothing changes
 
-* codegen: structured filter values (embedded resources, typed maps and structs, unions, declared custom types) take the type's input shape and client keys (`metadata: { eq?: TaskMetadataInputSchema }`, nullable fields optional), which the server now maps back to internal names; an unknown key is `unknown_input`. Before, the values were typed with the output shape and the server passed their keys through, so client names failed or were silently dropped. Embedded resources, unions and typed maps and structs that aren't declared custom types lose the ordering operators (`lessThan`, `greaterThan`, `lessThanOrEqual`, `greaterThanOrEqual`), and a value that reaches a non-embedded resource (a calculation returning a record) only offers `isNil`
+* codegen, rpc: structured filter values (typed maps and structs, keywords, tuples, unions, declared custom types) take the type's input shape and client keys (nullable fields optional), which the server now maps back to internal names and casts; an unknown key is `unknown_input`, and a value the type rejects `invalid_filter_value`. Before, the values were typed with the output shape and the server passed their keys through, so client names failed or were silently dropped, and `eq` and `has` on a union, keyword or tuple matched nothing. Those that aren't declared custom types lose the ordering operators (`lessThan`, `greaterThan`, `lessThanOrEqual`, `greaterThanOrEqual`), which the server rejects as `unknown_filter_operator`. A value that is or contains a record (an embedded resource, an array of them, a calculation returning a record) only offers `isNil`, and union filter values leave out the members that are records (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#structured-filter-values-take-the-input-shape))
 
-* rpc: a read action's metadata field whose client name equals a public field's fails manifest compilation with ash_rpc's "Client name collision in metadata of entrypoint" (`AshRpc.Manifest.NameCollisionError`) instead of ash_typescript's "Metadata field conflicts with resource field". Metadata of create, update and destroy actions is returned under its own `metadata` key and is no longer checked
+* rpc: a read action's metadata field whose client name equals a public field's fails manifest compilation with ash_rpc's "Client name collision in metadata of entrypoint" (`AshRpc.Manifest.NameCollisionError`) instead of ash_typescript's "Metadata field conflicts with resource field". Metadata of create, update and destroy actions is returned under its own `metadata` key and is no longer checked. Two inputs of an action with the same client name fail the same way ("Client name collision in action :create on MyApp.Todo: …") instead of with "Duplicate input field names found in RPC configuration." (the `VerifyUniqueInputFieldNames` verifier is removed)
 
 * rpc: an identity with an extra key next to a valid identity's keys is `invalid_identity`, and `unknown_field` no longer names the resource (`Unknown field %{field}`, no `vars.resource`)
 
-* codegen: manifest compilation fails for a `custom_types` `field` whose `client_name` isn't a TypeScript identifier. A type field mapped (with `typescript_field_names/0`) to a name that isn't one, or a `custom_types` `map` entry field without `client_name` whose formatted name isn't one (`:is_on?` needs `client_name: "isOn"`), is reported wherever the manifest reaches the type (action types, resource fields, embedded resources, routes, publications): a warning when the manifest compiles, an error in codegen (see [the upgrade guide](documentation/upgrading/upgrading-to-0.20.md#client-names-must-be-typescript-identifiers)). A typed controller route whose formatted name is a JavaScript reserved word fails manifest compilation with the current formatter. Codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
+* codegen, rpc: compiling the manifest checks every name the generated code uses, wherever the manifest reaches it: client names (resource fields, action and calculation arguments, metadata, type fields, union members, route arguments), the function, const, type and schema names of RPC actions, typed queries, typed controller routes and typed channel events, and type aliases. Every problem is reported at once in one "Invalid generated names found." error, whose lines name the owner and the fix; it replaces the per-check messages ("Invalid field names found …", "Invalid metadata field names found …", "Invalid names found that contain question marks …", "Invalid names for TypeScript generation found.") and the `VerifyFieldNames`, `VerifyMapFieldNames`, `VerifyActionTypes` and `VerifyMetadataFieldNames` verifiers. What were compile warnings and codegen errors now fail the manifest compile, and names no check covered are reported: client names that aren't TypeScript identifiers, JavaScript reserved words in every generated function, const, type and schema name (an `rpc_action :delete`, a route `:new`, a typed query whose fields const is one, a `zod_schema_name "class"`; rename it, or set another `ts_fields_const_name`), and predefined TypeScript type names in type names. `field_names` may now map any raw name that isn't an identifier (`"attr-dash": "attrDash"`), and a name you set with an underscore before a digit is used as written (see the upgrade guide on [generated names](documentation/upgrading/upgrading-to-0.20.md#generated-names-are-checked-when-the-manifest-compiles) and [reserved function names](documentation/upgrading/upgrading-to-0.20.md#reserved-function-names-are-rejected))
 
-* codegen: `type_mapping_overrides`, `zod_mapping_overrides` and `valibot_mapping_overrides` are removed. Declare the types in the manifest module's `custom_types` section (`scalar Mod, :string`, with `ts_type`, `zod` or `valibot` where needed); see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types). A leftover config key is ignored and triggers a compile-time warning
+* typed-controller: codegen fails for a route that would send a map, struct, union or resource argument in its URL (a path segment, or the query string of a GET route; arrays of scalars stay allowed in the query string)
+
+* codegen: `type_mapping_overrides`, `zod_mapping_overrides` and `valibot_mapping_overrides` are removed. Declare the types in the manifest module's `custom_types` section (`scalar Mod, :string`, with `ts_type`, `zod` or `valibot` where needed); see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#mapping-overrides-move-to-custom_types). A leftover config key is ignored and triggers a compile-time warning. `AshTypescript.type_mapping_overrides/0`, `AshTypescript.Rpc.zod_mapping_overrides/0` and `AshTypescript.Rpc.valibot_mapping_overrides/0` are removed
 
 * typed-channel: `warn_on_missing_channel_returns` and `AshTypescript.warn_on_missing_channel_returns?/0` are removed. Every publication a typed channel declares needs a `returns` that is a typed map, checked when the manifest compiles; a missing `returns` is a compile error instead of a warning and an `unknown` payload type (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#publications-need-a-typed-map-returns))
 
 * codegen: the `typescript_type_name/0` type callback is renamed `typescript_type/0`. Manifest compilation fails while a reachable type still exports the old name (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#typescript_type_name-0-is-now-typescript_type-0))
 
+* codegen: an `Ash.Type.NewType` with fields (a typed map, an `Ash.TypedStruct`, a struct with `fields`) or over a union that exports `typescript_type/0` fails manifest compilation, aliased or not: "Mod exports `typescript_type/0`: remove it; its TypeScript is generated from its fields or members." Before, an unaliased one was typed with the callback's string in its resource's `ResourceSchema` and inline in its `AttributesOnlySchema`, so sub-field selection wasn't typed (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#typescript_type-0-on-newtypes-with-fields-is-rejected))
+
 * codegen, rpc: map-like custom types (`storage_type :map`, or composite) must declare their fields (`typescript_fields/0`, a `custom_types` `map` entry, or `composite_types/1`); manifest compilation fails until they do, and they can't declare a TypeScript type. Clients select their sub-fields (a bare selection is `requires_field_selection`), only declared keys are sent and accepted, and each is exported as an alias (plus `<Name>Input`) with a named zod/valibot schema (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#map-like-custom-types-declare-fields) and [Declared custom types are exported](documentation/upgrading/upgrading-to-0.20.md#declared-custom-types-are-exported))
 
 * typed-controller, typed-channel: route arguments, route `returns` and publication `returns` must be plain data: a resource, embedded resource, union or recursive type is rejected at any depth, through NewTypes and declared custom types, when the manifest compiles. Route results and channel payloads send each typed map's declared fields only, under their client names (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#arguments-and-results-are-plain-data))
 
-* rpc: an `rpc_action` whose generated function, or a `typed_query` whose fields const, is a JavaScript reserved word fails manifest compilation; rename it, or set another `ts_fields_const_name` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#reserved-function-names-are-rejected))
-
 * codegen, rpc: `AshMoney.Types.Money`, `AshDoubleEntry.ULID` and the Ltree types are built-in declarations: Money is a map of `currency` and `amount`, selected by sub-field, and its alias is `{currency: string, amount: Decimal}`; the `ULID` and Ltree aliases are exported only when used. `AshUUID.UUID` is no longer built in: declare `scalar AshUUID.UUID, :string` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#money-ulid-ltree-and-ashuuid))
 
-* codegen: an `AshTypescript.Codegen.SchemaFormatter` implementation drops `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0` and `ltree_union/0` and gains `library/0` and `wrap_lazy/1`. `AshTypescript.ErrorFormatter` is now `AshRpc.ErrorFormatter` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#for-library-and-extension-authors))
+* codegen: an `AshTypescript.Codegen.SchemaFormatter` implementation drops `mapping_overrides/0`, `third_party_types/0`, `ltree_array/0`, `ltree_union/0`, `null_schema/0`, `aggregate_types/0` and `atom_primitives/0` (removed from the Zod and Valibot formatters too) and gains `library/0`, `wrap_lazy/1` and `schema_type/1`. `AshTypescript.ErrorFormatter` is now `AshRpc.ErrorFormatter` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#for-library-and-extension-authors))
 
 * codegen: identity and `getBy` values, and action metadata of typed maps, are typed as plain objects and no longer carry `__type` / `__primitiveFields` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#declared-custom-types-are-exported))
 
 * codegen: a project with typed controllers or typed channels and no `output_file` gets the shared types file (`types_output_file`, by default `assets/js/ash_types.ts`) when the routes or channels file uses a shared name, instead of re-exporting a file that was never generated (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#a-types-file-for-routes-only-projects))
 
+* codegen: without `output_file`, the Zod and Valibot files contain no resource schemas and no named schemas of custom types that contain a resource or embedded resource, only the route schemas and the other custom-type schemas; before, they imported input types the types file doesn't declare and didn't compile when a resource was recursive (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#a-types-file-for-routes-only-projects))
+
 * rpc: `validate_action` loads the record of an update or destroy action with the RPC action's `read_action`, so records that action hides are `not_found` (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#validation-no-longer-uses-ashphoenix))
 
 * rpc: the generated channel functions push with the `timeout` and send the response to the `resultHandler` / `errorHandler` / `timeoutHandler` of the config `beforeChannelPush` returns, so the hook can set a default timeout (`return { ...config, timeout: config.timeout ?? 10000 }`) or wrap the handlers. Before, changes to them in the hook had no effect. The payload is still built from the caller's config. A hook that returns a config without the caller's handlers now drops them, so return `{ ...config, … }` (see [Lifecycle Hooks](documentation/features/lifecycle-hooks.md#what-beforechannelpush-can-change)) (see [the upgrade guide](documentation/upgrading/upgrading-to-0.20.md#beforechannelpush-sets-the-push-timeout-and-handlers))
 
+* rpc: an `allowed_loads` / `denied_loads` entry with entries under an aggregate or a calculation that holds no resource, embedded resource or union (`[comment_count: [:x]]`) fails manifest compilation; the nested entries were ignored before. Entries under an aggregate that returns an embedded resource are now checked against it
+
 * codegen: on an action that supports both offset and keyset pagination, a page with only `limit` is typed as the page `config :ash, :default_page_type` selects (Ash's default `:offset`), read when codegen runs. Before, it was always typed as a keyset page, while Ash returns an offset page unless `default_page_type` is `:keyset` (see [Querying Data](documentation/guides/querying-data.md#keyset-cursor-based-pagination)) (see [the upgrade guide](documentation/upgrading/upgrading-to-0.20.md#a-page-with-only-limit-follows-default_page_type))
+
+### Features:
+
+* rpc: `allowed_loads` / `denied_loads` accept paths through union members (`content: [text: [:display_text]]`), for union attributes, calculations and aggregates and arrays of unions, checked at compile time and typed in the restricted schema. ash_rpc enforces them by the full path, member included. Unions are typed in their own union shape, with only the restricted members replaced; the old `__members` shape is gone
+
+* codegen: `AshTypescript.with_manifest/2`, a test helper, runs a function with another manifest as the process's manifest (for tests that vary the formatter or the typed modules). `AshTypescript.entrypoints/1`, `typed_query_lookup/1`, the other lookups and `AshTypescript.Manifest.Custom.resolve_resource/2` honour it, and `entrypoints/1` and `typed_query_lookup/1` accept a manifest struct as well as a manifest module
 
 ### Improvements:
 
@@ -156,6 +194,20 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 * codegen: every client name codegen emits (resource fields, calculation arguments, action inputs, type fields, union members, metadata) is read from the same `custom.ash_rpc` decoration the RPC runtime uses, so generated names and the names the runtime accepts can't disagree. A name missing from the decoration raises during codegen instead of falling back to the formatter. A guard test keeps every other codegen module from reading `field_names`, `argument_names` or `typescript_field_names/0` directly
 
 ### Bug Fixes:
+
+* codegen: RPC namespace files re-export every name the main file exports for their actions: the `Fields` and `Infer…Result` types of create, update and generic actions, `Infer…Result` of the other generic actions, and `Metadata` types were missing. The JSON manifest no longer lists `filterInput` for get actions, whose config takes no `filter`
+
+* codegen: a calculation with arguments that returns a type exporting `typescript_type/0` is typed as a calculation with its `args` in the resource schema; before, it was typed as the callback's string and couldn't be selected
+
+* codegen: a load restriction through a calculation with arguments that returns a resource (`denied_loads: [self: [:user]]`, or `allowed_loads: [:self]`) keeps the calculation's `args` in the restricted schema; before, the calculation was typed like a relationship and `args` couldn't be passed
+
+* codegen: a load restriction through an aggregate holding an embedded resource restricts the aggregate's attributes-only schema, as the unrestricted schema types it, instead of widening it to the embedded resource's full schema
+
+* codegen: restricted schemas follow ash_rpc, which restricts loads, never attributes: a bare embedded or union attribute in `denied_loads` (`[:metadata]`), or a bare union member (`content: [:text]`), keeps its attributes in the types instead of disappearing; only the loads under it are denied
+
+* codegen: under `allowed_loads`, an embedded attribute or union attribute the list doesn't name is typed with its attributes only (each resource member of a union too), so a calculation under it no longer type-checks where ash_rpc answers `load_not_allowed`. The same holds all the way down: where a restricted schema types a resource with its attributes only (a flat allowed relationship, embedded attribute or calculation), its union attributes' resource members get their attributes only too, instead of the full schema the shared `AttributesOnlySchema` gives them
+
+* codegen: a restricted `has_many` / `many_to_many` keeps its nested query options (`page`, `filter`, `sort`) in the types, as ash_rpc accepts them; before, the restricted override dropped them
 
 * codegen: typed-map return NewTypes (and typed-struct returns) use their `typescript_field_names` in the generated `Fields` and result types (for example `"isProcessed"`, not `"isProcessed?"`)
 
@@ -171,7 +223,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * codegen: relationships to resources without the `AshTypescript.Resource` extension are no longer emitted (resource schemas, field selection, filter types, restricted schemas, JSON manifest), since the runtime rejects them as `unknown_field`. Such resources used as struct arguments, and unexposed embedded resources, get no filter or sort types, and unexposed non-embedded resources get no `ResourceSchema` / `AttributesOnlySchema`
 
-* codegen: `AshTypescript.entrypoints/1` and `AshTypescript.Manifest.Custom.resolve_resource/2` honour `AshTypescript.with_manifest/2`
+* codegen: decorating a manifest derives each resource's type name from the resource itself instead of reading the configured manifest module, so a manifest that isn't the configured one (or compiles first) gets its own names
 
 * rpc: struct arguments whose `instance_of` is a resource without the `AshTypescript.Resource` extension accept the generated (output-formatted) keys; other keys are `unknown_input`
 
@@ -181,9 +233,11 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * codegen: Zod and Valibot schemas of embedded resources are declared after the resource schemas they reference through union members, typed maps and named types, not only direct attributes and arrays
 
-* codegen: action metadata types of embedded resources and unions are plain objects (`{createdBy: string, …}`, `{ text: … } | …`) instead of field-selection schemas with `__type` markers
+* codegen: Zod and Valibot schemas of recursive embedded resources (one that contains itself, through `{:array, :struct}` with `instance_of: __MODULE__`, or resources that contain each other) are lazy and cast to the resource's input type (`export const TaskNoteZodSchema = z.lazy(() => z.object({ … })) as z.ZodType<TaskNoteInputSchema>`, `v.lazy` and `v.GenericSchema<…>` in Valibot), and compile with or without `exactOptionalPropertyTypes`; before, they referenced themselves in their own initializer and didn't compile
 
-* rpc: a leftover `input_field_formatter` config key prints a warning when the manifest compiles
+* codegen: the Markdown manifest (`manifest_file`) has a blank line between a resource's function list and the next resource's heading
+
+* codegen: action metadata types of embedded resources and unions are plain objects (`{createdBy: string, …}`, `{ text: … } | …`) instead of field-selection schemas with `__type` markers
 
 * rpc: error `path` segments use the client names of the resource or type at that point, overrides included, and client-sent string segments are reported as sent instead of being formatted again
 
@@ -192,6 +246,20 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 * rpc: field-selection error paths and the dotted field name in `fields` use decorated client names, overrides included
 
 * rpc: a generic action returning a `:struct` with `fields` and no `instance_of` is field-selectable like a typed map
+
+* codegen: typed queries render every selection the runtime accepts: relationship envelopes in keyword or map form (`comments: %{filter: …, sort: …, page: …, limit: 2, fields: [:id]}` becomes `{ comments: { filter: …, sort: …, page: …, limit: 2, fields: ["id"] } }`), and fields, envelope keys, filters and sorts named by client-name strings (`["id", %{"user" => ["isActive"]}]`), which resolve as the runtime resolves them. Before, an envelope was written as Elixir `inspect` output or raised `ArgumentError`, and a string name raised `FunctionClauseError`. Structured filter values (union members, typed maps, keywords, tuples, untyped maps, arrays of them) render in the input shape the generated filter types take. Calculation arguments in a filter (`input`), which those types don't have, raise an `ArgumentError` naming the calculation
+
+* codegen: every invalid typed query selection gets a readable line instead of the raw error tuple: sub-fields of a field without any ("Field 'title' at path [] does not support nested field selection"), relationship envelopes ("Relationship 'user' at path [] is to-one and does not accept query options", and lines for query options on a non-relationship, unknown query option keys, an invalid nested page, `args` combined with query options, `page` on an unpaginated relationship, `filter` / `sort` on a relationship that doesn't support it, `page` combined with `limit` / `offset`, and a negative `limit` / `offset`), an invalid entry in a typed field selection, and a field selection on a primitive
+
+* codegen: a typed query's relationship `filter` and `sort` are checked when the manifest compiles, as the runtime checks them when it builds the relationship's query: an unknown filter key, a filter statement that isn't a map or list of them, an operator value the operator can't take, and a sort that isn't a string or list of names fail with "Invalid filter for relationship 'comments' at path []: …" / "Invalid sort for …". Before, the manifest compiled and codegen raised "cannot render", or the request failed when it ran
+
+* codegen: typed query filters written as a list (of maps or a keyword list) render as `{ and: [...] }`, operators written as a keyword list as the map form, and a tuple field's value given as an Elixir tuple as the object of its element names (`{ latitude: 1.5, longitude: 2.5 }`); before, each raised "cannot render". A list value for an operator that takes one value (`title: %{eq: ["a"]}`) now raises "cannot render" instead of rendering a constant the generated types reject
+
+* typed-controller: an omitted route argument with a `default` gets the default, whatever `allow_nil?`, like a create/update action argument; it was typed optional but answered 422. A sent `null` (or `""` that casts to `nil`) stays `nil`, and answers 422 `required` on an `allow_nil?: false` argument
+
+* verifiers: the "references action …, which does not exist on resource …" (rpc_action, typed query) and `field_names` "does not exist on resource …" lines name the resource without an `Elixir.` prefix
+
+* codegen: under a non-default `output_field_formatter`, RPC result types use its key for `data` (`Data` under `:pascal_case`), the pagination generics index the config by its `page` key, paginated result types are inferred from its page keys (`Offset`, `After`, …), and a calculation's result is typed from the fields selected under its `fields` key (`Fields`); before, the generated file didn't compile, page results were typed as plain arrays and those calculations as `{}`
 
 ## [v0.19.3](https://github.com/ash-project/ash_typescript/compare/v0.19.2...v0.19.3) (2026-10-24)
 

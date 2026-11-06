@@ -255,18 +255,25 @@ read from the decoration's override maps. The rule is
 `NameValidation.check_client_name/3`: the name must be an identifier
 (`identifier?/1`), and a formatter-made name's raw name can't match `_+\d`. An
 explicit name is only checked for validity, so `argument_names [act: [line_1:
-"line_1"]]` is accepted. The same walk checks binding names (RPC functions, typed
+"line_1"]]` is accepted. The same walk checks binding names (RPC functions and the
+per-rpc type names `FunctionNames` builds (`<Rpc>Result`, `<Rpc>Fields`,
+`Infer<Rpc>Result`, `<Rpc>Config`, `<Rpc>Metadata`, `<Rpc>Schema`), typed
 query consts, route functions and schemas, typed channel events and payload types)
 and type aliases; the rules live in `AshTypescript.NameValidation`, the walk holds
-none of its own. Under a custom (MFA) output formatter the static keys
-(`Helpers.static_client_names/0`: `hasMore`, `fetchOptions`, …) are client slots
-too, owner `:static`. Fields of a resource without the `AshTypescript.Resource`
+none of its own. Under a custom (MFA) output formatter the static keys are client
+slots too, owner `:static`: the response and client-only keys
+(`Helpers.static_client_names/0`: `hasMore`, `fetchOptions`, …) and the request keys
+of ash_rpc's vocabulary (`getBy`, `limit`, …). Fields of a resource without the `AshTypescript.Resource`
 extension (an embedded resource or struct-argument target the manifest reaches)
 have slots marked `exposed?: false`; their fix adds the extension and a
 `field_names` entry. When the raw name is usable as is (`field_names_key?/1` is
 false) but the formatter's result isn't, the fix is "change the formatter" (plus
-`argument_names` / `metadata_field_names` for those kinds). Anything the manifest
-doesn't reach has no slots.
+`argument_names` / `metadata_field_names` for those kinds). Binding names follow
+the same idea: when the raw `rpc_action` / `typed_query` / route name is usable as is
+(`NameValidation.usable_raw_binding_name?/1`) but the formatted name isn't an
+identifier, the fix is "change the formatter, or rename the …" (plus
+`ts_fields_const_name` for a typed query const). Anything the manifest doesn't reach
+has no slots.
 
 Every problem fails the compile in one `Spark.Error.DslError` at path `[:names]`
 (an error, not a verifier warning), so codegen never sees an invalid name.
@@ -360,9 +367,10 @@ The mappings reach the runtime through `AshTypescript.RpcMappingSource`: `field_
 Codegen reads the same decoration; see the next section.
 
 The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
-`get_original_argument_name/3` were **deleted** — do not reintroduce them.
-`get_mapped_argument_name/3` still exists (public), but nothing in lib calls it since
-`VerifyRpc`'s argument-name check was removed.
+`get_original_argument_name/3` were **deleted**, and so were `get_mapped_field_name/2`,
+`get_mapped_argument_name/3`, `AshTypescript.Rpc.Info.get_mapped_metadata_field_name/2` and
+`AshTypescript.TypeSystem.Introspection.get_typescript_field_names_map/1`: do not reintroduce
+them.
 
 ## Where codegen gets names
 
@@ -378,6 +386,7 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
 | `type_field/2` | `Custom.type_field_names/1` (`:type_ref` resolved through `AshTypescript.type_lookup/0`) | Typed maps, structs, keywords and tuples |
 | `union_member/2` | `Custom.type_member_names/1` | Union members |
 | `metadata_field/2` | `Custom.entrypoint_metadata_field_names/1` on the wire entrypoint (`wire_entrypoint!/1`) | Action metadata names, used as written |
+| `vocabulary!/2,3` | `AshRpc.Manifest.vocabulary/1` (scopes `:params`, `:page`, `:query_opts`, `:filter_ops`) | Request keys (`action`, `getBy`, `page`, `limit`, `args`, …, through `Helpers.formatted_*_field/0`), filter operator, function and connective keys (`eq`, `notEq`, `and`), `run_typed_query/4`'s wire keys |
 
 - Resources and named types are looked up through `AshTypescript.resource_lookup/0` /
   `type_lookup/0`, so `AshTypescript.with_manifest/2` applies.
@@ -386,6 +395,21 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
   node when the manifest is built. Every named type codegen renders, route-only types
   included, is in the manifest
   (`AshTypescript.TypeSystem.Introspection.named_type_definition/1` raises otherwise).
+- A typed query's `fields` may name fields, envelope and page keys, filter keys and
+  sorts by client-name strings, as a client would. `TypedQueries` resolves those to
+  internal names first with `AshRpc.ClientNames` (the lookups the runtime's field
+  selector and filter use), then names them through `ClientNames`, so string and atom
+  forms render the same. They hold under one formatter only, which is why the
+  string-name fixtures live in an inline manifest
+  (`test/ash_typescript/rpc/typed_query_client_names_test.exs`), not the test domain.
+  Filter values are rendered through each operator's value type (the field's
+  `filter_operators` / `filter_functions` `rhs`, as ash_rpc's `FilterInput` reads it;
+  `FilterTypes.operator_value/3` holds the rule for both the filter types and typed queries):
+  union members, typed fields and union-member names are named through `ClientNames`
+  in the input shape `TypeMapper.map_plain_type(type, :input)` gives the filter types
+  (a tuple value by its element names, in order). A list filter renders as `and` of
+  its statements (a keyword entry is one statement) and keyword operators as the map
+  form, as `FilterInput` reads them.
 - Resources take overrides only from the `typescript` DSL (`field_names`,
   `argument_names`). A `typescript_field_names/0` function on a resource is ignored;
   the callback applies to types.
@@ -399,8 +423,13 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
   equal the decorated names under camel, pascal and snake case, and
   `test/ash_typescript/codegen/manifest_names_mismatch_test.exs` pins the cases that used
   to disagree.
-- Formatter-only names remain for the static vocabulary, filter operators, TS
-  identifiers and path-param keys (`AshTypescript.FieldFormatter.format_field_name/2`).
+- Formatter-only names remain for the response and client-only keys (`hasMore`,
+  `success`, `fetchOptions`, error fields; pinned against an ash_rpc response in
+  `test/ash_typescript/codegen/vocabulary_test.exs`), TS identifiers and path-param keys
+  (`AshTypescript.FieldFormatter.format_field_name/2`). Which filter operators and
+  functions are typed is `FilterTypes.typed_filter_ops/0`; the same test fails when
+  ash_rpc's `:filter_ops` vocabulary gains a name that is neither typed nor listed as
+  deliberately untyped.
 
 ## Testing Strategy
 
@@ -422,7 +451,7 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
 ```elixir
 # test/ash_typescript/resource/typescript_field_names_codegen_test.exs
 test "generates TypeScript types with mapped field names" do
-  type_code = AshTypescript.Codegen.generate_all_schemas_for_resource(resource, [resource])
+  type_code = AshTypescript.Codegen.generate_all_schemas_for_resources([resource], [resource])
 
   assert type_code =~ "field1: string"
   refute type_code =~ "field_1:"
@@ -527,7 +556,6 @@ end
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
 | `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
 | `lib/ash_typescript/codegen/client_names.ex` | **Every client name codegen emits**, read from `custom.ash_rpc` |
-| `lib/ash_typescript/manifest/custom.ex` | Override accessors over `custom.ash_rpc` (`field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1`); public, not used by codegen |
 | `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |

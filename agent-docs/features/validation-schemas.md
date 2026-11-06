@@ -18,12 +18,30 @@ AshTypescript generates runtime validation schemas alongside TypeScript types. T
 
 The schema generation uses a **formatter behaviour pattern** to avoid duplication:
 
-- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~26 output-syntax callbacks (e.g. `wrap_optional`, `wrap_lazy`, `format_enum`, `format_string`, `format_array`, `library_prefix`)
+- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining 23 output-syntax callbacks (e.g. `wrap_optional`, `wrap_lazy`, `schema_type`, `format_enum`, `format_string`, `format_array`, `library_prefix`)
 - **`SchemaCore`** (`codegen/schema_core.ex`) — All shared logic: topological sort, field/action introspection, type mapping dispatch, regex safety. Delegates output syntax to the formatter.
 - **`SharedSchemaGenerator`** (`codegen/shared_schema_generator.ex`) — `generate/2` assembles the final schema file (imports, the custom-type schemas section, resource schemas, per-action schemas) for any formatter. The orchestrator's `validate_unique_schema_names!/3` checks for duplicate `export const` names across all of them, naming the custom type and its `*_schema_name` option when a custom-type schema is involved.
 
+**Recursive embedded resources**: `SchemaCore.generate_schemas_for_resources/2`
+orders resource schemas so each follows the schemas it references (Kahn's
+algorithm over `resource_deps`). A schema on a cycle of that graph (an embedded
+resource containing itself through `{:array, :struct}` with `instance_of:
+__MODULE__`, or resources containing each other; `SchemaCore.recursive_resources/2`)
+is lazy and cast to the resource's input type
+(`Helpers.resource_input_type_name/1`, through the formatter's `schema_type/1`):
+`export const TaskNoteZodSchema = z.lazy(() => z.object({...})) as z.ZodType<TaskNoteInputSchema>`,
+`v.lazy` and `v.GenericSchema<...>` in Valibot. A cast, not an annotation: the
+schema's optional fields accept `undefined`, which the input type's don't under
+`exactOptionalPropertyTypes` (`npm run compileGeneratedSchemas` compiles the
+schema files with that flag; plain casts suffice, no `as unknown as`). It has no
+dependencies for the
+sort, so it can reference schemas declared after it, and a schema off the cycle
+that holds it follows it. The schema file imports those input types from the
+types file (`SharedSchemaGenerator`'s `:type_imports`). Other schemas are
+unchanged.
+
 **Manifest-only input**: `SchemaCore.get_type/3` accepts `%Ash.Info.Manifest.Type{}`,
-anything carrying one under `:type` (`Argument`/`Field`), or a bare aggregate kind atom.
+or anything carrying one under `:type` (`Argument`/`Field`).
 Raw Ash types (atom modules, `{:array, _}` tuples, `%{type: _, constraints: _}` maps) are
 **no longer accepted** — resolve via `Ash.Info.Manifest.Generator.TypeResolver.resolve/2`
 first. Dispatch is on manifest `kind`.
@@ -339,6 +357,8 @@ whether the action is a read/create/update/destroy/generic.
 | Zod constraints | `test/ash_typescript/rpc/zod_constraints_test.exs` |
 | Valibot constraints | `test/ash_typescript/rpc/valibot_constraints_test.exs` |
 | Zod declaration order | `test/ash_typescript/rpc/zod_declaration_order_test.exs` |
+| Valibot declaration order | `test/ash_typescript/rpc/valibot_declaration_order_test.exs` |
+| Recursive embedded resources (lazy schemas) | `test/ash_typescript/rpc/recursive_embedded_schemas_test.exs` |
 | Zod mapped fields | `test/ash_typescript/rpc/zod_mapped_fields_test.exs` |
 | Custom-type schema bodies | `test/ash_typescript/rpc/custom_type_schema_test.exs` |
 | Named custom-type schemas (names, order, `wrap_lazy`, cycles, duplicates) | `test/ash_typescript/rpc/named_custom_type_schemas_test.exs` |

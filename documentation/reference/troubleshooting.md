@@ -131,6 +131,12 @@ And when the raw name could be used as is but your `output_field_formatter` turn
 - key :has_more → "has-more" (formatted), not an identifier: the output_field_formatter turns it into "has-more": change the formatter
 ```
 
+The same goes for function and const names made from an `rpc_action`, `typed_query` or route name:
+
+```
+- function "list-todos" (and 5 derived names), not an identifier: the output_field_formatter turns it into "list-todos": change the formatter, or rename the rpc_action
+```
+
 **Solution:** Do what each line says. For resource fields and action arguments, add a mapping in the resource's `typescript` block; for metadata, add `metadata_field_names` to the `rpc_action`:
 
 ```elixir
@@ -195,14 +201,18 @@ rpc_action :list_tasks, :read_with_meta, show_metadata: [:has_more]     # ❌ co
 
 #### Error: "allowed_loads contains invalid load paths" (or denied_loads)
 
-**Cause:** An `allowed_loads`/`denied_loads` entry names something that isn't a loadable public field (relationship, calculation, aggregate, or embedded-resource attribute) at that position — usually a typo, or a plain attribute (attributes are selected, never loaded, so they never match a load restriction).
+**Cause:** An `allowed_loads`/`denied_loads` entry names something that isn't a loadable public field (relationship, calculation, aggregate, embedded-resource or union attribute) at that position — usually a typo, or a plain attribute (attributes are selected, never loaded, so they never match a load restriction).
 
-**Solution:** Fix the path; nested keywords are validated against the relationship's destination resource:
+Nested keywords under an aggregate or a calculation that doesn't return a resource or a union are rejected too (`has no fields to load under it`). Under a union, the next level names its members: an unknown member, or a member's field written directly under the union, is `no member :x in the union :content`, and nested keywords under a scalar member are rejected (`the member :note of the union :content … has no fields to load under it`).
+
+**Solution:** Fix the path; nested keywords are validated against the relationship's destination, the embedded resource, the resource a calculation returns, or the union's members:
 
 ```elixir
 rpc_action :list_todos, :read, allowed_loads: [:user, comments: [:author]]  # ✅
+rpc_action :list_todos, :read, denied_loads: [content: [text: [:display_text]]]  # ✅
 rpc_action :list_todos, :read, allowed_loads: [:usr]                        # ❌ compile error
 rpc_action :list_todos, :read, denied_loads: [comments: [:athor]]           # ❌ compile error
+rpc_action :list_todos, :read, denied_loads: [content: [:display_text]]     # ❌ no member :display_text
 ```
 
 #### Error: "Client name collision in metadata of entrypoint"
@@ -213,6 +223,12 @@ rpc_action :list_todos, :read, denied_loads: [comments: [:athor]]           # �
 - Rename the metadata field in the action
 - Use `metadata_field_names` to map to a different TypeScript name
 - Use `show_metadata` to exclude the conflicting field
+
+#### Error: "Client name collision in action … on …"
+
+**Cause:** Two inputs of an action (accepted attributes or arguments) get the same client name, so the runtime couldn't tell them apart. Raised when the manifest compiles (`AshRpc.Manifest.NameCollisionError`), for example: `Client name collision in action :create on MyApp.Todo: :item_1 and :item1 both map to "item1"`.
+
+**Solution:** Rename one input, or map one to another client name with `argument_names` (or `field_names` for an accepted attribute).
 
 ### Environment and Configuration Errors
 
@@ -316,9 +332,9 @@ Only aliases the manifest uses are checked: an entry for a type no action, route
 
 **Solution:** Return another name from the MFA for those constraints, or `nil` to keep the use inline.
 
-#### Error: "exports `typescript_type_name/0`, which is now `typescript_type/0`: rename it." / "exports `typescript_type_name/0`: remove it; its TypeScript is generated from its fields."
+#### Error: "exports `typescript_type_name/0`, which is now `typescript_type/0`: rename it." / "exports `typescript_type_name/0`: remove it; its TypeScript is generated from its fields or members."
 
-**Cause:** A type module the manifest reaches still exports a callback under its v0.19 name. `typescript_type_name/0` is now `typescript_type/0` (and the alias callback is `typescript_type_alias/0`). A map-like custom type with declared fields, or an `Ash.Type.NewType` with fields that has an alias, gets its TypeScript from its fields, so it is told to remove the callback instead.
+**Cause:** A type module the manifest reaches still exports a callback under its v0.19 name. `typescript_type_name/0` is now `typescript_type/0` (and the alias callback is `typescript_type_alias/0`). A map-like custom type with declared fields, or an `Ash.Type.NewType` with fields or over a union (aliased or not), gets its TypeScript from its fields, so it is told to remove the callback instead.
 
 **Solution:** Rename the function, or remove it where the message says so. See the [upgrade guide](../upgrading/upgrading-to-0.20.md#typescript_type_name-0-is-now-typescript_type-0).
 
@@ -334,11 +350,11 @@ Only aliases the manifest uses are checked: an entry for a type no action, route
 
 **Solution:** Remove the fields (or `zod` / `valibot`) from the entry, leaving `map MyApp.Types.Address` or `map MyApp.Types.Address, ts_alias: "Address"`.
 
-#### Error: "exports `typescript_type/0`: remove it; the alias is generated from the fields."
+#### Error: "exports `typescript_type/0`: remove it; its TypeScript is generated from its fields or members."
 
-**Cause:** An `Ash.Type.NewType` with fields is opted into an alias (a field-less `map` entry, or `typescript_type_alias/0`) and also names its own TypeScript type. Its alias is generated from its fields.
+**Cause:** An `Ash.Type.NewType` with fields (a typed map, keyword or tuple, an `Ash.TypedStruct`, a struct with `fields`) or over a union names its own TypeScript type, aliased or not. Its TypeScript is generated from its fields (a union's from its members), so the field can be selected by sub-field.
 
-**Solution:** Remove `typescript_type/0`, or the opt-in to keep the type inline with the callback's TypeScript. A scalar may combine `typescript_type/0` with an alias. See [NewTypes With Fields](../advanced/custom-types.md#newtypes-with-fields).
+**Solution:** Remove `typescript_type/0`. To export a name for the type, opt it into an alias instead (a field-less `map` entry, or `typescript_type_alias/0`). A scalar may combine `typescript_type/0` with an alias. See [NewTypes With Fields](../advanced/custom-types.md#newtypes-with-fields).
 
 #### Error: "an MFA `ts_alias` needs an MFA `ts_type`"
 
