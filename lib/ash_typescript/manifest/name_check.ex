@@ -15,8 +15,9 @@ defmodule AshTypescript.Manifest.NameCheck do
       `:type_field`, `:union_member`, `:route_argument`), read from the
       `custom.ash_rpc` decoration as codegen's `ClientNames` reads
       them, the route arguments' `client_name`, and the generated code's own
-      keys under the output formatter (`:static_field`,
-      `AshTypescript.Helpers.static_client_names/0`);
+      keys (`:static_field`): the response and client-only keys under the
+      output formatter (`AshTypescript.Helpers.static_client_names/0`) and
+      the request keys of ash_rpc's vocabulary (`AshRpc.Manifest.vocabulary/1`);
     * binding names, the generated functions, consts, types and schemas
       (`:rpc_function`, `:typed_query_const`, `:route_function`,
       `:route_schema`), and the typed channel events and their payload types
@@ -213,20 +214,26 @@ defmodule AshTypescript.Manifest.NameCheck do
       static_field_slots(manifest)
   end
 
-  # The generated code's own keys (`hasMore`, `fetchOptions`, …), named by the
-  # output formatter.
+  # The generated code's own keys: the response and client-only keys
+  # (`hasMore`, `fetchOptions`, …), named by the output formatter, and the
+  # request keys (`getBy`, `limit`, …), named by ash_rpc's vocabulary (which
+  # the output formatter makes).
   defp static_field_slots(manifest) do
     formatter = AshRpc.Manifest.output_formatter(manifest)
 
-    for field <- AshTypescript.Helpers.static_client_names() do
-      client_slot(
-        :static_field,
-        :static,
-        [],
-        field,
-        AshRpc.FieldFormatter.format_field_name(field, formatter),
-        :formatter
-      )
+    formatted =
+      for field <- AshTypescript.Helpers.static_client_names(),
+          do: {field, AshRpc.FieldFormatter.format_field_name(field, formatter)}
+
+    vocabulary = AshRpc.Manifest.vocabulary(manifest)
+
+    requested =
+      for scope <- [:params, :page, :query_opts],
+          {client, field} <- Map.fetch!(vocabulary, scope),
+          do: {field, client}
+
+    for {field, name} <- Enum.uniq_by(formatted ++ Enum.sort(requested), &elem(&1, 0)) do
+      client_slot(:static_field, :static, [], field, name, :formatter)
     end
   end
 
@@ -419,6 +426,12 @@ defmodule AshTypescript.Manifest.NameCheck do
       {:channel, FunctionNames.channel(rpc_name, formatter), false},
       {:validation_channel, FunctionNames.validation_channel(rpc_name, formatter), false},
       {:input_type, FunctionNames.input_type(rpc_name), false},
+      {:result_type, FunctionNames.result_type(rpc_name), false},
+      {:fields_type, FunctionNames.fields_type(rpc_name), false},
+      {:infer_result_type, FunctionNames.infer_result_type(rpc_name), false},
+      {:config_type, FunctionNames.config_type(rpc_name), false},
+      {:metadata_type, FunctionNames.metadata_type(rpc_name), false},
+      {:restricted_schema, FunctionNames.restricted_schema(rpc_name), false},
       {:zod_schema, SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_name, formatter),
        false},
       {:valibot_schema,
@@ -524,7 +537,19 @@ defmodule AshTypescript.Manifest.NameCheck do
 
   # How the generated code binds a name of this role: as an exported type, or
   # as an exported function or const.
-  defp bound_as(role) when role in [:input_type, :result_type, :payload_type], do: :type
+  defp bound_as(role)
+       when role in [
+              :input_type,
+              :result_type,
+              :fields_type,
+              :infer_result_type,
+              :config_type,
+              :metadata_type,
+              :restricted_schema,
+              :payload_type
+            ],
+       do: :type
+
   defp bound_as(:event), do: :key
   defp bound_as(_role), do: :value
 
@@ -595,20 +620,10 @@ defmodule AshTypescript.Manifest.NameCheck do
           [alias_slot(:scalar_alias, node.module, name, source)]
 
         :callback ->
-          case CustomTypes.callback_alias(node.module) do
-            {:ok, name} ->
-              [
-                alias_slot(
-                  :scalar_alias,
-                  node.module,
-                  name,
-                  {:typescript_type_alias, node.module}
-                )
-              ]
-
-            {:error, _not_a_string} ->
-              []
-          end
+          # `CustomTypes.check_alias_names/2` has rejected a result that isn't
+          # a string before the name check runs.
+          {:ok, name} = CustomTypes.callback_alias(node.module)
+          [alias_slot(:scalar_alias, node.module, name, {:typescript_type_alias, node.module})]
 
         _none_or_mfa ->
           []
@@ -804,6 +819,11 @@ defmodule AshTypescript.Manifest.NameCheck do
       :valibot_schema -> "valibot schema"
       :const -> "const"
       :result_type -> "result type"
+      :fields_type -> "fields type"
+      :infer_result_type -> "inferred result type"
+      :config_type -> "config type"
+      :metadata_type -> "metadata type"
+      :restricted_schema -> "restricted schema"
       :function -> "function"
       :path -> "path helper"
       :event -> "event"
@@ -827,8 +847,21 @@ defmodule AshTypescript.Manifest.NameCheck do
   defp binding_fix(slot, reason) when reason in [:reserved_word, :type_keyword],
     do: "rename the #{binding_thing(slot.kind)}, for example :#{slot.raw}_item"
 
-  defp binding_fix(slot, :not_identifier),
-    do: "rename the #{binding_thing(slot.kind)}, e.g. :#{NameValidation.suggest_name(slot.raw)}"
+  # Every slot left is formatter-made: when its raw name could be used as is,
+  # the formatter made it bad.
+  defp binding_fix(slot, :not_identifier) do
+    if NameValidation.usable_raw_binding_name?(slot.raw) do
+      "the output_field_formatter turns it into #{inspect(slot.name)}: change the formatter, " <>
+        "or rename the #{binding_thing(slot.kind)}#{override(slot)}"
+    else
+      "rename the #{binding_thing(slot.kind)}, e.g. :#{NameValidation.suggest_name(slot.raw)}"
+    end
+  end
+
+  # Only the const follows the formatter: a result type made from a usable
+  # raw name is always an identifier.
+  defp override(%{kind: :typed_query_const, role: :const}), do: ", or set ts_fields_const_name"
+  defp override(_slot), do: ""
 
   defp client_subject(%{kind: :resource_field, raw: raw}), do: "field #{inspect(raw)}"
   defp client_subject(%{kind: :static_field, raw: raw}), do: "key #{inspect(raw)}"
@@ -862,6 +895,9 @@ defmodule AshTypescript.Manifest.NameCheck do
 
   defp owner_context({:action_returns, action, _r, rpc_names}),
     do: action_context(action, rpc_names)
+
+  defp owner_context({:calculation_argument, calc, _arg, _r}),
+    do: " of calculation #{inspect(calc)}"
 
   defp owner_context(_owner), do: ""
 

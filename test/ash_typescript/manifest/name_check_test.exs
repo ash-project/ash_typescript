@@ -867,25 +867,29 @@ defmodule AshTypescript.Manifest.NameCheckTest do
     test "each static key is a client slot under the formatter, owner :static" do
       static = manifest() |> client_slots(&(&1.owner == :static)) |> Enum.map(&view/1)
 
+      vocabulary = AshRpc.Manifest.vocabulary(manifest())
+
+      request_keys =
+        for scope <- [:params, :page, :query_opts],
+            field <- Map.values(vocabulary[scope]),
+            do: field
+
       assert Enum.sort(Enum.map(static, & &1.raw)) ==
-               Enum.sort(AshTypescript.Helpers.static_client_names())
+               Enum.sort(Enum.uniq(AshTypescript.Helpers.static_client_names() ++ request_keys))
+
+      assert slot(:static_field, :static, :get_by, "getBy", :formatter) in static
 
       assert slot(:static_field, :static, :has_more, "hasMore", :formatter) in static
       assert slot(:static_field, :static, :fetch_options, "fetchOptions", :formatter) in static
     end
 
     test "Helpers' formatted_*_field/0 names are static keys" do
-      names = AshTypescript.Helpers.static_client_names()
+      names = manifest() |> client_slots(&(&1.owner == :static)) |> Enum.map(& &1.name)
 
       for {fun, 0} <- AshTypescript.Helpers.__info__(:functions),
           name = to_string(fun),
           String.starts_with?(name, "formatted_") and String.ends_with?(name, "_field") do
-        assert Enum.any?(
-                 names,
-                 &(AshTypescript.Helpers.format_output_field(&1) ==
-                     apply(AshTypescript.Helpers, fun, []))
-               ),
-               "#{fun}/0 isn't a static key"
+        assert apply(AshTypescript.Helpers, fun, []) in names, "#{fun}/0 isn't a static key"
       end
     end
 
@@ -1067,8 +1071,14 @@ defmodule AshTypescript.Manifest.NameCheckTest do
                {:route_schema, :valibot_schema, :value},
                {:route_schema, :zod_schema, :value},
                {:rpc_function, :channel, :value},
+               {:rpc_function, :config_type, :type},
                {:rpc_function, :execution, :value},
+               {:rpc_function, :fields_type, :type},
+               {:rpc_function, :infer_result_type, :type},
                {:rpc_function, :input_type, :type},
+               {:rpc_function, :metadata_type, :type},
+               {:rpc_function, :restricted_schema, :type},
+               {:rpc_function, :result_type, :type},
                {:rpc_function, :valibot_schema, :value},
                {:rpc_function, :validation, :value},
                {:rpc_function, :validation_channel, :value},
@@ -1078,7 +1088,7 @@ defmodule AshTypescript.Manifest.NameCheckTest do
              ]
     end
 
-    test "an rpc_action gives its seven slots" do
+    test "an rpc_action gives its thirteen slots" do
       assert binding_views(manifest(), {:rpc_action, :list_res, T.Domain}) ==
                [
                  binding(:rpc_function, :execution, :list_res, "listRes", true),
@@ -1092,6 +1102,18 @@ defmodule AshTypescript.Manifest.NameCheckTest do
                    false
                  ),
                  binding(:rpc_function, :input_type, :list_res, "ListResInput", false),
+                 binding(:rpc_function, :result_type, :list_res, "ListResResult", false),
+                 binding(:rpc_function, :fields_type, :list_res, "ListResFields", false),
+                 binding(
+                   :rpc_function,
+                   :infer_result_type,
+                   :list_res,
+                   "InferListResResult",
+                   false
+                 ),
+                 binding(:rpc_function, :config_type, :list_res, "ListResConfig", false),
+                 binding(:rpc_function, :metadata_type, :list_res, "ListResMetadata", false),
+                 binding(:rpc_function, :restricted_schema, :list_res, "ListResSchema", false),
                  binding(:rpc_function, :zod_schema, :list_res, "listResZodSchema", false),
                  binding(:rpc_function, :valibot_schema, :list_res, "listResValibotSchema", false)
                ]
@@ -1175,6 +1197,21 @@ defmodule AshTypescript.Manifest.NameCheckTest do
       # patterns; the reserved and near-reserved route cases
       raws = manifest() |> binding_views({:route, :save, T.Controller}) |> Enum.map(& &1.raw)
       assert Enum.uniq(raws) == [:save]
+
+      # The raw name is injected on a compiled manifest;
+      # `raw_binding_names_test.exs` covers the compile path.
+      manifest = inject(manifest(), %{:save => :save_1})
+
+      lines =
+        manifest
+        |> NameCheck.problems(Custom.custom_types(manifest))
+        |> Enum.filter(&match?(%{slot: %{owner: {:route, :save_1, T.Controller}}}, &1))
+        |> Enum.map(&NameCheck.describe/1)
+
+      assert lines == [
+               "- name :save_1, a question mark or an underscore before a digit: " <>
+                 "rename the route, e.g. :save1"
+             ]
     end
 
     test "slots don't depend on feature flags" do
@@ -1185,7 +1222,8 @@ defmodule AshTypescript.Manifest.NameCheckTest do
 
       assert roles ==
                [:execution, :validation, :channel, :validation_channel, :input_type] ++
-                 [:zod_schema, :valibot_schema]
+                 [:result_type, :fields_type, :infer_result_type, :config_type] ++
+                 [:metadata_type, :restricted_schema, :zod_schema, :valibot_schema]
     end
   end
 
@@ -1305,8 +1343,9 @@ defmodule AshTypescript.Manifest.NameCheckTest do
     end
 
     test "the raw-name rule applies once per owner, on its bare slot" do
-      # VerifyRpc still rejects `rpc_action :list_1` at compile, so the raw
-      # name is set on a compiled manifest's entrypoint.
+      # The raw name is injected on a compiled manifest so the walk test needs
+      # no compile failure; `raw_binding_names_test.exs` covers the compile
+      # path.
       manifest = manifest()
 
       entrypoints =
@@ -2123,6 +2162,79 @@ defmodule AshTypescript.Manifest.NameCheckTest do
     end
   end
 
+  defmodule CalcArgRes do
+    @moduledoc false
+    use Ash.Resource,
+      domain: AshTypescript.Manifest.NameCheckTest.CalcArgDomain,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "NameCheckCalcArgRes"
+    end
+
+    attributes do
+      uuid_primary_key :id
+    end
+
+    calculations do
+      calculate :scored, :integer, expr(1) do
+        public? true
+        argument :opts, :map, constraints: [fields: [level: [type: :integer]]]
+      end
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule CalcArgDomain do
+    @moduledoc false
+    use Ash.Domain,
+      otp_app: :ash_typescript,
+      extensions: [AshTypescript.Rpc],
+      validate_config_inclusion?: false
+
+    typescript_rpc do
+      resource AshTypescript.Manifest.NameCheckTest.CalcArgRes do
+        rpc_action :list_calc_arg_res, :read
+      end
+    end
+
+    resources do
+      resource AshTypescript.Manifest.NameCheckTest.CalcArgRes
+    end
+  end
+
+  describe "argument owners in the report" do
+    test "a route argument's name and its type's field names group under the route" do
+      manifest =
+        inject(manifest(), %{:mode => :"mo-de", "mode" => "mo-de", "level" => "le-vel"})
+
+      assert {:error, message} = NameCheck.check(manifest, Custom.custom_types(manifest))
+
+      assert message =~
+               """
+                 Route :save of #{inspect(T.Controller)}:
+                   - field :opts.level → "le-vel" (formatted), not an identifier: the output_field_formatter turns it into "le-vel": change the formatter
+                   - argument :"mo-de" → "mo-de" (formatted), not an identifier: rename it, e.g. :mo_de
+               """
+    end
+
+    test "a calculation argument's type's field names group under its resource" do
+      manifest = inject(InlineManifest.build!(domains: [CalcArgDomain]), %{"level" => "le-vel"})
+
+      assert {:error, message} = NameCheck.check(manifest, Custom.custom_types(manifest))
+
+      assert message =~
+               """
+                 Resource #{inspect(CalcArgRes)}:
+                   - field :opts.level of calculation :scored → "le-vel" (formatted), not an identifier: the output_field_formatter turns it into "le-vel": change the formatter
+               """
+    end
+  end
+
   describe "the report" do
     setup do
       on_exit(fn -> :persistent_term.erase({T.CallbackScalar, :alias}) end)
@@ -2169,7 +2281,7 @@ defmodule AshTypescript.Manifest.NameCheckTest do
              (string, any, …).
 
                RPC action :"list-todos" in #{inspect(T.BindingGapDomain)}:
-                 - function "list-todos" (and 6 derived names), not an identifier: rename the rpc_action, e.g. :list_todos
+                 - function "list-todos" (and 12 derived names), not an identifier: rename the rpc_action, e.g. :list_todos
 
                Typed query :dashboard in #{inspect(T.BindingGapDomain)}:
                  - const "dash-board" (ts_fields_const_name), not an identifier: change ts_fields_const_name
@@ -2185,12 +2297,53 @@ defmodule AshTypescript.Manifest.NameCheckTest do
              """
     end
 
+    # The six function and schema names derived from the rpc_action's name,
+    # and its seven type names (`List-todosInput`, `List-todosResult`, …).
     test "derived names of one owner are one report line" do
       manifest = all_families_manifest()
 
       assert {:error, message} = NameCheck.check(manifest, Custom.custom_types(manifest))
-      assert message =~ ~s[- function "list-todos" (and 6 derived names), not an identifier]
+      assert message =~ ~s[- function "list-todos" (and 12 derived names), not an identifier]
       refute message =~ "validateList-todos"
+    end
+
+    test "derived type names collapse into the derived count" do
+      manifest = all_families_manifest()
+
+      assert {:error, message} = NameCheck.check(manifest, Custom.custom_types(manifest))
+      assert message =~ ~s[- function "list-todos" (and 12 derived names), not an identifier]
+
+      for builder <-
+            [:result_type, :fields_type, :infer_result_type] ++
+              [:config_type, :metadata_type, :restricted_schema] do
+        name = apply(AshTypescript.Rpc.Codegen.FunctionNames, builder, [:"list-todos"])
+        assert name =~ "-"
+        refute message =~ name
+      end
+    end
+
+    # `describe/1` takes any problem, collapsed or not, so each type role has
+    # its own words.
+    test "each derived type name is described by its role" do
+      manifest = all_families_manifest()
+
+      lines =
+        manifest
+        |> NameCheck.problems(Custom.custom_types(manifest))
+        |> Enum.filter(&match?(%{slot: %{owner: {:rpc_action, :"list-todos", _}}}, &1))
+        |> Map.new(&{&1.slot.role, NameCheck.describe(&1)})
+
+      for {role, what} <- [
+            result_type: "result type",
+            fields_type: "fields type",
+            infer_result_type: "inferred result type",
+            config_type: "config type",
+            metadata_type: "metadata type",
+            restricted_schema: "restricted schema"
+          ] do
+        name = apply(AshTypescript.Rpc.Codegen.FunctionNames, role, [:"list-todos"])
+        assert lines[role] =~ ~s[- #{what} "#{name}", not an identifier]
+      end
     end
 
     test "no problems gives :ok" do
@@ -2740,7 +2893,7 @@ defmodule AshTypescript.Manifest.NameCheckTest do
 
       assert error.message =~
                ~s[  RPC action :"list-todos" in #{inspect(T.DashRpcDomain)}:\n] <>
-                 ~s[    - function "list-todos" (and 6 derived names), not an identifier: ] <>
+                 ~s[    - function "list-todos" (and 12 derived names), not an identifier: ] <>
                  "rename the rpc_action, e.g. :list_todos\n"
     end
 
@@ -2893,6 +3046,214 @@ defmodule AshTypescript.Manifest.NameCheckTest do
 
       assert Custom.custom_types(manifest).declared[SomeLib.Coordinates].ts_alias ==
                "Geo-Coordinates"
+    end
+  end
+
+  describe "binding names a formatter broke" do
+    defp dash_report do
+      manifest =
+        AshTypescript.Manifest.redecorate(manifest(),
+          output_formatter: {AshTypescript.Test.Formatters, :dash}
+        )
+
+      assert {:error, report} = NameCheck.check(manifest, Custom.custom_types(manifest))
+      report
+    end
+
+    test "a formatter that breaks a valid rpc_action name is named in the hint" do
+      assert dash_report() =~
+               ~s[  RPC action :list_res in #{inspect(T.Domain)}:\n] <>
+                 ~s[    - function "list-res" (and 5 derived names), not an identifier: ] <>
+                 ~s[the output_field_formatter turns it into "list-res": change the formatter, ] <>
+                 "or rename the rpc_action\n"
+    end
+
+    test "typed query const hint offers ts_fields_const_name" do
+      assert dash_report() =~
+               ~s[  Typed query :child_page in #{inspect(T.Domain)}:\n] <>
+                 ~s[    - const "child-page", not an identifier: ] <>
+                 ~s[the output_field_formatter turns it into "child-page": change the formatter, ] <>
+                 "or rename the typed_query, or set ts_fields_const_name\n"
+    end
+
+    test "an invalid raw name keeps the rename hint" do
+      assert NameCheck.describe(
+               problem(
+                 [
+                   family: :binding,
+                   container: nil,
+                   kind: :rpc_function,
+                   role: :execution,
+                   owner: {:rpc_action, :"list-todos", T.Domain},
+                   raw: :"list-todos",
+                   name: "list-todos",
+                   bare?: true,
+                   formatter: {AshTypescript.Test.Formatters, :dash}
+                 ],
+                 :not_identifier
+               )
+             ) ==
+               ~s[- function "list-todos", not an identifier: rename the rpc_action, e.g. :list_todos]
+    end
+  end
+
+  defmodule ValibotClassController do
+    @moduledoc false
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.Test.NameCheckValibotClassController
+
+      post :sign_up do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :code, :string
+        valibot_schema_name "class"
+      end
+    end
+  end
+
+  # Its joined module name, the alias it gets without a ts_alias, isn't an
+  # identifier.
+  defmodule :"Elixir.AshTypescript.Manifest.NameCheckTest.Bad-Point" do
+    @moduledoc false
+    use AshTypescript.Test.PassThroughType
+  end
+
+  defmodule BadPointRes do
+    @moduledoc false
+    use Ash.Resource,
+      domain: AshTypescript.Manifest.NameCheckTest.BadPointDomain,
+      data_layer: Ash.DataLayer.Ets,
+      extensions: [AshTypescript.Resource]
+
+    typescript do
+      type_name "NameCheckBadPointRes"
+    end
+
+    attributes do
+      uuid_primary_key :id
+      attribute :point, :"Elixir.AshTypescript.Manifest.NameCheckTest.Bad-Point", public?: true
+    end
+
+    actions do
+      defaults [:read]
+    end
+  end
+
+  defmodule BadPointDomain do
+    @moduledoc false
+    use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+    typescript_rpc do
+      resource AshTypescript.Manifest.NameCheckTest.BadPointRes do
+        rpc_action :list_bad_points, :read
+      end
+    end
+
+    resources do
+      resource AshTypescript.Manifest.NameCheckTest.BadPointRes
+    end
+  end
+
+  defmodule LineEventRes do
+    @moduledoc false
+    use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+    pub_sub do
+      module AshTypescript.Test.TestEndpoint
+      prefix "line_event"
+
+      publish :create, [:id],
+        event: "line_created",
+        public?: true,
+        returns: :map,
+        constraints: [fields: [line_1: [type: :string, allow_nil?: false]]],
+        transform: fn _notification -> %{line_1: "x"} end
+    end
+
+    attributes do
+      uuid_primary_key :id
+    end
+
+    actions do
+      defaults [:read, :create]
+    end
+  end
+
+  defmodule LineEventChannel do
+    @moduledoc false
+    use Phoenix.Channel
+    use AshTypescript.TypedChannel
+
+    typed_channel do
+      topic "line_event:*"
+
+      resource AshTypescript.Manifest.NameCheckTest.LineEventRes do
+        publish :line_created
+      end
+    end
+
+    def join(_topic, _payload, socket), do: {:ok, socket}
+  end
+
+  describe "report details" do
+    test "a bad valibot_schema_name is reported with its option" do
+      error =
+        assert_raise RuntimeError, fn ->
+          InlineManifest.build!(typed_controllers: [T.ValibotClassController])
+        end
+
+      assert error.message =~
+               ~s[  Route :sign_up of #{inspect(T.ValibotClassController)}:\n] <>
+                 ~s[    - valibot schema "class" (valibot_schema_name), a JavaScript reserved ] <>
+                 "word: change valibot_schema_name\n"
+    end
+
+    test "static keys are grouped under The generated code's own keys" do
+      manifest =
+        AshTypescript.Manifest.redecorate(manifest(),
+          output_formatter: {T.WeirdFormatter, :weird, []}
+        )
+
+      assert {:error, report} = NameCheck.check(manifest, Custom.custom_types(manifest))
+
+      assert report =~
+               "  The generated code's own keys:\n" <>
+                 ~s[    - key :has_more → "has-more" (formatted), not an identifier: ]
+    end
+
+    test "an alias named after its module says (its module name)" do
+      body =
+        InlineManifest.app_custom_types([
+          quote do
+            map :"Elixir.AshTypescript.Manifest.NameCheckTest.Bad-Point" do
+              field :lat, :float
+            end
+          end
+        ])
+
+      error =
+        assert_raise RuntimeError, fn ->
+          InlineManifest.build!(domains: [T.BadPointDomain], body: body)
+        end
+
+      module = :"Elixir.AshTypescript.Manifest.NameCheckTest.Bad-Point"
+
+      assert error.message =~
+               ~s[    - The alias "AshTypescriptManifestNameCheckTestBad-Point" of ] <>
+                 "#{inspect(module)} (its module name) is not a TypeScript identifier."
+    end
+
+    test "a bad client name in a channel payload field" do
+      error =
+        assert_raise RuntimeError, fn ->
+          InlineManifest.build!(typed_channels: [T.LineEventChannel])
+        end
+
+      assert error.message =~
+               ~s[  Publication "line_created" of #{inspect(T.LineEventChannel)}:\n] <>
+                 ~s[    - field :payload.line_1 → "line1" (formatted), underscore before a ] <>
+                 "digit: rename the field, e.g. :line1\n"
     end
   end
 end

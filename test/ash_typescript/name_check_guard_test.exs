@@ -28,11 +28,18 @@ defmodule AshTypescript.NameCheckGuardTest do
     {AshTypescript.Codegen.ClientNames, :type_field},
     {AshTypescript.Codegen.ClientNames, :union_member},
     {AshTypescript.Codegen.ClientNames, :metadata_field},
+    {AshTypescript.Codegen.ClientNames, :vocabulary!},
     {AshTypescript.Rpc.Codegen.FunctionNames, :execution},
     {AshTypescript.Rpc.Codegen.FunctionNames, :validation},
     {AshTypescript.Rpc.Codegen.FunctionNames, :channel},
     {AshTypescript.Rpc.Codegen.FunctionNames, :validation_channel},
     {AshTypescript.Rpc.Codegen.FunctionNames, :input_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :result_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :fields_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :infer_result_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :config_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :metadata_type},
+    {AshTypescript.Rpc.Codegen.FunctionNames, :restricted_schema},
     {AshTypescript.Rpc.Codegen.FunctionNames, :typed_query_const},
     {AshTypescript.Rpc.Codegen.FunctionNames, :typed_query_result_type},
     {AshTypescript.Codegen.SchemaCore, :action_schema_name},
@@ -168,7 +175,19 @@ defmodule AshTypescript.NameCheckGuardTest do
         to_string(elem(slot.owner, 1)) == entrypoint.name
 
   defp at?(slot, %{mfa: {FunctionNames, f, _a}, args: [rpc_name | _]}, _n)
-       when f in [:execution, :validation, :channel, :validation_channel, :input_type],
+       when f in [
+              :execution,
+              :validation,
+              :channel,
+              :validation_channel,
+              :input_type,
+              :result_type,
+              :fields_type,
+              :infer_result_type,
+              :config_type,
+              :metadata_type,
+              :restricted_schema
+            ],
        do: binding?(slot, :rpc_function, f, rpc_name)
 
   defp at?(slot, %{mfa: {FunctionNames, :typed_query_const, _a}, args: [typed_query | _]}, _n),
@@ -234,6 +253,13 @@ defmodule AshTypescript.NameCheckGuardTest do
          (slot.kind == :rpc_function and slot.role == :execution) or
          (slot.kind == :route_function and slot.role == :function))
   end
+
+  # A request key of ash_rpc's vocabulary is a static key.
+  defp at?(slot, %{mfa: {ClientNames, :vocabulary!, 2}, args: [_scope, raw]}, _n),
+    do: slot.kind == :static_field and slot.raw == raw
+
+  defp at?(slot, %{mfa: {ClientNames, :vocabulary!, 3}, args: [_manifest, _scope, raw]}, _n),
+    do: slot.kind == :static_field and slot.raw == raw
 
   defp at?(slot, %{mfa: {Custom, :type_alias_names, 1}, args: [type]}, _n),
     do: slot.kind == :map_alias and slot.owner == {:type, type.module}
@@ -350,6 +376,11 @@ defmodule AshTypescript.NameCheckGuardTest do
 
   defp exempt?({ScalarAliases, :name, 2}, [node, _ct], custom_types),
     do: match?({:entry, %{ts_alias: {_m, _f, _a}}}, ScalarAliases.source(node, custom_types))
+
+  # Filter operator and function keys (`eq`, `notEq`, …) aren't NameCheck
+  # slots: ash_rpc's vocabulary names them, and codegen only reads them.
+  defp exempt?({ClientNames, :vocabulary!, 2}, [:filter_ops, _raw], _ct), do: true
+  defp exempt?({ClientNames, :vocabulary!, 3}, [_manifest, :filter_ops, _raw], _ct), do: true
 
   defp exempt?(_mfa, _args, _custom_types), do: false
 

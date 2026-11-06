@@ -36,6 +36,14 @@ defmodule AshTypescript.Test.Formatters do
   end
 
   @doc """
+  Custom formatter that turns underscores into dashes (`list_todos` →
+  `list-todos`), so it breaks every multi-word name.
+  """
+  def dash(field_name) do
+    field_name |> to_string() |> String.replace("_", "-")
+  end
+
+  @doc """
   Custom formatter that throws an error for testing error handling.
   """
   def error_format(_field_name) do

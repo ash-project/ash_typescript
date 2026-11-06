@@ -623,6 +623,15 @@ defmodule AshTypescript.NameValidationTest do
     end
   end
 
+  describe "usable_raw_binding_name?/1" do
+    test "a raw name the generated code can use as is" do
+      assert NameValidation.usable_raw_binding_name?(:list_todos)
+      refute NameValidation.usable_raw_binding_name?(:list_1)
+      refute NameValidation.usable_raw_binding_name?(:"list-todos")
+      refute NameValidation.usable_raw_binding_name?(:delete)
+    end
+  end
+
   describe "check_binding_name/2, the spec's rule cases" do
     test "a bare name that isn't an identifier" do
       assert_binding_rows([

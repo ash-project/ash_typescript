@@ -34,6 +34,8 @@ defmodule AshTypescript.NameValidation do
       in a generated ES module;
     * `type_keyword?/1`: the name is a predefined TypeScript type name, which
       can't name a type alias;
+    * `usable_raw_binding_name?/1`: the raw binding name could be used as is,
+      so a bad name formatted from it is the formatter's doing;
     * `make_name_better/1`: the rename suggestion shown in error messages,
       and `suggest_name/1`, which also turns other non-identifier characters
       into underscores.
@@ -116,6 +118,17 @@ defmodule AshTypescript.NameValidation do
   @spec check_raw_binding_name(atom()) :: :ok | {:error, :invalid_raw_name}
   def check_raw_binding_name(raw) do
     if invalid_name?(raw), do: {:error, :invalid_raw_name}, else: :ok
+  end
+
+  @doc """
+  Returns `true` when the raw `rpc_action`, `typed_query` or route name could
+  be used as is: an identifier (`identifier?/1`) that passes
+  `check_raw_binding_name/1` and isn't a JavaScript reserved word. A bad
+  binding name formatted from such a raw name is the formatter's doing.
+  """
+  @spec usable_raw_binding_name?(atom() | String.t()) :: boolean()
+  def usable_raw_binding_name?(raw) do
+    identifier?(raw) and check_raw_binding_name(raw) == :ok and not reserved_word?(raw)
   end
 
   @doc """
