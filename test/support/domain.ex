@@ -63,6 +63,8 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :search_todos, :search
       rpc_action :search_paginated_todos, :search_paginated
       rpc_action :list_recent_todos, :list_recent
+      rpc_action :list_keyset_required_todos, :list_keyset_required
+      rpc_action :list_mixed_required_todos, :list_mixed_required
       rpc_action :list_high_priority_todos, :list_high_priority
 
       # Test enable_filter? option - disables filter support for this read action
@@ -96,6 +98,39 @@ defmodule AshTypescript.Test.Domain do
       # guards that the restricted override keeps the `| null`.
       rpc_action :list_todos_deny_history_calc, :read,
         denied_loads: [metadata_history: [:display_category]]
+
+      # Restrictions through an embedded resource attribute (TodoMetadata):
+      # nested allow and deny, a flat allow, and an array of embedded.
+      rpc_action :list_todos_allow_embedded, :read, allowed_loads: [metadata: [:display_category]]
+      rpc_action :list_todos_deny_embedded, :read, denied_loads: [metadata: [:display_category]]
+      rpc_action :list_todos_allow_flat_embedded, :read, allowed_loads: [:metadata]
+
+      rpc_action :list_todos_allow_history, :read,
+        allowed_loads: [metadata_history: [:display_category]]
+
+      # Restrictions through union members (`content`, and the array of
+      # unions `blocks`): the level under a union names its members.
+      rpc_action :list_todos_deny_union_member, :read,
+        denied_loads: [content: [text: [:display_text]]]
+
+      rpc_action :list_todos_allow_union_member, :read,
+        allowed_loads: [content: [text: [:display_text]]]
+
+      rpc_action :list_todos_deny_block_member, :read,
+        denied_loads: [blocks: [text: [:display_text]]]
+
+      # A restriction through a calculation returning a resource keeps the
+      # calculation's arguments.
+      rpc_action :list_todos_deny_self_user, :read, denied_loads: [self: [:user]]
+
+      # Bare denied attributes and members: only the loads under them are
+      # denied, so their attributes stay selectable.
+      rpc_action :list_todos_deny_bare_fields, :read,
+        denied_loads: [:metadata, :blocks, content: [:text, :note]]
+
+      # A restriction through an aggregate holding an embedded resource.
+      rpc_action :list_todos_deny_aggregate_embedded, :read,
+        denied_loads: [first_comment_metadata: [:display_category]]
 
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
@@ -132,12 +167,72 @@ defmodule AshTypescript.Test.Domain do
         ts_result_type_name "ListTodosWithUserFlagsResult"
         fields [:id, %{user: [:id, :is_active?, :address_line_1]}]
       end
+
+      # Selection forms the queries above don't use: a declared map type and a
+      # typed map nested in one, union members, and a calculation with
+      # arguments in keyword form
+      typed_query :list_todos_selection_forms, :read do
+        ts_fields_const_name "listTodosSelectionForms"
+        ts_result_type_name "ListTodosSelectionFormsResult"
+
+        fields [
+          :id,
+          %{color_palette: [:primary]},
+          %{statistics: [:view_count, %{performance_metrics: [:focus_time_seconds]}]},
+          %{content: [:note, %{text: [:text, :word_count]}]},
+          self: %{args: %{prefix: "x"}, fields: [:id, :is_overdue]}
+        ]
+      end
+
+      # A relationship query envelope in keyword form: a filter through a
+      # relationship, a sort and a bare limit/offset slice. Names are atoms:
+      # client names (strings) hold only under one output formatter, and the
+      # formatter tests regenerate this domain under others (string names:
+      # typed_query_client_names_test.exs).
+      typed_query :list_todos_keyword_envelope, :read do
+        ts_fields_const_name "listTodosKeywordEnvelope"
+        ts_result_type_name "ListTodosKeywordEnvelopeResult"
+
+        fields [
+          :id,
+          comments: %{
+            filter: %{author_name: %{in: ["Ann", "Bob"]}, user: %{name: %{eq: "Test User"}}},
+            sort: [:content],
+            limit: 2,
+            offset: 1,
+            fields: [:id, :content]
+          }
+        ]
+      end
+
+      # Envelopes in map form: nested pagination, fields alone, and a
+      # statement under a connective
+      typed_query :list_todos_map_envelope, :read do
+        ts_fields_const_name "listTodosMapEnvelope"
+        ts_result_type_name "ListTodosMapEnvelopeResult"
+
+        fields [
+          :id,
+          %{
+            comments: %{page: %{limit: 1, count: true}, fields: [:id]},
+            commenters: %{fields: [:id]},
+            offset_comments: %{
+              filter: %{not: %{content: "zulu"}},
+              sort: [:author_name, :content],
+              limit: 5,
+              fields: [:content]
+            }
+          }
+        ]
+      end
     end
 
     resource AshTypescript.Test.TodoComment do
       rpc_action :list_todo_comments, :read
       # Keyset-only, countable pagination
       rpc_action :list_todo_comments_keyset, :read_keyset_only
+      # Offset-only, optional pagination
+      rpc_action :list_todo_comments_offset, :read_offset_only
       rpc_action :create_todo_comment, :create
       rpc_action :update_todo_comment, :update
       rpc_action :destroy_todo_comment, :destroy
@@ -173,6 +268,62 @@ defmodule AshTypescript.Test.Domain do
 
       # Test identities with only email identity (no primary key)
       rpc_action :update_user_by_email, :update, identities: [:unique_email]
+
+      # Structured filter values in an envelope: a keyword, a union member,
+      # a tuple, an untyped map and an array of unions of typed maps, written
+      # with internal names
+      typed_query :list_users_with_filtered_todos, :read do
+        ts_fields_const_name "listUsersWithFilteredTodos"
+        ts_result_type_name "ListUsersWithFilteredTodosResult"
+
+        fields [
+          :id,
+          todos: %{
+            filter: %{
+              or: [
+                %{options: %{eq: %{priority: 3, category: "work"}}},
+                %{content: %{eq: %{priority_value: 8}}},
+                %{coordinates: %{in: [%{latitude: 1.5, longitude: 2.5}]}},
+                %{custom_data: %{eq: %{"source" => "import"}}},
+                %{attachments: %{eq: [%{file: %{filename: "a.txt", mime_type: "text/plain"}}]}}
+              ]
+            },
+            sort: [:title],
+            fields: [:title]
+          }
+        ]
+      end
+
+      # A list filter is the `and` of its statements; a keyword list's entries
+      # are statements too, with operators as keyword lists; a tuple field's
+      # value is its elements in order
+      typed_query :list_users_with_list_filter, :read do
+        ts_fields_const_name "listUsersWithListFilter"
+        ts_result_type_name "ListUsersWithListFilterResult"
+
+        fields [
+          :id,
+          todos: %{
+            filter: [%{completed: %{eq: false}}, %{coordinates: %{eq: {1.5, 2.5}}}],
+            sort: [:title],
+            fields: [:title]
+          }
+        ]
+      end
+
+      typed_query :list_users_with_keyword_filter, :read do
+        ts_fields_const_name "listUsersWithKeywordFilter"
+        ts_result_type_name "ListUsersWithKeywordFilterResult"
+
+        fields [
+          :id,
+          todos: %{
+            filter: [title: [in: ["keyword", "other"]], coordinates: [in: [{3.5, 4.5}]]],
+            sort: [:title],
+            fields: [:title]
+          }
+        ]
+      end
 
       typed_query :list_users_with_invalid_arg, :read_with_invalid_arg do
         ts_fields_const_name "ListUsersWithInvalidArg"
@@ -227,6 +378,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_suggestion, :get_suggestion
       rpc_action :list_suggestions, :list_suggestions
       rpc_action :echo_line_item, :echo_line_item
+      rpc_action :accept_task_notes, :accept_notes
       rpc_action :echo_ulid, :echo_ulid
       rpc_action :get_todo_ref, :get_todo_ref
       rpc_action :describe_style, :describe_style
@@ -273,6 +425,16 @@ defmodule AshTypescript.Test.Domain do
 
       rpc_action :read_tasks_with_typed_map_metadata, :read_with_typed_map_metadata,
         show_metadata: nil
+
+      rpc_action :read_tasks_with_rich_metadata, :read_with_rich_metadata, show_metadata: nil
+
+      rpc_action :get_task_with_metadata, :read_with_metadata, get?: true
+      rpc_action :read_tasks_metadata_offset, :read_metadata_offset
+      rpc_action :read_tasks_metadata_offset_required, :read_metadata_offset_required
+      rpc_action :read_tasks_metadata_keyset, :read_metadata_keyset
+      rpc_action :read_tasks_metadata_keyset_required, :read_metadata_keyset_required
+      rpc_action :read_tasks_metadata_mixed, :read_metadata_mixed
+      rpc_action :read_tasks_metadata_mixed_required, :read_metadata_mixed_required
 
       rpc_action :read_tasks_with_unconstrained_map_metadata,
                  :read_with_unconstrained_map_metadata,

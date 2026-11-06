@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import {
+  AshTypescriptTestCompositePointZodSchema,
   createTodoZodSchema,
   createTaskZodSchema,
   LineItemZodSchema,
@@ -85,6 +86,20 @@ export function testLineItemZodSchemaRejectsBadMeta() {
         meta: { createdBy: 42 },
       }),
     "Should have thrown for a LineItem whose meta has a non-string createdBy",
+  );
+}
+
+export function testCompositePointZodSchemaRejectsMissingEntry() {
+  return expectZodError(
+    () => AshTypescriptTestCompositePointZodSchema.parse({ x: 1 }),
+    "Should have thrown for a CompositePoint without y",
+  );
+}
+
+export function testCompositePointZodSchemaRejectsFloat() {
+  return expectZodError(
+    () => createTaskZodSchema.parse({ title: "Here", position: { x: 1.5, y: 2 } }),
+    "Should have thrown for a CompositePoint with a non-integer x",
   );
 }
 

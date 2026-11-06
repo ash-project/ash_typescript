@@ -9,6 +9,10 @@ import * as shouldPass from "./zod/shouldPass/constraintValidation";
 import * as shouldFail from "./zod/shouldFail/constraintValidation";
 import * as customPass from "./zod/shouldPass/customTypeSchemas";
 import * as customFail from "./zod/shouldFail/customTypeSchemas";
+import * as routePass from "./zod/shouldPass/routeSchemas";
+import * as routeFail from "./zod/shouldFail/routeSchemas";
+import * as recursivePass from "./zod/shouldPass/recursiveSchemas";
+import * as recursiveFail from "./zod/shouldFail/recursiveSchemas";
 
 interface TestResult {
   name: string;
@@ -154,6 +158,28 @@ runTest("testMoneyZodSchemaAccepted", () => customPass.testMoneyZodSchemaAccepte
 runTest("testLineItemZodSchemaAccepted", () => customPass.testLineItemZodSchemaAccepted());
 runTest("testMoneyZodSchemaRejectsMissingAmount", () => customFail.testMoneyZodSchemaRejectsMissingAmount());
 runTest("testLineItemZodSchemaRejectsBadMeta", () => customFail.testLineItemZodSchemaRejectsBadMeta());
+runTest("testCompositePointZodSchemaAccepted", () => customPass.testCompositePointZodSchemaAccepted());
+runTest("testCompositePointZodSchemaRejectsMissingEntry", () => customFail.testCompositePointZodSchemaRejectsMissingEntry());
+runTest("testCompositePointZodSchemaRejectsFloat", () => customFail.testCompositePointZodSchemaRejectsFloat());
+
+console.log("\n--- Route schemas and the Theme schema ---\n");
+
+runTest("testLoginRouteSchemaAccepted", () => routePass.testLoginRouteSchemaAccepted());
+runTest("testCreateTaskRouteSchemaAccepted", () => routePass.testCreateTaskRouteSchemaAccepted());
+runTest("testThemeSchemaAccepted", () => routePass.testThemeSchemaAccepted());
+runTest("testLoginRouteSchemaRejectsMissingCode", () => routeFail.testLoginRouteSchemaRejectsMissingCode());
+runTest("testCreateTaskRouteSchemaRejectsMissingTitle", () => routeFail.testCreateTaskRouteSchemaRejectsMissingTitle());
+runTest("testThemeSchemaRejectsNonHexColor", () => routeFail.testThemeSchemaRejectsNonHexColor());
+runTest("testThemeSchemaRejectsCodeWithoutPrefix", () => routeFail.testThemeSchemaRejectsCodeWithoutPrefix());
+
+console.log("\n--- Recursive embedded resource schemas ---\n");
+
+runTest("testRecursiveNoteAccepted", () => recursivePass.testRecursiveNoteAccepted());
+runTest("testMutuallyRecursiveOutlineAccepted", () => recursivePass.testMutuallyRecursiveOutlineAccepted());
+runTest("testActionSchemaWithRecursiveArgumentsAccepted", () => recursivePass.testActionSchemaWithRecursiveArgumentsAccepted());
+runTest("testRecursiveNoteRejectsInvalidNestedReply", () => recursiveFail.testRecursiveNoteRejectsInvalidNestedReply());
+runTest("testMutuallyRecursiveOutlineRejectsInvalidNestedItem", () => recursiveFail.testMutuallyRecursiveOutlineRejectsInvalidNestedItem());
+runTest("testActionSchemaRejectsInvalidPinnedReply", () => recursiveFail.testActionSchemaRejectsInvalidPinnedReply());
 
 console.log("\n========================================");
 console.log("Test Results Summary");

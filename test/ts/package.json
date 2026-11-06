@@ -8,14 +8,17 @@
   "main": "index.js",
   "module": "es2022",
   "scripts": {
-    "compileGenerated": "tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "compileGeneratedRoutes": "tsc generated_routes.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "compileGeneratedTypedChannels": "tsc generated_typed_channels.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runZodTests.js",
-    "testValibot": "tsc runValibotTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runValibotTests.js",
-    "testChannelHooks": "tsc runChannelHookTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runChannelHookTests.js"
+    "compileGenerated": "tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "compileGeneratedRoutes": "tsc generated_routes.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "compileGeneratedTypedChannels": "tsc generated_typed_channels.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "compileGeneratedSchemas": "tsc ash_zod.ts ash_valibot.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --exactOptionalPropertyTypes --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop --noEmit -noErrorTruncation",
+    "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck --rootDir . --outDir build/zod && node build/zod/runZodTests.js",
+    "testValibot": "tsc runValibotTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck --rootDir . --outDir build/valibot && node build/valibot/runValibotTests.js",
+    "testChannelHooks": "tsc runChannelHookTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck --rootDir . --outDir build/channel_hooks && node build/channel_hooks/runChannelHookTests.js",
+    "testRouteHelpers": "tsc runRouteHelperTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck --rootDir . --outDir build/route_helpers && node build/route_helpers/runRouteHelperTests.js",
+    "compileVariants": "tsc -p variants/tsconfig.json"
   },
   "devDependencies": {
     "@types/phoenix": "^1.6.6",

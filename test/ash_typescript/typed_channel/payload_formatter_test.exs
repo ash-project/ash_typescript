@@ -149,6 +149,24 @@ defmodule AshTypescript.TypedChannel.PayloadFormatterTest do
     json |> IO.iodata_to_binary() |> Jason.decode!() |> List.last()
   end
 
+  describe "a redecorated manifest" do
+    test "formats payload keys with its output formatter" do
+      pascal = AshTypescript.Manifest.redecorate(manifest(), output_formatter: :pascal_case)
+
+      formatted =
+        AshTypescript.with_manifest(pascal, fn ->
+          PayloadFormatter.format_payload(
+            ObjectKindsChannel,
+            ObjectKindsItem,
+            "as_tuple",
+            {2, "two"}
+          )
+        end)
+
+      assert formatted == %{"ItemCount" => 2, "Label" => "two"}
+    end
+  end
+
   describe "typed scalar structs" do
     test "are normalized at typed positions" do
       assert format("scalar_structs", %{took: Duration.new!(hour: 1), on: ~D[2026-01-15]}) ==

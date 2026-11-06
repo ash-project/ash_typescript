@@ -10,6 +10,7 @@
 // to a schema, not how declared constraints are rendered.
 
 import {
+  AshTypescriptTestCompositePointZodSchema,
   createTodoZodSchema,
   createTaskZodSchema,
   LineItemZodSchema,
@@ -126,6 +127,25 @@ export function testLineItemZodSchemaAccepted() {
   }
 
   return withMeta;
+}
+
+// AshTypescript.Test.CompositePoint declares its fields only through
+// `composite_types/1`; its named schema requires both integer entries.
+
+export function testCompositePointZodSchemaAccepted() {
+  const validated = AshTypescriptTestCompositePointZodSchema.parse({ x: 1, y: 2 });
+
+  if (validated.x !== 1 || validated.y !== 2) {
+    throw new Error("Expected a CompositePoint to round-trip through its named schema");
+  }
+
+  const task = createTaskZodSchema.parse({ title: "Here", position: { x: 3, y: 4 } });
+
+  if (task.position?.y !== 4) {
+    throw new Error("Expected createTask's position to use the composite schema");
+  }
+
+  return task;
 }
 
 console.log("Custom type schema tests should compile and pass successfully!");

@@ -7,6 +7,7 @@
 
 import * as v from "valibot";
 import {
+  AshTypescriptTestCompositePointValibotSchema,
   createTodoValibotSchema,
   createTaskValibotSchema,
   LineItemValibotSchema,
@@ -85,6 +86,20 @@ export function testLineItemValibotSchemaRejectsBadMeta() {
         meta: { createdBy: 42 },
       }),
     "Should have thrown for a LineItem whose meta has a non-string createdBy",
+  );
+}
+
+export function testCompositePointValibotSchemaRejectsMissingEntry() {
+  return expectValiError(
+    () => v.parse(AshTypescriptTestCompositePointValibotSchema, { x: 1 }),
+    "Should have thrown for a CompositePoint without y",
+  );
+}
+
+export function testCompositePointValibotSchemaRejectsFloat() {
+  return expectValiError(
+    () => v.parse(createTaskValibotSchema, { title: "Here", position: { x: 1.5, y: 2 } }),
+    "Should have thrown for a CompositePoint with a non-integer x",
   );
 }
 

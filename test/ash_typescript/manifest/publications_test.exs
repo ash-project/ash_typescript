@@ -52,6 +52,22 @@ defmodule AshTypescript.Manifest.PublicationsTest do
     assert pubs == Enum.sort_by(pubs, &{&1.channel_module, &1.resource, &1.event})
   end
 
+  test "redecorate/2 rebuilds publication payload client names", %{manifest: m} do
+    pascal = AshTypescript.Manifest.redecorate(m, output_formatter: :pascal_case)
+
+    assert %Publication{returns: %{custom: %{ash_rpc: %{field_names: %{id: "id"}}}}} =
+             Custom.publication(m, FeedChannel, Feed, "item_pushed")
+
+    assert %Publication{returns: returns} =
+             Custom.publication(pascal, FeedChannel, Feed, "item_pushed")
+
+    assert returns.custom.ash_rpc.field_names == %{id: "Id"}
+    assert returns.custom.ash_rpc.client_field_names == %{"Id" => :id}
+
+    assert %Publication{returns: %{custom: %{ash_rpc: %{field_names: %{count: "Count"}}}}} =
+             Custom.publication(pascal, FeedChannel, Feed, "count_pushed")
+  end
+
   test "the same publication declared by two channels is stored once per channel" do
     channels = [AshTypescript.Test.OrgChannel, AshTypescript.Test.TypedChannel.StaticTopicChannel]
     m = InlineManifest.build!(typed_controllers: [], typed_channels: channels)

@@ -9,6 +9,8 @@
 import {
   executeActionChannelPush,
   executeValidationChannelPush,
+  validateCreateTodoChannel,
+  validateGetUserByEmailChannel,
 } from "./generated";
 
 type Status = "ok" | "error" | "timeout";
@@ -46,6 +48,10 @@ async function runTest(name: string, fn: () => Promise<void>) {
     console.error(`✗ ${name}: ${error instanceof Error ? error.message : error}`);
   }
 }
+
+// Generated channel functions don't await the push: it happens once the
+// beforeChannelPush hook has resolved.
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function assertEqual(actual: unknown, expected: unknown, what: string) {
   const a = JSON.stringify(actual);
@@ -119,6 +125,56 @@ async function main() {
       resultHandler: () => {},
     });
     assertEqual(channel.pushes[0]?.timeout, 2000, "timeout");
+  });
+
+  await runTest("validation function passes ok replies to its result handler", async () => {
+    const channel = new FakeChannel();
+    const results: unknown[] = [];
+    validateCreateTodoChannel({
+      channel: channel as any,
+      input: { title: "Valid", userId: "123e4567-e89b-12d3-a456-426614174000" },
+      resultHandler: (result) => results.push(result),
+    });
+    await settled();
+    assertEqual(channel.pushes[0]?.event, "validate", "event");
+    assertEqual(channel.pushes[0]?.payload.action, "create_todo", "action");
+
+    const errors = [{ type: "required", message: "is required", fields: ["title"] }];
+    await channel.reply("ok", { success: true });
+    await channel.reply("ok", { success: false, errors });
+    assertEqual(results, [{ success: true }, { success: false, errors }], "results");
+  });
+
+  await runTest("validation function passes error replies to its error handler", async () => {
+    const channel = new FakeChannel();
+    const errors: unknown[] = [];
+    validateCreateTodoChannel({
+      channel: channel as any,
+      input: { title: "Valid", userId: "123e4567-e89b-12d3-a456-426614174000" },
+      resultHandler: () => {
+        throw new Error("resultHandler called for an error reply");
+      },
+      errorHandler: (error) => errors.push(error),
+    });
+    await settled();
+    await channel.reply("error", { reason: "unauthorized" });
+    assertEqual(errors, [{ reason: "unauthorized" }], "errors");
+  });
+
+  await runTest("validation function with getBy sends it in the payload", async () => {
+    const channel = new FakeChannel();
+    validateGetUserByEmailChannel({
+      channel: channel as any,
+      getBy: { email: "a@example.com" },
+      resultHandler: () => {},
+    });
+    await settled();
+    assertEqual(
+      channel.pushes[0]?.payload,
+      { action: "get_user_by_email", getBy: { email: "a@example.com" } },
+      "payload",
+    );
+    assertEqual(channel.pushes[0]?.timeout, 5000, "timeout");
   });
 
   if (failures > 0) {

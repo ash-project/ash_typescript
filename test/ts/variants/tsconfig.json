@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": ["DOM", "es2022"],
+    "module": "es2022",
+    "target": "es2022",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "noEmit": true,
+    "noErrorTruncation": true
+  },
+  "include": ["*/usage.ts", "*/ash_zod.ts", "*/ash_valibot.ts"]
+}

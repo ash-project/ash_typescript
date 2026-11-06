@@ -170,6 +170,38 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
     def typescript_fields, do: :not_a_list
   end
 
+  defmodule MalformedSpecs do
+    @moduledoc false
+    use AshTypescript.Test.PassThroughType
+
+    def typescript_fields, do: [:bare, {:pair, :not_a_list}]
+  end
+
+  defmodule NewOverScalarish do
+    @moduledoc false
+    use Ash.Type.NewType, subtype_of: AshTypescript.CustomTypes.FieldsForTest.Scalarish
+  end
+
+  defmodule CompositeInitFails do
+    @moduledoc false
+    use Ash.Type
+
+    @impl true
+    def storage_type(_), do: :map
+    @impl true
+    def init(_constraints), do: {:error, "needs constraints"}
+    @impl true
+    def cast_input(value, _), do: {:ok, value}
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
+    @impl true
+    def composite?(_), do: true
+    @impl true
+    def composite_types(constraints), do: [{:size, :integer, constraints}]
+  end
+
   defp builtin, do: Map.new(Builtin.entries(), &{&1.module, &1})
 
   defp map_entry(module, fields), do: %MapType{module: module, fields: fields}
@@ -275,6 +307,17 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
       assert CustomTypes.fields_for(AshDoubleEntry.ULID, %{}, builtin()) == nil
       assert CustomTypes.fields_for(String, %{}, builtin()) == nil
       assert CustomTypes.fields_for(T.NotAModule, %{}, builtin()) == nil
+    end
+
+    test "a NewType over a type with a scalar entry has no fields" do
+      declared = %{T.Scalarish => %Scalar{module: T.Scalarish, type: Ash.Type.String}}
+      assert CustomTypes.fields_for(T.NewOverScalarish, declared, builtin()) == nil
+    end
+
+    test "composite_types/1 gets no constraints when the type's init rejects the empty ones" do
+      assert CustomTypes.fields_for(T.CompositeInitFails, %{}, builtin()) == [
+               size: [type: :integer, constraints: [], allow_nil?: false]
+             ]
     end
   end
 
@@ -398,6 +441,11 @@ defmodule AshTypescript.CustomTypes.FieldsForTest do
   describe "a malformed typescript_fields/0 result" do
     test "is passed through for ash_rpc to report" do
       assert CustomTypes.fields_for(T.NotAList, %{}, builtin()) == :not_a_list
+    end
+
+    test "malformed entries of a list are passed through too" do
+      assert CustomTypes.fields_for(T.MalformedSpecs, %{}, builtin()) ==
+               [:bare, {:pair, :not_a_list}]
     end
   end
 

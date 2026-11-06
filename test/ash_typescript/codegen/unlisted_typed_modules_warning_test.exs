@@ -46,6 +46,19 @@ defmodule AshTypescript.Codegen.UnlistedTypedModulesWarningTest do
     do: TypeDiscovery.build_unlisted_typed_modules_warning(:ash_typescript, modules, manifest)
 
   describe "build_unlisted_typed_modules_warning/3" do
+    test "names the configured manifest module in its example, else a placeholder" do
+      manifest = InlineManifest.build!(typed_controllers: [AshTypescript.Test.Session])
+
+      assert warning([UnlistedSession], manifest) =~
+               "   defmodule #{inspect(Application.fetch_env!(:ash_typescript, :manifest))} do"
+
+      AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:manifest])
+      Application.delete_env(:ash_typescript, :manifest)
+
+      assert warning([UnlistedSession], manifest) =~
+               "   defmodule MyApp.AshTypescriptManifest do"
+    end
+
     test "names an unlisted typed controller and points at typed_controllers:" do
       manifest = InlineManifest.build!(typed_controllers: [AshTypescript.Test.Session])
 

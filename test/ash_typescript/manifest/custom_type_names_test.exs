@@ -545,6 +545,11 @@ defmodule AshTypescript.Manifest.CustomTypeNamesTest do
 
       assert names == %{
                AshMoney.Types.Money => %{typescript: "Money", zod: :derive, valibot: :derive},
+               AshTypescript.Test.CompositePoint => %{
+                 typescript: "AshTypescriptTestCompositePoint",
+                 zod: :derive,
+                 valibot: :derive
+               },
                AshTypescript.Test.GeoPoint => %{typescript: "GeoPoint", zod: nil, valibot: nil},
                AshTypescript.Test.LineItem => %{
                  typescript: "LineItem",

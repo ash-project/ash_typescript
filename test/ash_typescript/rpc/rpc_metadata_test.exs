@@ -717,6 +717,48 @@ defmodule AshTypescript.Rpc.MetadataTest do
     end
   end
 
+  describe "resource, union and recursive metadata types" do
+    test "resource and union metadata are plain data, and recursion stops at an untyped map" do
+      {:ok, content} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      # A resource value is its public attributes; a union value one
+      # `{member: value}` object per member; a recursive resource is expanded
+      # once and its own type inside it is an untyped map.
+      assert content =~
+               """
+               export type ReadTasksWithRichMetadataMetadata = {
+                 assignee?: {id: UUID, name: string | null};
+                 outcome?: { done: boolean } | { reason: string };
+                 node?: {id: UUID, label: string | null, parent: Record<string, any> | null};
+               };
+               """
+    end
+
+    test "the values sent match those types" do
+      task = create_task("Rich")
+
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, %Plug.Conn{}, %{
+          "action" => "read_tasks_with_rich_metadata",
+          "fields" => ["id"],
+          "metadataFields" => ["assignee", "outcome", "node"]
+        })
+
+      assert %{"success" => true, "data" => tasks} = result
+      task_result = Enum.find(tasks, &(&1["id"] == task.id))
+
+      assert task_result["assignee"] == %{
+               "id" => "6f4f4bd6-4a50-4f35-9f63-d5b0f3c6f1a1",
+               "name" => "Owner"
+             }
+
+      assert task_result["outcome"] == %{"reason" => "blocked"}
+
+      assert %{"label" => "Child", "parent" => %{"label" => "Root", "parent" => nil}} =
+               task_result["node"]
+    end
+  end
+
   describe "unconstrained map metadata preserves caller-provided keys" do
     test "READ action: :map and {:array, :map} metadata pass through unchanged" do
       task = create_task("Test Task")

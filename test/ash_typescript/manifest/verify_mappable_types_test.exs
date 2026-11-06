@@ -299,6 +299,162 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
     end
   end
 
+  describe "unmappable custom types at metadata, return and union member positions" do
+    test "action metadata is rejected with its action and metadata field" do
+      defmodule ResourceWithBareMetadata do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithBareMetadata"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          defaults [:read]
+
+          read :read_with_code do
+            metadata :code, AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType
+          end
+        end
+      end
+
+      defmodule DomainWithBareMetadata do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithBareMetadata do
+            rpc_action :read_with_code, :read_with_code
+          end
+        end
+
+        resources do
+          resource ResourceWithBareMetadata
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithBareMetadata])
+
+      assert message =~ "Unsupported types found"
+
+      assert message =~
+               "  • AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType\n" <>
+                 "      - action :read_with_code " <>
+                 "(AshTypescript.Manifest.VerifyMappableTypesTest.ResourceWithBareMetadata), " <>
+                 "metadata :code"
+    end
+
+    test "a generic action's return type is rejected" do
+      defmodule ResourceWithBareReturn do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithBareReturn"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          defaults [:read]
+
+          action :make_code, AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType do
+            run fn _input, _context -> {:ok, "code"} end
+          end
+        end
+      end
+
+      defmodule DomainWithBareReturn do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithBareReturn do
+            rpc_action :make_code, :make_code
+          end
+        end
+
+        resources do
+          resource ResourceWithBareReturn
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithBareReturn])
+
+      assert message =~ "Unsupported types found"
+
+      assert message =~
+               "  • AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType\n" <>
+                 "      - action :make_code " <>
+                 "(AshTypescript.Manifest.VerifyMappableTypesTest.ResourceWithBareReturn), " <>
+                 "return type"
+    end
+
+    test "a union member is rejected with the union's field" do
+      defmodule ResourceWithBareUnionMember do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithBareUnionMember"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :choice, :union do
+            public? true
+
+            constraints types: [
+                          text: [type: :string],
+                          code: [
+                            type: AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType
+                          ]
+                        ]
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithBareUnionMember do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithBareUnionMember do
+            rpc_action :list_choices, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithBareUnionMember
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithBareUnionMember])
+
+      assert message =~ "Unsupported types found"
+
+      assert message =~
+               "  • AshTypescript.Manifest.VerifyMappableTypesTest.BareCustomType\n" <>
+                 "      - resource " <>
+                 "AshTypescript.Manifest.VerifyMappableTypesTest.ResourceWithBareUnionMember, " <>
+                 "field :choice"
+    end
+  end
+
   describe "mappable custom types" do
     test "custom type with typescript_type/0 passes" do
       defmodule ResourceWithNamedType do

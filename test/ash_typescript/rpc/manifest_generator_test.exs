@@ -125,6 +125,13 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       assert manifest =~ "### User"
     end
 
+    test "a blank line between a resource's details and the next resource", %{
+      manifest: manifest
+    } do
+      assert manifest =~
+               "- **`updateArticleWithRequiredHeroImageAlt`**: Update an existing Article\n\n### Content\n"
+    end
+
     test "ends with single newline", %{manifest: manifest} do
       assert String.ends_with?(manifest, "\n")
       refute String.ends_with?(manifest, "\n\n")

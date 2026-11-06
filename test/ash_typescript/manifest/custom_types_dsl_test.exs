@@ -199,6 +199,26 @@ defmodule AshTypescript.Manifest.CustomTypesDslTest do
       assert message =~ "more than once"
     end
 
+    test "a module declared twice is reported at its second entry" do
+      error =
+        assert_raise Spark.Error.DslError, fn ->
+          compile_manifest!(
+            DuplicateScalar,
+            quote do
+              custom_types do
+                scalar SomeLib.TwiceScalar, :string
+                scalar SomeLib.TwiceScalar, :integer
+              end
+            end
+          )
+        end
+
+      assert error.path == [:custom_types, :scalar, SomeLib.TwiceScalar]
+
+      assert Exception.message(error) =~
+               "SomeLib.TwiceScalar is declared more than once. Each module may appear once in custom_types."
+    end
+
     test "a field declared twice in a map is rejected" do
       message =
         compile_error!(

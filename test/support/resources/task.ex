@@ -67,6 +67,11 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    attribute :position, AshTypescript.Test.CompositePoint do
+      allow_nil? true
+      public? true
+    end
+
     attribute :price, AshMoney.Types.Money do
       allow_nil? true
       public? true
@@ -124,6 +129,38 @@ defmodule AshTypescript.Test.Task do
       end
     end
 
+    # Paginated reads with metadata: each pagination kind, optional and required
+    # (the optional offset and mixed ones not countable).
+    read :read_metadata_offset do
+      metadata :some_string, :string
+      pagination offset?: true, required?: false, countable: false
+    end
+
+    read :read_metadata_offset_required do
+      metadata :some_string, :string
+      pagination offset?: true, required?: true, default_limit: 10
+    end
+
+    read :read_metadata_keyset do
+      metadata :some_string, :string
+      pagination keyset?: true, required?: false
+    end
+
+    read :read_metadata_keyset_required do
+      metadata :some_string, :string
+      pagination keyset?: true, required?: true, default_limit: 10
+    end
+
+    read :read_metadata_mixed do
+      metadata :some_string, :string
+      pagination offset?: true, keyset?: true, required?: false, countable: false
+    end
+
+    read :read_metadata_mixed_required do
+      metadata :some_string, :string
+      pagination offset?: true, keyset?: true, required?: true, default_limit: 10
+    end
+
     read :read_with_typed_map_metadata do
       metadata :audit_entries, {:array, :map},
         constraints: [
@@ -162,6 +199,40 @@ defmodule AshTypescript.Test.Task do
             end)
 
           {:ok, results_with_metadata}
+        end)
+      end
+    end
+
+    # Metadata of a resource, a union and a recursive resource.
+    read :read_with_rich_metadata do
+      metadata :assignee, :struct,
+        constraints: [instance_of: AshTypescript.Test.NoRelationshipsResource]
+
+      metadata :outcome, :union,
+        constraints: [types: [done: [type: :boolean], reason: [type: :string]]]
+
+      metadata :node, :struct, constraints: [instance_of: AshTypescript.Test.TaskNode]
+
+      prepare fn query, _context ->
+        Ash.Query.after_action(query, fn _query, results ->
+          {:ok,
+           Enum.map(results, fn record ->
+             record
+             |> Ash.Resource.put_metadata(:assignee, %AshTypescript.Test.NoRelationshipsResource{
+               id: "6f4f4bd6-4a50-4f35-9f63-d5b0f3c6f1a1",
+               name: "Owner"
+             })
+             |> Ash.Resource.put_metadata(:outcome, %Ash.Union{type: :reason, value: "blocked"})
+             |> Ash.Resource.put_metadata(:node, %AshTypescript.Test.TaskNode{
+               id: "0b6d3b34-3f8e-4d4f-8d5b-1f2a3c4d5e6f",
+               label: "Child",
+               parent: %AshTypescript.Test.TaskNode{
+                 id: "9a7f2c1e-5b6d-4e8f-a1b2-c3d4e5f60718",
+                 label: "Root",
+                 parent: nil
+               }
+             })
+           end)}
         end)
       end
     end
@@ -214,7 +285,7 @@ defmodule AshTypescript.Test.Task do
     end
 
     create :create do
-      accept [:title, :price, :custom_id, :geo_point, :theme, :theme_map]
+      accept [:title, :price, :custom_id, :geo_point, :position, :theme, :theme_map]
       primary? true
       metadata :some_string, :string, allow_nil?: false
       metadata :some_number, :integer, allow_nil?: false
@@ -366,6 +437,16 @@ defmodule AshTypescript.Test.Task do
       argument :line_item, AshTypescript.Test.LineItem, allow_nil?: false, public?: true
 
       run fn input, _context -> {:ok, input.arguments.line_item} end
+    end
+
+    # Recursive embedded resources (self and mutual) as inputs, and a
+    # resource that holds one.
+    action :accept_notes, :boolean do
+      argument :note, AshTypescript.Test.TaskNote, public?: true
+      argument :outline, AshTypescript.Test.TaskOutline, public?: true
+      argument :board, AshTypescript.Test.TaskNoteBoard, public?: true
+
+      run fn _input, _context -> {:ok, true} end
     end
 
     # A built-in aliased scalar (ULID) at an input and a result.

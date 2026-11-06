@@ -382,6 +382,19 @@ defmodule AshTypescript.Manifest.CustomTypeNameCollisionsTest do
       assert message =~ @fix
     end
 
+    test "three declared types with the same alias are all named" do
+      message =
+        collision_error!(ThreeSameAlias, %{
+          T.Billing.Money => "Money",
+          T.Shop.Money => "Money",
+          T.Shade => "Money"
+        })
+
+      assert message =~
+               "`Money` is the TypeScript alias of #{inspect(T.Billing.Money)}, " <>
+                 "#{inspect(T.Shade)} and #{inspect(T.Shop.Money)}: rename one of them #{@rename}."
+    end
+
     test "an alias equal to another's Input name" do
       message = collision_error!(InputName, %{T.Shade => "Shade", T.ShadeInput => "ShadeInput"})
 

@@ -19,6 +19,8 @@ defmodule AshTypescript.Test.SchemaFixtures.Holder do
       argument :node, AshTypescript.Test.ZodOrder.NodeA
       argument :nested_node, AshTypescript.Test.ZodOrder.ANestedHolder
       argument :struct_node, AshTypescript.Test.ZodOrder.AStructHolder
+      argument :named_ref_node, AshTypescript.Test.ZodOrder.ANamedRefHolder
+      argument :inline_ref_node, AshTypescript.Test.ZodOrder.AInlineRefHolder
 
       run fn _input, _context -> {:ok, true} end
     end

@@ -8,7 +8,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
 
   JavaScript `const` declarations are not hoisted, so referencing a schema
   variable before its declaration causes a runtime error. This test ensures
-  the topological sort in `generate_zod_schemas_for_resources/1` orders
+  the topological sort in `SchemaCore.generate_schemas_for_resources/2` orders
   resource schemas so dependencies come first.
 
   Uses the ZodOrder test resources which form a diamond dependency graph:
@@ -23,7 +23,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.{SchemaCore, ZodSchemaGenerator}
 
   alias AshTypescript.Test.ZodOrder.{NodeA, NodeB, NodeC, NodeD, NodeE}
 
@@ -33,7 +33,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
     manifest = AshTypescript.Test.SchemaFixtures.Domain.manifest(domains)
 
     AshTypescript.with_manifest(manifest, fn ->
-      ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, resources)
     end)
   end
 
@@ -54,20 +54,17 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
     declaration_positions =
       Map.new(declared_names, fn name -> {name, declaration_position(output, name)} end)
 
-    references = Regex.scan(~r/: (\w+ZodSchema)/, output)
+    # Every use of a declared name other than its declaration is a reference
+    # (`field: XZodSchema`, `z.array(XZodSchema)`, `z.union([XZodSchema, …])`).
+    references = Regex.scan(~r/(?<!const )\b(\w+ZodSchema)\b/, output, return: :index)
 
-    for [full_match, ref_name] <- references,
+    for [_, {ref_pos, len}] <- references,
+        ref_name = binary_part(output, ref_pos, len),
         Map.has_key?(declaration_positions, ref_name) do
-      case :binary.match(output, full_match) do
-        {ref_pos, _} ->
-          decl_pos = Map.get(declaration_positions, ref_name)
+      decl_pos = Map.get(declaration_positions, ref_name)
 
-          assert decl_pos < ref_pos,
-                 "#{ref_name} is referenced at position #{ref_pos} but declared at position #{decl_pos}"
-
-        :nomatch ->
-          :ok
-      end
+      assert decl_pos < ref_pos,
+             "#{ref_name} is referenced at position #{ref_pos} but declared at position #{decl_pos}"
     end
   end
 
@@ -160,7 +157,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
         AshTypescript.Test.InputParsing.Profile
       ]
 
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, resources)
 
       profile_pos = declaration_position(output, "InputParsingProfileZodSchema")
       nested_pos = declaration_position(output, "InputParsingNestedProfileZodSchema")
@@ -176,7 +173,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
         AshTypescript.Test.TodoMetadata
       ]
 
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, resources)
 
       assert output =~ "TaskMetadataZodSchema = z.object"
       assert output =~ "TodoMetadataZodSchema = z.object"
@@ -222,6 +219,55 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
 
       assert output =~ "ZodOrderNodeDZodSchema = z.object"
       assert output =~ "ZodOrderNodeBZodSchema = z.object"
+    end
+  end
+
+  describe "dependencies through named types (:type_ref)" do
+    alias AshTypescript.Test.InlineManifest
+    alias AshTypescript.Test.ZodOrder.{AInlineRefHolder, ANamedRefHolder, ZRefLeaf}
+
+    # EntryLeafBox's `map` entry replaces its schemas with authored ones,
+    # which don't reference ZRefLeaf's.
+    @entry_box_entry (quote do
+                        map AshTypescript.Test.ZodOrder.EntryLeafBox do
+                          field :leaf, AshTypescript.Test.ZodOrder.ZRefLeaf
+                          zod "CustomZodSchemas.leafBox"
+                          valibot "CustomValibotSchemas.leafBox"
+                        end
+                      end)
+
+    defp type_ref_schemas(resources) do
+      manifest =
+        InlineManifest.build!(
+          domains: [AshTypescript.Test.SchemaFixtures.Domain],
+          body: InlineManifest.app_custom_types([@entry_box_entry])
+        )
+
+      AshTypescript.with_manifest(manifest, fn ->
+        SchemaCore.generate_schemas_for_resources(ZodSchemaGenerator, resources)
+      end)
+    end
+
+    test "a named type with its own schema, or a map entry's, adds no dependency" do
+      output = type_ref_schemas([ZRefLeaf, ANamedRefHolder])
+
+      assert output =~ "  aliasedBox: ZodOrderAliasedLeafBoxZodSchema.nullable().optional(),"
+      assert output =~ "  entryBox: CustomZodSchemas.leafBox.nullable().optional(),"
+
+      assert declaration_position(output, "ZodOrderANamedRefHolderZodSchema") <
+               declaration_position(output, "ZodOrderZRefLeafZodSchema")
+    end
+
+    test "a named type rendered inline adds its fields' dependencies" do
+      output = type_ref_schemas([AInlineRefHolder, ZRefLeaf])
+
+      assert output =~
+               "  inlineBox: z.object({ leaf: ZodOrderZRefLeafZodSchema.nullable().optional() }).nullable().optional(),"
+
+      assert declaration_position(output, "ZodOrderZRefLeafZodSchema") <
+               declaration_position(output, "ZodOrderAInlineRefHolderZodSchema")
+
+      assert_all_references_after_declarations(output)
     end
   end
 end

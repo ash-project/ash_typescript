@@ -9,12 +9,16 @@ import {
   readTasksWithMetadata,
   readTasksWithMappedMetadata,
   readTasksWithSnakeMappedMetadata,
+  readTasksWithRichMetadata,
   createTask,
   updateTask,
   markCompletedTask,
   destroyTask,
 } from "../generated";
-import type { ReadTasksWithTypedMapMetadataMetadata } from "../generated";
+import type {
+  ReadTasksWithRichMetadataMetadata,
+  ReadTasksWithTypedMapMetadataMetadata,
+} from "../generated";
 
 // Test 1: Read action with metadata - selecting all metadata fields
 export const readWithAllMetadata = await readTasksWithMetadata({
@@ -343,5 +347,22 @@ export const completionInfo: ReadTasksWithTypedMapMetadataMetadata["completionIn
   completedAt: null,
   completedBy: "a",
 };
+
+// Resource, union and recursive resource metadata are plain data
+export const readWithRichMetadata = await readTasksWithRichMetadata({
+  fields: ["id"],
+  metadataFields: ["assignee", "outcome", "node"],
+});
+
+if (readWithRichMetadata.success) {
+  for (const task of readWithRichMetadata.data) {
+    const assigneeName: string | null | undefined = task.assignee?.name;
+    const reason: string | undefined =
+      task.outcome && "reason" in task.outcome ? task.outcome.reason : undefined;
+    const parentLabel: unknown = task.node?.parent?.label;
+  }
+}
+
+export const outcome: ReadTasksWithRichMetadataMetadata["outcome"] = { done: true };
 
 console.log("Metadata tests should compile successfully!");

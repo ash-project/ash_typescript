@@ -21,7 +21,7 @@ import type {
   LineItem,
   LineItemInput,
 } from "../generated";
-import type { Decimal } from "../ash_types";
+import type { CustomIdentifier, Decimal } from "../ash_types";
 
 // Test 0: Custom type field selection
 export const customTypeTest = await getTodo({
@@ -188,6 +188,14 @@ export const moneyEqFilter = await listTasks({
 export const moneyInFilter = await listTasks({
   fields: ["id"],
   filter: { price: { in: [money] } },
+});
+
+// A declared scalar custom type field takes the ordering operators, typed
+// by its alias
+const lowId: CustomIdentifier = "a1";
+export const customIdOrderingFilter = await listTasks({
+  fields: ["id"],
+  filter: { customId: { greaterThan: lowId, lessThanOrEqual: "z9" } },
 });
 
 console.log("Custom types tests should compile successfully!");

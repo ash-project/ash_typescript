@@ -9,6 +9,8 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   """
 
   alias AshTypescript.Codegen.Orchestrator
+  alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
+  alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
   @doc """
   Generates all files and concatenates their contents into a single string.
@@ -108,6 +110,18 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   """
   def generate_controller_content(opts \\ []) do
     AshTypescript.TypedController.Codegen.generate_controller_content(opts)
+  end
+
+  @doc """
+  Renders only the typed queries section for `manifest`. A full codegen run
+  reads the app's domains, which an inline manifest's domains aren't part of.
+  """
+  def typed_queries_section(manifest) do
+    AshTypescript.with_manifest(manifest, fn ->
+      AshTypescript.entrypoints()
+      |> RpcConfigCollector.get_typed_queries(AshTypescript.action_lookup())
+      |> TypedQueries.generate_typed_queries_section([], [])
+    end)
   end
 
   # The default test manifest intentionally includes resources (e.g. NotExposed)

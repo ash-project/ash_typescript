@@ -29,7 +29,35 @@ defmodule AshTypescript.MixProject do
         plt_add_apps: [:mix]
       ],
       usage_rules: usage_rules(),
-      consolidate_protocols: Mix.env() != :test
+      consolidate_protocols: Mix.env() != :test,
+      test_coverage: test_coverage()
+    ]
+  end
+
+  # `mix test --cover` measures the library: the installer (out of the
+  # threshold's scope by decision; its tests exercise it only partly, through
+  # Igniter's test helpers), the modules Spark generates for each DSL section
+  # and entity, and the test fixtures in `test/support` are not counted.
+  defp test_coverage do
+    [
+      summary: [threshold: 90],
+      ignore_modules: [
+        ~r/^AshTypescript\.Installer\./,
+        Mix.Tasks.AshTypescript.Install,
+        Mix.Tasks.AshTypescript.NpmInstall,
+        ~r/^AshTypescript\.TypedController\.Dsl\.TypedController\./,
+        ~r/^AshTypescript\.TypedChannel\.Dsl\.TypedChannel\./,
+        ~r/^AshTypescript\.Rpc\.TypescriptRpc\./,
+        ~r/^AshTypescript\.Manifest\.Dsl\.CustomTypes\./,
+        ~r/^AshTypescript\.Resource\.Typescript\./,
+        ~r/^AshTypescript\.Test\./,
+        ~r/^Inspect\.AshTypescript\.Test\./,
+        AshTypescript.TestApp,
+        AshDoubleEntry.ULID,
+        AshDoubleEntry.ULID.EctoType,
+        AshMoney.Types.Money,
+        AshMoney.Types.Money.EctoType
+      ]
     ]
   end
 
@@ -54,6 +82,7 @@ defmodule AshTypescript.MixProject do
     [
       preferred_envs: [
         "test.codegen": :test,
+        "test.codegen_variants": :test,
         "test.test_valibot": :test,
         tidewave: :test
       ]
@@ -120,6 +149,11 @@ defmodule AshTypescript.MixProject do
     [
       main: "readme",
       source_ref: "v#{@version}",
+      # These name removed and internal functions on purpose.
+      skip_undefined_reference_warnings_on: [
+        "CHANGELOG.md",
+        "documentation/upgrading/upgrading-to-0.20.md"
+      ],
       logo: "logos/small-logo.png",
       extra_section: "GUIDES",
       extras: [
@@ -240,12 +274,14 @@ defmodule AshTypescript.MixProject do
   defp aliases do
     [
       "test.codegen": "ash_typescript.codegen",
+      "test.codegen_variants": "run -e 'AshTypescript.Test.CodegenVariants.generate!()'",
       "test.compile_generated": "cmd cd test/ts && npm run compileGenerated",
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       "test.test_zod": "cmd cd test/ts && npm run testZod",
       "test.test_valibot": "cmd cd test/ts && npm run testValibot",
       "test.test_channel_hooks": "cmd cd test/ts && npm run testChannelHooks",
+      "test.test_route_helpers": "cmd cd test/ts && npm run testRouteHelpers",
       tidewave:
         "run --no-halt -e 'port = String.to_integer(System.get_env(\"TIDEWAVE_PORT\") || \"4012\"); Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: port) end)'",
       sobelow: "sobelow --skip",
