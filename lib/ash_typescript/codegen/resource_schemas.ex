@@ -13,6 +13,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
   alias AshTypescript.Manifest.Custom
+  alias AshTypescript.Rpc.Codegen.FunctionNames
 
   # ─────────────────────────────────────────────────────────────────
   # Field Classification
@@ -44,7 +45,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   Handles relationships, calculations, and attribute types. Returns the field
   category which determines how to generate its TypeScript definition.
 
-  Accepts Ash field structs, `%Ash.Info.Manifest.Field{}`, or `%Ash.Info.Manifest.Type{}`.
+  Accepts an `%Ash.Info.Manifest.Field{}`.
   """
   @spec classify_field(map()) :: field_category()
 
@@ -66,7 +67,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   @doc """
   Classifies a field by its type, handling NewType unwrapping and array wrappers.
 
-  Accepts Ash field structs or `%Ash.Info.Manifest.Type{}`.
+  Accepts an `%Ash.Info.Manifest.Type{}`.
   """
   @spec classify_by_type(map() | Ash.Info.Manifest.Type.t()) :: field_category()
 
@@ -117,7 +118,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     * `resources` - List of resources to generate schemas for
     * `allowed_resources` - List of resources allowed for schema generation (used for filtering)
     * `resources_needing_input_schema` - Optional list of resources that need InputSchema generated
-      (defaults to embedded resources)
+      (default `[]`; embedded resources always get one)
   """
   def generate_all_schemas_for_resources(
         resources,
@@ -125,6 +126,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         resources_needing_input_schema \\ [],
         resource_lookup \\ nil
       ) do
+    resource_lookup = resource_lookup || build_resource_lookup()
+
     resources
     |> Enum.map_join(
       "\n\n",
@@ -137,25 +140,12 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     )
   end
 
-  @doc """
-  Generates all schemas for a single resource.
-  Includes the unified resource schema and optionally an input schema for resources
-  that need it (embedded resources or struct argument resources).
-  """
-  def generate_all_schemas_for_resource(
-        resource,
-        allowed_resources,
-        input_schema_resources \\ [],
-        resource_lookup \\ nil
-      )
-
-  def generate_all_schemas_for_resource(
-        resource,
-        allowed_resources,
-        input_schema_resources,
-        resource_lookup
-      )
-      when is_map(resource_lookup) do
+  defp generate_all_schemas_for_resource(
+         resource,
+         allowed_resources,
+         input_schema_resources,
+         resource_lookup
+       ) do
     case Map.get(resource_lookup, resource) do
       %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_all_schemas_for_resource_from_spec(
@@ -169,16 +159,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       nil ->
         raise "ResourceSchemas: resource #{inspect(resource)} not found in resource_lookup"
     end
-  end
-
-  def generate_all_schemas_for_resource(resource, allowed_resources, input_schema_resources, nil) do
-    # Convenience fallback: build the lookup internally, then take the clause above.
-    generate_all_schemas_for_resource(
-      resource,
-      allowed_resources,
-      input_schema_resources,
-      build_resource_lookup()
-    )
   end
 
   defp generate_all_schemas_for_resource_from_spec(
@@ -238,10 +218,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     [unified_schema <> "\n", attributes_only_schema]
   end
 
-  @doc """
-  Generates a unified resource schema with metadata fields and direct field access.
-  This replaces the multiple separate schemas with a single, metadata-driven schema.
-  """
+  @doc false
   def generate_unified_resource_schema(resource, allowed_resources) do
     resource_lookup = build_resource_lookup()
 
@@ -275,21 +252,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           "\"#{formatted}\""
         end
       )
-    end
-  end
-
-  @doc """
-  Generates an input schema for embedded resources.
-  """
-  def generate_input_schema(resource) do
-    resource_lookup = build_resource_lookup()
-
-    case Map.get(resource_lookup, resource) do
-      %Ash.Info.Manifest.Resource{} = api_resource ->
-        generate_input_schema_from_spec(resource, api_resource)
-
-      nil ->
-        raise "ResourceSchemas: resource #{inspect(resource)} not found in resource_lookup"
     end
   end
 
@@ -404,8 +366,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp generate_input_schema_from_spec(resource, api_resource) do
-    resource_name = Helpers.build_resource_type_name(resource)
-
     attributes = Ash.Info.Manifest.Resource.fields_by_kind(api_resource, :attribute)
 
     input_fields =
@@ -426,7 +386,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       end)
 
     """
-    export type #{resource_name}InputSchema = {
+    export type #{Helpers.resource_input_type_name(resource)} = {
     #{input_fields}
     };
     """
@@ -440,36 +400,25 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
          allowed_resources,
          resource_lookup
        ) do
-    # Check for custom type name first
-    if type_str = spec_type_name(field.type) do
-      formatted_name = ClientNames.resource_field(resource, field.name)
+    category = classify_field(field)
 
-      if field.allow_nil? do
-        "  #{formatted_name}: #{type_str} | null;"
-      else
-        "  #{formatted_name}: #{type_str};"
-      end
+    # Aggregates use AttributesOnlySchema for complex types
+    if field.kind == :aggregate do
+      spec_aggregate_complex_field(
+        resource,
+        field,
+        category,
+        allowed_resources,
+        resource_lookup
+      )
     else
-      category = classify_field(field)
-
-      # Aggregates use AttributesOnlySchema for complex types
-      if field.kind == :aggregate do
-        spec_aggregate_complex_field(
-          resource,
-          field,
-          category,
-          allowed_resources,
-          resource_lookup
-        )
-      else
-        spec_non_aggregate_complex_field(
-          resource,
-          field,
-          category,
-          allowed_resources,
-          resource_lookup
-        )
-      end
+      spec_non_aggregate_complex_field(
+        resource,
+        field,
+        category,
+        allowed_resources,
+        resource_lookup
+      )
     end
   end
 
@@ -480,28 +429,23 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
          _resource_lookup
        ) do
     formatted_name = ClientNames.resource_field(resource, rel.name)
-    related_resource_name = Helpers.build_resource_type_name(rel.destination)
+    schema = "#{Helpers.build_resource_type_name(rel.destination)}ResourceSchema"
 
-    resource_type =
-      if rel.type in [:has_many, :many_to_many] do
-        "#{related_resource_name}ResourceSchema"
-      else
-        if rel.allow_nil? do
-          "#{related_resource_name}ResourceSchema | null"
-        else
-          "#{related_resource_name}ResourceSchema"
-        end
-      end
+    "  #{formatted_name}: #{relationship_field_type(rel, schema)};"
+  end
 
-    metadata =
-      if rel.type in [:has_many, :many_to_many] do
-        markers = relationship_query_markers(rel, related_resource_name)
-        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type};#{markers} }"
-      else
-        "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-      end
-
-    "  #{formatted_name}: #{metadata};"
+  @doc false
+  # The type of a relationship with `schema` as its destination's schema: a
+  # has_many / many_to_many carries the query markers. RestrictedSchema renders
+  # its relationship overrides through it.
+  def relationship_field_type(%Ash.Info.Manifest.Relationship{} = rel, schema) do
+    if rel.type in [:has_many, :many_to_many] do
+      markers = relationship_query_markers(rel, Helpers.build_resource_type_name(rel.destination))
+      "{ __type: \"Relationship\"; __array: true; __resource: #{schema};#{markers} }"
+    else
+      resource_type = if rel.allow_nil?, do: "#{schema} | null", else: schema
+      "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
+    end
   end
 
   # Capability markers gate which envelope keys the TS types offer. Each is
@@ -517,7 +461,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     filter =
       if rel.filterable? do
-        " __filterInput: #{related_resource_name}FilterInput;"
+        " __filterInput: #{FunctionNames.filter_input_type(related_resource_name)};"
       else
         ""
       end
@@ -548,19 +492,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
       cat when cat in [:union, :typed_map, :typed_struct] ->
         spec_typed_field(resource, field)
-
-      :primitive ->
-        formatted_name = ClientNames.resource_field(resource, field.name)
-        type_str = TypeMapper.map_type(field.type, [], :output)
-
-        if field.allow_nil? do
-          "  #{formatted_name}: #{type_str} | null;"
-        else
-          "  #{formatted_name}: #{type_str};"
-        end
-
-      _ ->
-        nil
     end
   end
 
@@ -600,10 +531,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
        ) do
     formatted_name = ClientNames.resource_field(resource, field.name)
 
-    {inner_type, is_array} =
+    inner_type =
       case type do
-        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> {item_type, true}
-        _ -> {type, false}
+        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> item_type
+        _ -> type
       end
 
     embedded_resource = inner_type.resource_module || inner_type.module
@@ -611,94 +542,107 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     if embedded_resource in allowed_resources do
       embedded_resource_name = Helpers.build_resource_type_name(embedded_resource)
 
-      # Nullability lives inside `__resource` for arrays too; InferFieldValue
-      # turns it into `Array<...> | null`.
-      resource_type =
-        if field.allow_nil? do
-          "#{embedded_resource_name}#{schema_suffix} | null"
-        else
-          "#{embedded_resource_name}#{schema_suffix}"
-        end
-
-      metadata =
-        if is_array do
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
-        else
-          "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-        end
-
-      "  #{formatted_name}: #{metadata};"
+      "  #{formatted_name}: #{embedded_field_type(field, "#{embedded_resource_name}#{schema_suffix}")};"
     else
       nil
+    end
+  end
+
+  @doc false
+  # The type of a field holding an embedded resource (or an array of one),
+  # with `schema` as the resource's schema. RestrictedSchema renders its
+  # overrides through it.
+  def embedded_field_type(%Ash.Info.Manifest.Field{} = field, schema) do
+    # Nullability lives inside `__resource` for arrays too; InferFieldValue
+    # turns it into `Array<...> | null`.
+    resource_type = if field.allow_nil?, do: "#{schema} | null", else: schema
+
+    case field.type do
+      %Ash.Info.Manifest.Type{kind: :array} ->
+        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+
+      _ ->
+        "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
     end
   end
 
   defp spec_typed_field(resource, %Ash.Info.Manifest.Field{type: type} = field) do
     formatted_name = ClientNames.resource_field(resource, field.name)
 
-    {inner_type, is_array} =
+    inner_type =
       case type do
-        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> {item_type, true}
-        _ -> {type, false}
+        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> item_type
+        _ -> type
       end
 
-    inner_ts_type = TypeMapper.map_type(inner_type, [], :output)
+    "  #{formatted_name}: #{typed_field_type(field, TypeMapper.map_type(inner_type, [], :output))};"
+  end
 
+  @doc false
+  # The type of a field holding a typed map, struct or union (or an array of
+  # one) whose item type is `inner_ts_type`: an array is marked with
+  # `__array` inside the object type. RestrictedSchema renders union
+  # overrides through it.
+  def typed_field_type(%Ash.Info.Manifest.Field{} = field, inner_ts_type) do
     final_type =
-      if is_array do
-        inner_content = String.slice(inner_ts_type, 1..-2//1)
-        "{ __array: true; #{inner_content} }"
-      else
-        inner_ts_type
+      case field.type do
+        %Ash.Info.Manifest.Type{kind: :array} ->
+          inner_content = String.slice(inner_ts_type, 1..-2//1)
+          "{ __array: true; #{inner_content} }"
+
+        _ ->
+          inner_ts_type
       end
 
-    if field.allow_nil? do
-      "  #{formatted_name}: #{final_type} | null;"
-    else
-      "  #{formatted_name}: #{final_type};"
-    end
+    if field.allow_nil?, do: "#{final_type} | null", else: final_type
   end
 
   defp spec_calculation_definition(resource, %Ash.Info.Manifest.Field{} = field) do
     formatted_name = ClientNames.resource_field(resource, field.name)
-    return_type = spec_calculation_return_type(field)
 
-    arguments = field.arguments || []
-
-    metadata =
-      if Enum.empty?(arguments) do
-        "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
-      else
-        args_type = spec_calculation_args_type(resource, field.name, arguments)
-        "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
-      end
-
-    "  #{formatted_name}: #{metadata};"
+    "  #{formatted_name}: #{calculation_field_type(resource, field)};"
   end
 
-  defp spec_calculation_return_type(%Ash.Info.Manifest.Field{type: type, allow_nil?: allow_nil?}) do
-    # For resource return types, reference the ResourceSchema directly
-    base_type =
-      case type do
-        %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
-        when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
-          "#{Helpers.build_resource_type_name(res_mod)}ResourceSchema"
+  @doc false
+  # The type of a calculation with arguments (only those are complex
+  # calculations). `return_type` replaces the return type its own type maps
+  # to (nullability is added here); RestrictedSchema passes a restricted
+  # schema.
+  def calculation_field_type(resource, %Ash.Info.Manifest.Field{} = field, return_type \\ nil) do
+    return_type = spec_calculation_return_type(field, return_type)
+    args_type = spec_calculation_args_type(resource, field.name, field.arguments)
+    "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
+  end
 
-        %Ash.Info.Manifest.Type{
-          kind: :array,
-          item_type: %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
-        }
-        when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
-          "Array<#{Helpers.build_resource_type_name(res_mod)}ResourceSchema>"
-
-        _ ->
-          TypeMapper.map_type(type, [], :output)
-      end
+  defp spec_calculation_return_type(
+         %Ash.Info.Manifest.Field{type: type, allow_nil?: allow_nil?},
+         return_type
+       ) do
+    base_type = return_type || spec_calculation_base_type(type)
 
     if allow_nil? do
       "#{base_type} | null"
     else
       base_type
+    end
+  end
+
+  # For resource return types, reference the ResourceSchema directly
+  defp spec_calculation_base_type(type) do
+    case type do
+      %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
+      when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
+        "#{Helpers.build_resource_type_name(res_mod)}ResourceSchema"
+
+      %Ash.Info.Manifest.Type{
+        kind: :array,
+        item_type: %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
+      }
+      when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
+        "Array<#{Helpers.build_resource_type_name(res_mod)}ResourceSchema>"
+
+      _ ->
+        TypeMapper.map_type(type, [], :output)
     end
   end
 
@@ -752,30 +696,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         end
     end
   end
-
-  # Check if an Ash.Info.Manifest type module has a custom typescript_type
-  defp spec_type_name(%Ash.Info.Manifest.Type{kind: :array, item_type: inner}) do
-    case spec_type_name(inner) do
-      nil -> nil
-      name -> "#{name}[]"
-    end
-  end
-
-  defp spec_type_name(%Ash.Info.Manifest.Type{module: module} = type)
-       when is_atom(module) and not is_nil(module) do
-    cond do
-      (name = AshTypescript.Manifest.Custom.type_name(type)) != nil ->
-        name
-
-      Code.ensure_loaded?(module) and function_exported?(module, :typescript_type, 0) ->
-        module.typescript_type()
-
-      true ->
-        nil
-    end
-  end
-
-  defp spec_type_name(_), do: nil
 
   # ─────────────────────────────────────────────────────────────────
 

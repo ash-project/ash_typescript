@@ -37,7 +37,7 @@ Control which relationships and calculations clients can request using `allowed_
 
 Load restrictions shape the API surface of an action — they are **not** an authorization mechanism. Access control is handled by your Ash policies (including field policies), which apply to every load regardless of these options. Use load restrictions to keep an endpoint's loadable surface tight, most commonly to stop clients from requesting expensive loads (heavy aggregates, deep relationship trees) on actions that don't need them.
 
-Both lists are validated at compile time: every entry must resolve to a loadable public field (relationship, calculation, aggregate, or embedded-resource attribute), with nested keywords checked against the relationship's destination resource. Typos fail compilation instead of silently never matching.
+Both lists are validated at compile time: every entry must resolve to a loadable public field (relationship, calculation, aggregate, embedded-resource or union attribute), with nested keywords checked against the relationship's destination, the embedded resource, the resource a calculation returns, or a union's members. Calculations and aggregates that return no resource or union take no nested keywords. Typos fail compilation instead of silently never matching.
 
 ### allowed_loads (Whitelist)
 
@@ -123,6 +123,43 @@ const result = await listTodos({
   ]
 });
 ```
+
+### Restrictions Through Union Members
+
+Under a union (an attribute, calculation or aggregate of an `Ash.Type.Union` type, or an array of one), the next level names the union's members, the same way field selection does. A member holding a resource takes that resource's fields under it:
+
+```elixir
+typescript_rpc do
+  resource MyApp.Todo do
+    # `content` is a union with members `text` (an embedded resource),
+    # `checklist` and `note` (a string)
+    rpc_action :list_todos, :read,
+      denied_loads: [content: [text: [:display_text]]]
+  end
+end
+```
+
+```typescript
+// Allowed: other fields of the member, and other members
+const result = await listTodos({
+  fields: ["id", { content: [{ text: ["text"] }, { checklist: ["title"] }, "note"] }]
+});
+
+// Type error, and load_denied at runtime
+const denied = await listTodos({
+  fields: ["id", { content: [{ text: ["displayText"] }] }]
+});
+```
+
+A member's own fields go under the member, never directly under the union: `content: [:display_text]` fails to compile (there is no member `display_text`), and so does an entry under a scalar member (`content: [note: [:x]]`).
+
+### Attributes Are Never Restricted
+
+Load restrictions restrict loads (relationships, calculations, aggregates), never attributes, and the generated types follow the runtime:
+
+- A bare embedded or union attribute in `denied_loads` (`denied_loads: [:metadata]`), or a bare member (`content: [:text]`), denies the loads under it only: its attributes stay selectable, so the types give it its attributes only (scalar members are unchanged). A bare relationship, calculation or aggregate is a load, and is removed.
+- Under `allowed_loads`, an embedded or union attribute you don't name keeps its attributes only (each resource member of a union too): `allowed_loads: [:user]` still lets clients select `metadata: ["category"]`, but not a calculation under it. A flat allowed relationship (`allowed_loads: [:user]`) is typed with its attributes only the same way, down through its union and embedded attributes.
+- A restricted `has_many` / `many_to_many` keeps its nested query options (`page`, `filter`, `sort`), as on an unrestricted action.
 
 ### TypeScript Type Generation
 

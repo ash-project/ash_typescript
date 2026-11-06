@@ -160,7 +160,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   Maps an Ash type to a TypeScript type string.
 
   ## Parameters
-  - `type` - The Ash type (atom, tuple, or map with :type/:constraints)
+  - `type` - The Ash type (`%Ash.Info.Manifest.Type{}`, atom or tuple)
   - `constraints` - Type constraints
   - `direction` - :input or :output
 
@@ -402,17 +402,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
           (ts = Map.get(@kind_to_ts, type_info.kind)) != nil ->
             ts
 
-          type_info.kind == :atom ->
-            case Keyword.get(type_info.constraints || [], :one_of) do
-              nil ->
-                "string"
-
-              values ->
-                values
-                |> Enum.sort_by(&to_string/1)
-                |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
-            end
-
           # `TypeResolver.resolve(nil)` and non-atom types yield
           # `kind: :unknown` with no module — there is no module to point the
           # user at, and no-return generic actions legitimately produce this.
@@ -431,14 +420,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp wrap_array(inner_type), do: "Array<#{inner_type}>"
 
-  defp map_resource(resource, direction) do
-    resource_name = Helpers.build_resource_type_name(resource)
-    suffix = type_suffix(direction)
-    "#{resource_name}#{suffix}"
-  end
+  defp map_resource(resource, :input), do: Helpers.resource_input_type_name(resource)
 
-  defp type_suffix(:input), do: "InputSchema"
-  defp type_suffix(:output), do: "ResourceSchema"
+  defp map_resource(resource, :output),
+    do: "#{Helpers.build_resource_type_name(resource)}ResourceSchema"
 
   defp map_struct(%Type{} = type_info, direction) do
     cond do
@@ -549,8 +534,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   reference their alias (`AshTypescript.Codegen.CustomTypeAliases`); other
   named types (NewTypes without an alias, enums) are expanded from the
   manifest: route-only named types are in it.
-  Resources and unions are rejected at compile time by
-  `AshTypescript.TypedController.Transformers.FoldArgumentConstraints`.
+  Resources and unions are rejected when the manifest compiles: route
+  results are plain data.
   """
   @spec map_route_result_type(Type.t()) :: String.t()
   def map_route_result_type(%Type{} = type), do: map_plain_output_type(type, false)
@@ -839,11 +824,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # Legacy format support for raw {name, config} tuples
   defp is_nested_typed_map_field?(_), do: false
 
-  @doc """
-  Builds a union output type from a decorated union `%Ash.Info.Manifest.Type{}`.
-  Member keys are the union's decorated member names.
-  """
-  def build_union_type_from_members(%Type{} = union) do
+  @doc false
+  # Builds a union output type from a decorated union `%Ash.Info.Manifest.Type{}`.
+  # Member keys are the union's decorated member names. `member_schemas` maps a
+  # resource member's name to the schema rendered in place of the resource's
+  # own (an array member keeps its array); RestrictedSchema passes them.
+  def build_union_type_from_members(%Type{} = union, member_schemas \\ %{}) do
     members = union.members || []
 
     primitive_fields =
@@ -857,7 +843,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       members
       |> Enum.map_join("; ", fn %{name: name, type: type} ->
         formatted_name = ClientNames.union_member(union, name)
-        ts_type = map_union_member_from_spec(type, :output)
+        ts_type = union_member_output(type, Map.get(member_schemas, name))
 
         "#{formatted_name}?: #{ts_type}"
       end)
@@ -867,6 +853,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
       properties -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{properties}; }"
     end
   end
+
+  defp union_member_output(type, nil), do: map_union_member_from_spec(type, :output)
+
+  defp union_member_output(%Type{kind: :array, item_type: item_type}, schema),
+    do: wrap_array(union_member_output(item_type, schema))
+
+  defp union_member_output(%Type{}, schema), do: schema
 
   @doc """
   Builds a union input type (discriminated union syntax) from a decorated union

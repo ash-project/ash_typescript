@@ -151,6 +151,25 @@ defmodule AshTypescript.Test.Todo do
                   ]
     end
 
+    # Array of unions with an embedded resource member, for load restrictions
+    # through union members.
+    attribute :blocks, {:array, :union} do
+      public? true
+      default []
+
+      constraints items: [
+                    types: [
+                      text: [
+                        type: AshTypescript.Test.TodoContent.TextContent,
+                        tag: :content_type,
+                        tag_value: "text"
+                      ],
+                      note: [type: :string]
+                    ],
+                    storage: :type_and_value
+                  ]
+    end
+
     # Union type with :map_with_tag storage for testing alternative storage mode
     attribute :status_info, :union do
       public? true
@@ -799,6 +818,15 @@ defmodule AshTypescript.Test.Todo do
                  countable: false,
                  default_limit: 25,
                  max_page_size: 100
+    end
+
+    # Required pagination without offset: keyset-only, and both kinds
+    read :list_keyset_required do
+      pagination keyset?: true, required?: true, default_limit: 10
+    end
+
+    read :list_mixed_required do
+      pagination offset?: true, keyset?: true, required?: true, default_limit: 10
     end
 
     # Read action with no pagination (should not have page field)

@@ -13,10 +13,12 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     * The action (and any `read_action` override) is `public?: true`.
     * `:get?` and `:get_by` options are coherent (read-only, mutually exclusive,
       `get_by` references real attributes).
-    * `:allowed_loads` / `:denied_loads` are mutually exclusive.
+    * `:allowed_loads` / `:denied_loads` are mutually exclusive, and every path
+      they name is a load path (`AshTypescript.Manifest.LoadPaths`).
     * Each public relationship's destination has a public read action.
 
-  Also enforces cross-domain uniqueness of RPC action names and typed query names.
+  Also enforces cross-domain uniqueness of typed query names (a duplicate RPC
+  action name fails earlier, in ash_rpc's decorator).
   The names generated for RPC actions and typed queries, and every client name,
   are checked when the manifest compiles (`AshTypescript.Manifest.NameCheck`).
 
@@ -26,20 +28,21 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   """
   use Spark.Dsl.Verifier
 
+  alias AshTypescript.Manifest.LoadPaths
   alias Spark.Dsl.Verifier
 
   @impl true
   def verify(dsl) do
-    case Verifier.get_persisted(dsl, :manifest) do
-      nil -> :ok
-      %Ash.Info.Manifest{} -> do_verify(Verifier.get_persisted(dsl, :rpc_configs) || [])
-    end
+    do_verify(
+      Verifier.get_persisted(dsl, :rpc_configs) || [],
+      {Verifier.get_persisted(dsl, :resource_lookup), Verifier.get_persisted(dsl, :type_lookup)}
+    )
   end
 
-  defp do_verify(rpc_configs) do
+  defp do_verify(rpc_configs, lookups) do
     with :ok <- verify_unique_names_across_domains(rpc_configs),
          :ok <- verify_typescript_resources(rpc_configs),
-         :ok <- verify_rpc_actions(rpc_configs),
+         :ok <- verify_rpc_actions(rpc_configs, lookups),
          :ok <- verify_typed_queries(rpc_configs) do
       verify_relationship_read_actions(rpc_configs)
     end
@@ -50,39 +53,21 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   # ─────────────────────────────────────────────────────────────────
 
   defp verify_unique_names_across_domains(rpc_configs) do
-    {rpc_action_names, typed_query_names} =
-      Enum.reduce(rpc_configs, {[], []}, fn {_domain, resource_config}, {actions, queries} ->
-        actions = actions ++ Enum.map(resource_config.rpc_actions, & &1.name)
-        queries = queries ++ Enum.map(resource_config.typed_queries, & &1.name)
-        {actions, queries}
+    # Duplicate rpc_action names never get here: ash_rpc's decorator raises on
+    # a duplicate wire entrypoint name while the manifest is built.
+    typed_query_names =
+      Enum.flat_map(rpc_configs, fn {_domain, resource_config} ->
+        Enum.map(resource_config.typed_queries, & &1.name)
       end)
 
-    duplicate_actions = duplicates(rpc_action_names)
-    duplicate_queries = duplicates(typed_query_names)
-
-    case {duplicate_actions, duplicate_queries} do
-      {[], []} ->
+    case duplicates(typed_query_names) do
+      [] ->
         :ok
 
-      {[], _} ->
+      duplicate_queries ->
         {:error,
          Spark.Error.DslError.exception(
            message: "Duplicate RPC typed queries found: #{inspect(duplicate_queries)}"
-         )}
-
-      {_, []} ->
-        {:error,
-         Spark.Error.DslError.exception(
-           message: "Duplicate RPC actions found: #{inspect(duplicate_actions)}"
-         )}
-
-      {_, _} ->
-        {:error,
-         Spark.Error.DslError.exception(
-           message: """
-           Duplicate RPC typed queries found: #{inspect(duplicate_queries)}
-           Duplicate RPC actions found: #{inspect(duplicate_actions)}
-           """
          )}
     end
   end
@@ -137,27 +122,27 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
   # Per-RPC-action validation: exists, public, options coherent
   # ─────────────────────────────────────────────────────────────────
 
-  defp verify_rpc_actions(rpc_configs) do
+  defp verify_rpc_actions(rpc_configs, lookups) do
     rpc_configs
     |> Enum.flat_map(fn {_domain, resource_config} ->
       resource = resource_config.resource
       Enum.map(resource_config.rpc_actions, &{resource, &1})
     end)
     |> Enum.reduce_while(:ok, fn {resource, rpc_action}, acc ->
-      case verify_single_rpc_action(resource, rpc_action) do
+      case verify_single_rpc_action(lookups, resource, rpc_action) do
         :ok -> {:cont, acc}
         error -> {:halt, error}
       end
     end)
   end
 
-  defp verify_single_rpc_action(resource, rpc_action) do
+  defp verify_single_rpc_action(lookups, resource, rpc_action) do
     case Ash.Resource.Info.action(resource, rpc_action.action) do
       nil ->
         {:error,
          Spark.Error.DslError.exception(
            message:
-             "RPC action #{rpc_action.name} references action #{rpc_action.action}, which does not exist on resource #{resource}"
+             "RPC action #{rpc_action.name} references action #{rpc_action.action}, which does not exist on resource #{inspect(resource)}"
          )}
 
       action ->
@@ -165,7 +150,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
              :ok <- verify_read_action_public(resource, rpc_action),
              :ok <- verify_get_options(resource, rpc_action, action),
              :ok <- verify_show_metadata(resource, rpc_action, action) do
-          verify_load_restrictions(resource, rpc_action)
+          verify_load_restrictions(lookups, resource, rpc_action)
         end
     end
   end
@@ -277,7 +262,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     end
   end
 
-  defp verify_load_restrictions(resource, rpc_action) do
+  defp verify_load_restrictions(lookups, resource, rpc_action) do
     allowed_loads = Map.get(rpc_action, :allowed_loads)
     denied_loads = Map.get(rpc_action, :denied_loads)
 
@@ -290,26 +275,23 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
          )}
 
       not is_nil(allowed_loads) ->
-        verify_load_paths(resource, rpc_action, :allowed_loads, allowed_loads)
+        verify_load_paths(lookups, resource, rpc_action, :allowed_loads, allowed_loads)
 
       not is_nil(denied_loads) ->
-        verify_load_paths(resource, rpc_action, :denied_loads, denied_loads)
+        verify_load_paths(lookups, resource, rpc_action, :denied_loads, denied_loads)
 
       true ->
         :ok
     end
   end
 
-  defp verify_load_paths(resource, rpc_action, option, loads) do
-    case collect_invalid_load_paths(resource, List.wrap(loads), []) do
+  defp verify_load_paths({resource_lookup, type_lookup}, resource, rpc_action, option, loads) do
+    case LoadPaths.invalid_paths(resource_lookup, type_lookup, resource, loads) do
       [] ->
         :ok
 
       invalid ->
-        paths =
-          Enum.map_join(invalid, "\n", fn {path, res} ->
-            "  - #{Enum.join(path, ".")} (no loadable public field #{inspect(List.last(path))} on #{inspect(res)})"
-          end)
+        paths = Enum.map_join(invalid, "\n", &describe_invalid_path/1)
 
         {:error,
          Spark.Error.DslError.exception(
@@ -318,93 +300,38 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
 
            #{paths}
 
-           Each entry must be a public relationship, calculation, aggregate, or
-           embedded-resource attribute reachable from #{inspect(resource)}.
+           Each entry must be a public relationship, calculation, aggregate,
+           embedded-resource or union attribute reachable from #{inspect(resource)}.
+           Only relationships, fields holding an embedded resource (attributes,
+           calculations and aggregates), calculations returning a resource and
+           unions have entries under them; a union's entries are its member
+           names, and only members holding a resource have entries under them.
            """
          )}
     end
   end
 
-  # Walks an allowed_loads/denied_loads list (atoms and `{field, nested}`
-  # keywords), validating each name against the loadable public fields of the
-  # resource at that level. Descends into relationship destinations, embedded
-  # attributes, and instance-of-resource calculations; when the next resource
-  # cannot be determined (e.g. a plain-map calculation), deeper entries are
-  # skipped rather than flagged — this verifier only rejects names that are
-  # definitely not loadable.
-  defp collect_invalid_load_paths(resource, loads, path) do
-    Enum.flat_map(loads, fn
-      field when is_atom(field) ->
-        check_load_field(resource, field, path, [])
+  defp describe_invalid_path({path, resource, :unknown}),
+    do:
+      "  - #{Enum.join(path, ".")} (no loadable public field #{inspect(List.last(path))} " <>
+        "on #{inspect(resource)})"
 
-      {field, nested} when is_atom(field) and is_list(nested) ->
-        check_load_field(resource, field, path, nested)
+  defp describe_invalid_path({path, resource, :leaf}),
+    do:
+      "  - #{Enum.join(path, ".")} (#{inspect(List.last(path))} on #{inspect(resource)} " <>
+        "has no fields to load under it)"
 
-      _other ->
-        []
-    end)
-  end
+  defp describe_invalid_path({path, resource, :unknown_member}),
+    do:
+      "  - #{Enum.join(path, ".")} (no member #{inspect(List.last(path))} in the union " <>
+        "#{inspect(union_name(path))} on #{inspect(resource)})"
 
-  defp check_load_field(resource, field, path, nested) do
-    full_path = path ++ [field]
+  defp describe_invalid_path({path, resource, :scalar_member}),
+    do:
+      "  - #{Enum.join(path, ".")} (the member #{inspect(List.last(path))} of the union " <>
+        "#{inspect(union_name(path))} on #{inspect(resource)} has no fields to load under it)"
 
-    case load_destination(resource, field) do
-      :invalid -> [{full_path, resource}]
-      {:ok, nil} -> []
-      {:ok, destination} -> collect_invalid_load_paths(destination, nested, full_path)
-    end
-  end
-
-  # Returns {:ok, destination_resource} when the field is loadable and nesting
-  # can be validated against a known resource, {:ok, nil} when the field is
-  # loadable but the nested resource can't be determined, or :invalid.
-  defp load_destination(resource, field) do
-    cond do
-      relationship = Ash.Resource.Info.public_relationship(resource, field) ->
-        {:ok, relationship.destination}
-
-      calculation = Ash.Resource.Info.public_calculation(resource, field) ->
-        {:ok, instance_of_resource(calculation.type, calculation.constraints)}
-
-      Ash.Resource.Info.public_aggregate(resource, field) ->
-        {:ok, nil}
-
-      attribute = Ash.Resource.Info.public_attribute(resource, field) ->
-        case instance_of_resource(attribute.type, attribute.constraints) do
-          nil -> :invalid
-          destination -> {:ok, destination}
-        end
-
-      true ->
-        :invalid
-    end
-  end
-
-  defp instance_of_resource({:array, type}, constraints) do
-    instance_of_resource(type, Keyword.get(constraints, :items, []))
-  end
-
-  defp instance_of_resource(type, constraints) do
-    cond do
-      not is_atom(type) ->
-        nil
-
-      Code.ensure_loaded?(type) and Ash.Type.embedded_type?(type) ->
-        if Ash.Resource.Info.resource?(type), do: type, else: nil
-
-      type == Ash.Type.Struct ->
-        with instance when is_atom(instance) and not is_nil(instance) <-
-               Keyword.get(constraints, :instance_of),
-             true <- Code.ensure_loaded?(instance) and Ash.Resource.Info.resource?(instance) do
-          instance
-        else
-          _ -> nil
-        end
-
-      true ->
-        nil
-    end
-  end
+  defp union_name(path), do: Enum.at(path, -2)
 
   # ─────────────────────────────────────────────────────────────────
   # Per-typed-query validation
@@ -421,7 +348,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
              {:error,
               Spark.Error.DslError.exception(
                 message:
-                  "Typed query #{typed_query.name} references action #{typed_query.action}, which does not exist on resource #{resource}"
+                  "Typed query #{typed_query.name} references action #{typed_query.action}, which does not exist on resource #{inspect(resource)}"
               )}}
 
           action ->

@@ -205,12 +205,12 @@ defmodule AshTypescript.Rpc do
       allowed_loads: [
         type: {:list, :any},
         doc:
-          "Restricts loadable fields to only those specified. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `denied_loads`."
+          "Restricts loadable fields to only those specified. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Under a union (attribute, calculation or aggregate, or an array of one), the next level names members, and a member holding a resource takes its fields (`content: [text: [:display_text]]`). Loads (relationships, calculations, aggregates) are restricted, never attributes: a bare embedded or union attribute or member restricts only the loads under it, its attributes stay selectable. Mutually exclusive with `denied_loads`."
       ],
       denied_loads: [
         type: {:list, :any},
         doc:
-          "Denies loading of the specified fields. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `allowed_loads`."
+          "Denies loading of the specified fields. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Under a union (attribute, calculation or aggregate, or an array of one), the next level names members, and a member holding a resource takes its fields (`content: [text: [:display_text]]`). Loads (relationships, calculations, aggregates) are restricted, never attributes: a bare embedded or union attribute or member restricts only the loads under it, its attributes stay selectable. Mutually exclusive with `allowed_loads`."
       ]
     ],
     args: [:name, :action]
@@ -300,13 +300,6 @@ defmodule AshTypescript.Rpc do
   def require_tenant_parameters? do
     Application.get_env(:ash_typescript, :require_tenant_parameters, false)
   end
-
-  @doc """
-  Gets the output field formatter configuration for TypeScript generation and responses to the client.
-
-  Delegates to `AshTypescript.output_field_formatter/0`.
-  """
-  defdelegate output_field_formatter, to: AshTypescript
 
   @doc """
   Determines if Zod schema generation is enabled.

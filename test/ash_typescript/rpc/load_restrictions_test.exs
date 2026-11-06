@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Rpc.LoadRestrictionsTest do
   use ExUnit.Case
-  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
+  import AshTypescript.Test.TestHelpers, only: [parse_selection: 2, rpc_runtime: 0]
 
   alias AshRpc.Pipeline
 
@@ -309,6 +309,80 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(disallowed, &(:weighted_score in &1))
+    end
+  end
+
+  describe "restrictions through an embedded resource" do
+    test "a denied calculation of the embedded resource is rejected" do
+      # denied_loads: [metadata: [:display_category]]
+      assert {:error, {:load_denied, denied}} =
+               parse_selection("list_todos_deny_embedded", [
+                 "id",
+                 %{"metadata" => ["displayCategory"]}
+               ])
+
+      assert [:metadata, :display_category] in denied
+    end
+
+    test "attributes of the embedded resource stay selectable under a nested deny" do
+      assert {:ok, request} =
+               parse_selection("list_todos_deny_embedded", ["id", %{"metadata" => ["category"]}])
+
+      assert request.select |> List.wrap() |> Enum.member?(:metadata)
+    end
+
+    test "the allowed calculation of the embedded resource is selectable" do
+      # allowed_loads: [metadata: [:display_category]]
+      assert {:ok, request} =
+               parse_selection("list_todos_allow_embedded", [
+                 "id",
+                 %{"metadata" => ["displayCategory"]}
+               ])
+
+      assert {:metadata, [:display_category]} in request.load
+    end
+
+    test "another calculation of the embedded resource is not allowed" do
+      assert {:error, {:load_not_allowed, disallowed}} =
+               parse_selection("list_todos_allow_embedded", ["id", %{"metadata" => ["isOverdue"]}])
+
+      assert [:metadata, :is_overdue] in disallowed
+    end
+
+    test "a denied field through an aggregate holding an embedded resource is rejected" do
+      # denied_loads: [first_comment_metadata: [:display_category]]
+      assert {:error, {:load_denied, [[:first_comment_metadata, :display_category]]}} =
+               parse_selection("list_todos_deny_aggregate_embedded", [
+                 "id",
+                 %{"firstCommentMetadata" => ["displayCategory"]}
+               ])
+
+      assert {:ok, request} =
+               parse_selection("list_todos_deny_aggregate_embedded", [
+                 "id",
+                 %{"firstCommentMetadata" => ["category"]}
+               ])
+
+      assert :first_comment_metadata in request.load
+    end
+  end
+
+  describe "restrictions through a calculation returning a resource" do
+    test "the calculation keeps its arguments, and the denied field is rejected" do
+      # denied_loads: [self: [:user]]
+      assert {:ok, request} =
+               parse_selection("list_todos_deny_self_user", [
+                 "id",
+                 %{"self" => %{"args" => %{"prefix" => "x"}, "fields" => ["id", "title"]}}
+               ])
+
+      assert {:self, {%{prefix: "x"}, [:id, :title]}} in request.load
+
+      assert {:error, {:load_denied, [[:self, :user]]}} =
+               parse_selection("list_todos_deny_self_user", [
+                 "id",
+                 %{"self" => %{"args" => %{"prefix" => "x"}, "fields" => [%{"user" => ["id"]}]}}
+               ])
     end
   end
 

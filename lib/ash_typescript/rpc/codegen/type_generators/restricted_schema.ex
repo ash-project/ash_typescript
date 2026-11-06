@@ -13,13 +13,23 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   Supports nested restrictions on:
   - Relationships (e.g., `denied_loads: [user: [:todos]]`)
   - Embedded resources (e.g., `denied_loads: [metadata: [:related_user]]`)
-  - Union attributes (e.g., `denied_loads: [content: [:author]]`)
+  - Union members (e.g., `denied_loads: [content: [text: [:display_text]]]`)
+
+  The schemas follow ash_rpc, which restricts loads (relationships,
+  calculations, aggregates) and never attributes: a bare denied embedded or
+  union attribute or member, and under `allowed_loads` every embedded or union
+  attribute the entries don't name, keeps its attributes only, all the way
+  down (`attributes_only_type/3`), and a restricted has_many / many_to_many
+  keeps the base schema's query markers.
   """
 
   import AshTypescript.Helpers
 
-  alias AshTypescript.Codegen.{ClientNames, Helpers}
+  alias AshTypescript.Codegen.{ClientNames, Helpers, ResourceSchemas, TypeMapper}
+  alias AshTypescript.Manifest.LoadPaths
   alias AshTypescript.NameValidation
+  alias AshTypescript.Rpc.Codegen.FunctionNames
+  alias AshTypescript.Rpc.Codegen.Helpers.EntrypointOptions
 
   @doc """
   Returns the schema reference and optional schema definition for an RPC action.
@@ -31,7 +41,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
     * `resource` - The Ash resource module
     * `rpc_action` - The RPC action configuration struct
-    * `rpc_action_name_pascal` - The PascalCase name of the RPC action
 
   ## Returns
 
@@ -39,250 +48,158 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
       - `schema_definition` is a string with TypeScript type def or nil if using base schema
       - `schema_reference` is the TypeScript type name to use in Fields type
   """
-  def get_schema_and_reference(resource, rpc_action, rpc_action_name_pascal, resource_lookup) do
+  def get_schema_and_reference(resource, rpc_action, resource_lookup) do
     resource_name = Helpers.build_resource_type_name(resource)
     base_schema = "#{resource_name}ResourceSchema"
 
-    allow_only = Map.get(rpc_action, :allowed_loads)
-    deny = Map.get(rpc_action, :denied_loads)
+    schema_name = FunctionNames.restricted_schema(rpc_action.name)
 
-    if is_nil(deny) and is_nil(allow_only) do
-      {nil, base_schema}
-    else
-      cond do
-        not is_nil(deny) ->
-          schema_name = "#{rpc_action_name_pascal}Schema"
+    case rpc_action |> EntrypointOptions.entrypoint!() |> EntrypointOptions.load_restrictions() do
+      :none ->
+        {nil, base_schema}
 
-          schema_def =
-            generate_deny_schema(resource, deny, schema_name, base_schema, resource_lookup)
+      {:deny, deny} ->
+        schema_def =
+          generate_deny_schema(resource, deny, schema_name, base_schema, resource_lookup)
 
-          {schema_def, schema_name}
+        {schema_def, schema_name}
 
-        not is_nil(allow_only) ->
-          schema_name = "#{rpc_action_name_pascal}Schema"
+      {:allow, allow_only} ->
+        schema_def =
+          generate_allow_only_schema(
+            resource,
+            allow_only,
+            schema_name,
+            base_schema,
+            resource_lookup
+          )
 
-          schema_def =
-            generate_allow_only_schema(
-              resource,
-              allow_only,
-              schema_name,
-              base_schema,
-              resource_lookup
-            )
-
-          {schema_def, schema_name}
-      end
+        {schema_def, schema_name}
     end
   end
 
   defp generate_deny_schema(resource, denied_loads, schema_name, base_schema, resource_lookup) do
     {flat_denies, nested_denies} = partition_restrictions(denied_loads)
 
-    if Enum.empty?(nested_denies) do
-      generate_simple_deny_schema(resource, flat_denies, schema_name, base_schema)
-    else
-      generate_nested_deny_schema(
-        resource,
-        flat_denies,
-        nested_denies,
-        schema_name,
-        base_schema,
-        resource_lookup
-      )
-    end
-  end
+    {nested_schemas, nested_overrides} =
+      process_nested_fields(:deny, resource, nested_denies, schema_name, resource_lookup)
 
-  defp generate_simple_deny_schema(resource, denied_fields, schema_name, base_schema) do
-    build_restricted_schema(
-      schema_name,
-      base_schema,
-      format_fields_for_typescript(resource, denied_fields),
-      ""
-    )
-  end
-
-  defp generate_nested_deny_schema(
-         resource,
-         flat_denies,
-         nested_denies,
-         schema_name,
-         base_schema,
-         resource_lookup
-       ) do
-    {nested_schema_defs, field_overrides} =
-      nested_denies
-      |> Enum.map(fn {field_name, nested_fields} ->
-        process_nested_deny_field(
-          resource,
-          field_name,
-          nested_fields,
-          schema_name,
-          resource_lookup
-        )
-      end)
-      |> Enum.unzip()
-
-    nested_schemas =
-      nested_schema_defs |> List.flatten() |> Enum.reject(&(&1 == "")) |> Enum.join("\n")
-
-    overrides = field_overrides |> Enum.reject(&is_nil/1)
-
-    all_fields_to_omit = flat_denies ++ Enum.map(overrides, fn {field_name, _} -> field_name end)
+    # A bare denied attribute is no load: only the loads under it are denied,
+    # so it keeps its attributes.
+    flat_overrides =
+      flat_denies
+      |> Enum.map(&bare_denied_attribute_override(resource, &1, resource_lookup))
+      |> Enum.reject(&is_nil/1)
 
     schema =
       build_restricted_schema(
         schema_name,
         base_schema,
-        format_fields_for_typescript(resource, all_fields_to_omit),
-        generate_override_fields(overrides)
+        format_fields_for_typescript(resource, flat_denies ++ override_names(nested_overrides)),
+        generate_override_fields(flat_overrides ++ nested_overrides)
       )
 
+    with_nested_schemas(nested_schemas, schema)
+  end
+
+  defp bare_denied_attribute_override(resource, field_name, resource_lookup) do
+    case resolve_field_info(resource, field_name, resource_lookup) do
+      {:resource, %Ash.Info.Manifest.Field{kind: :attribute}, _destination, _suffix} = info ->
+        attributes_only_override(resource, info, resource_lookup)
+
+      {:union, %Ash.Info.Manifest.Field{kind: :attribute}, _union} = info ->
+        attributes_only_override(resource, info, resource_lookup)
+
+      _load_or_not_found ->
+        nil
+    end
+  end
+
+  # The nested schemas the `{field, entries}` restrictions need, joined, and
+  # the overrides putting them in place.
+  defp process_nested_fields(mode, resource, nested, schema_name, resource_lookup) do
+    {nested_schema_defs, overrides} =
+      nested
+      |> Enum.map(fn {field_name, entries} ->
+        process_nested_field(mode, resource, field_name, entries, schema_name, resource_lookup)
+      end)
+      |> Enum.unzip()
+
+    {nested_schema_defs |> List.flatten() |> Enum.reject(&(&1 == "")) |> Enum.join("\n"),
+     Enum.reject(overrides, &is_nil/1)}
+  end
+
+  defp with_nested_schemas("", schema), do: schema
+
+  defp with_nested_schemas(nested_schemas, schema) do
     """
     #{nested_schemas}
     #{schema}
     """
   end
 
-  defp process_nested_deny_field(
-         resource,
-         field_name,
-         nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
+  defp override_names(overrides), do: Enum.map(overrides, &elem(&1, 0))
+
+  # A `{field, entries}` restriction (`mode` is `:deny` or `:allow`): the
+  # field gets a nested schema restricting its destination by `entries`, and a
+  # union field one per member an entry restricts.
+  defp process_nested_field(mode, resource, field_name, entries, schema_name, resource_lookup) do
+    generate = &generate_schema(mode, &1, &2, &3, &4, resource_lookup)
+
     case resolve_field_info(resource, field_name, resource_lookup) do
       {:relationship, rel} ->
-        process_nested_deny_relationship(
-          resource,
-          rel,
-          nested_fields,
-          schema_name,
-          resource_lookup
-        )
+        nested_schema_name = nested_schema_name(schema_name, [rel.name])
+        base_schema = resource_schema(rel.destination, "ResourceSchema")
 
-      {:embedded, attr, embedded_resource} ->
-        process_nested_deny_embedded(
-          resource,
-          attr,
-          embedded_resource,
-          nested_fields,
-          schema_name,
-          resource_lookup
-        )
+        {generate.(rel.destination, entries, nested_schema_name, base_schema),
+         {rel.name, generate_relationship_override(resource, rel, nested_schema_name)}}
 
-      {:union, attr, union_types} ->
-        process_nested_deny_union(
-          resource,
-          attr,
-          union_types,
-          nested_fields,
-          schema_name,
-          resource_lookup
-        )
+      {:resource, field, destination, base_suffix} ->
+        nested_schema_name = nested_schema_name(schema_name, [field.name])
+        base_schema = resource_schema(destination, base_suffix)
+
+        {generate.(destination, entries, nested_schema_name, base_schema),
+         {field.name, resource_field_override(resource, field, nested_schema_name)}}
+
+      {:union, field, union} ->
+        {nested_defs, member_schemas} =
+          for {member, member_entries} when is_list(member_entries) <- entries,
+              {:embedded, _member, member_resource} <- [LoadPaths.member_step(union, member)],
+              reduce: {[], attributes_only_member_schemas(mode, union, entries, resource_lookup)} do
+            {defs, schemas} ->
+              member_schema_name = nested_schema_name(schema_name, [field.name, member])
+              base_schema = resource_schema(member_resource, "ResourceSchema")
+
+              nested_def =
+                generate.(member_resource, member_entries, member_schema_name, base_schema)
+
+              {[nested_def | defs], Map.put(schemas, member, member_schema_name)}
+          end
+
+        {Enum.reverse(nested_defs),
+         {field.name, union_override(resource, field, union, member_schemas)}}
 
       :not_found ->
         {"", nil}
     end
   end
 
-  defp process_nested_deny_relationship(
-         resource,
-         rel,
-         nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    nested_resource_name = Helpers.build_resource_type_name(rel.destination)
-    nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = nested_schema_name(schema_name, [rel.name])
+  defp generate_schema(:deny, resource, entries, schema_name, base_schema, resource_lookup),
+    do: generate_deny_schema(resource, entries, schema_name, base_schema, resource_lookup)
 
-    nested_def =
-      generate_deny_schema(
-        rel.destination,
-        nested_fields,
-        nested_schema_name,
-        nested_base,
-        resource_lookup
-      )
+  defp generate_schema(:allow, resource, entries, schema_name, base_schema, resource_lookup),
+    do: generate_allow_only_schema(resource, entries, schema_name, base_schema, resource_lookup)
 
-    override = generate_relationship_override(resource, rel, nested_schema_name)
+  # The members of a restricted union that keep their attributes only, unless
+  # a `{member, entries}` entry restricts them: under a deny, the bare denied
+  # members (a bare member is no load, so it keeps its attributes); under an
+  # allow, every member.
+  defp attributes_only_member_schemas(:deny, union, entries, resource_lookup),
+    do:
+      Map.take(attributes_only_members(union, resource_lookup), Enum.filter(entries, &is_atom/1))
 
-    {nested_def, {rel.name, override}}
-  end
-
-  defp process_nested_deny_embedded(
-         resource,
-         attr,
-         embedded_resource,
-         nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
-    nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = nested_schema_name(schema_name, [attr.name])
-
-    nested_def =
-      generate_deny_schema(
-        embedded_resource,
-        nested_fields,
-        nested_schema_name,
-        nested_base,
-        resource_lookup
-      )
-
-    override = generate_embedded_override(resource, attr, nested_schema_name)
-
-    {nested_def, {attr.name, override}}
-  end
-
-  defp process_nested_deny_union(
-         resource,
-         attr,
-         union_types,
-         nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    {member_schema_defs, member_overrides} =
-      union_types
-      |> Enum.map(fn {member_name, member_config} ->
-        member_type = Keyword.get(member_config, :type)
-        inner_type = unwrap_array_type(member_type)
-
-        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
-          nested_resource_name = Helpers.build_resource_type_name(inner_type)
-          nested_base = "#{nested_resource_name}ResourceSchema"
-
-          member_schema_name =
-            nested_schema_name(schema_name, [attr.name, member_name])
-
-          nested_def =
-            generate_deny_schema(
-              inner_type,
-              nested_fields,
-              member_schema_name,
-              nested_base,
-              resource_lookup
-            )
-
-          {nested_def, {member_name, member_schema_name, member_type}}
-        else
-          {"", nil}
-        end
-      end)
-      |> Enum.unzip()
-
-    valid_member_overrides = Enum.reject(member_overrides, &is_nil/1)
-    all_schema_defs = Enum.reject(member_schema_defs, &(&1 == ""))
-
-    if Enum.empty?(valid_member_overrides) do
-      {"", nil}
-    else
-      override = generate_union_override(resource, attr, union_types, valid_member_overrides)
-      {all_schema_defs, {attr.name, override}}
-    end
-  end
+  defp attributes_only_member_schemas(:allow, union, _entries, resource_lookup),
+    do: attributes_only_members(union, resource_lookup)
 
   defp generate_allow_only_schema(
          resource,
@@ -292,381 +209,173 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
          resource_lookup
        ) do
     {flat_allows, nested_allows} = partition_restrictions(allowed_loads)
-    all_loadable_fields = get_loadable_field_names(resource, resource_lookup)
+    nested_field_names = Enum.map(nested_allows, &elem(&1, 0))
+    allowed_loadables = flat_allows ++ nested_field_names
 
-    if Enum.empty?(nested_allows) and Enum.empty?(flat_allows) do
-      generate_simple_deny_schema(resource, all_loadable_fields, schema_name, base_schema)
-    else
-      generate_nested_allow_only_schema(
-        resource,
-        flat_allows,
-        nested_allows,
-        all_loadable_fields,
-        schema_name,
-        base_schema,
-        resource_lookup
-      )
-    end
-  end
-
-  defp generate_nested_allow_only_schema(
-         resource,
-         flat_allows,
-         nested_allows,
-         all_loadable_fields,
-         schema_name,
-         base_schema,
-         resource_lookup
-       ) do
-    nested_field_names = Enum.map(nested_allows, fn {field_name, _} -> field_name end)
-
-    {nested_schema_defs, nested_overrides} =
-      nested_allows
-      |> Enum.map(fn {field_name, allowed_nested_fields} ->
-        process_nested_allow_field(
-          resource,
-          field_name,
-          allowed_nested_fields,
-          schema_name,
-          resource_lookup
-        )
-      end)
-      |> Enum.unzip()
+    {nested_schemas, nested_overrides} =
+      process_nested_fields(:allow, resource, nested_allows, schema_name, resource_lookup)
 
     # Flat allows use AttributesOnlySchema (no nested loads allowed)
     flat_overrides =
       flat_allows
-      |> Enum.map(fn field_name ->
-        process_flat_allow_field(resource, field_name, resource_lookup)
-      end)
+      |> Enum.map(&process_flat_allow_field(resource, &1, resource_lookup))
       |> Enum.reject(&is_nil/1)
 
-    nested_schemas =
-      nested_schema_defs |> List.flatten() |> Enum.reject(&(&1 == "")) |> Enum.join("\n")
-
-    all_overrides = Enum.reject(nested_overrides, &is_nil/1) ++ flat_overrides
-
-    allowed_loadables = flat_allows ++ nested_field_names
-    fields_to_omit = all_loadable_fields -- allowed_loadables
+    unnamed_overrides = unnamed_attribute_overrides(resource, allowed_loadables, resource_lookup)
 
     # A flat allow is omitted only when an override replaces it (relationships,
     # embedded resources and unions get an AttributesOnlySchema override so their
     # own loads stay out of reach). Scalar loads - calculations and aggregates -
     # have no override, so omitting them would forbid the very field the action
     # allows.
-    overridden_flat_allows = Enum.map(flat_overrides, fn {field_name, _} -> field_name end)
-    all_fields_to_omit = fields_to_omit ++ nested_field_names ++ overridden_flat_allows
+    fields_to_omit =
+      (get_loadable_field_names(resource, resource_lookup) -- allowed_loadables) ++
+        nested_field_names ++ override_names(flat_overrides) ++ override_names(unnamed_overrides)
 
     schema =
       build_restricted_schema(
         schema_name,
         base_schema,
-        format_fields_for_typescript(resource, all_fields_to_omit),
-        generate_override_fields(all_overrides)
+        format_fields_for_typescript(resource, fields_to_omit),
+        generate_override_fields(nested_overrides ++ flat_overrides ++ unnamed_overrides)
       )
 
-    """
-    #{nested_schemas}
-    #{schema}
-    """
+    with_nested_schemas(nested_schemas, schema)
   end
 
   defp process_flat_allow_field(resource, field_name, resource_lookup) do
     case resolve_field_info(resource, field_name, resource_lookup) do
       {:relationship, rel} ->
-        generate_attributes_only_relationship_override(resource, rel)
+        {rel.name,
+         generate_relationship_override(
+           resource,
+           rel,
+           attributes_only_type(rel.destination, resource_lookup)
+         )}
 
-      {:embedded, attr, embedded_resource} ->
-        generate_attributes_only_embedded_override(resource, attr, embedded_resource)
-
-      {:union, attr, union_types} ->
-        generate_attributes_only_union_override(resource, attr, union_types, resource_lookup)
-
-      :not_found ->
-        nil
+      info ->
+        attributes_only_override(resource, info, resource_lookup)
     end
   end
 
-  defp generate_attributes_only_relationship_override(resource, rel) do
-    formatted_name = ClientNames.resource_field(resource, rel.name)
-    dest_name = Helpers.build_resource_type_name(rel.destination)
+  # Under allowed_loads, the loads under an attribute the entries don't name
+  # are not allowed: an embedded attribute keeps its attributes only, and so
+  # does each resource member of a union attribute.
+  defp unnamed_attribute_overrides(resource, named_fields, resource_lookup),
+    do:
+      attributes_only_overrides(
+        resource,
+        "ResourceSchema",
+        named_fields,
+        resource_lookup,
+        %{}
+      )
 
-    resource_type =
-      if rel.type in [:has_many, :many_to_many] do
-        "#{dest_name}AttributesOnlySchema"
-      else
-        if Map.get(rel, :allow_nil?, true) do
-          "#{dest_name}AttributesOnlySchema | null"
-        else
-          "#{dest_name}AttributesOnlySchema"
-        end
-      end
+  # A field holding a resource, or a union, retyped with its attributes only
+  # (a union: each resource member's); nil for any other field.
+  defp attributes_only_override(resource, {:resource, field, destination, _suffix}, lookup),
+    do:
+      {field.name,
+       resource_field_override(resource, field, attributes_only_type(destination, lookup))}
 
-    metadata =
-      case rel.type do
-        :has_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+  defp attributes_only_override(resource, {:union, field, union}, lookup),
+    do:
+      {field.name, union_override(resource, field, union, attributes_only_members(union, lookup))}
 
-        :many_to_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+  defp attributes_only_override(_resource, _load_or_not_found, _lookup), do: nil
 
-        _ ->
-          "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-      end
+  # The type of `resource` with its attributes only, for a place where no load
+  # under it is allowed. Its AttributesOnlySchema types the resource members of
+  # its union attributes in full (an aggregate holding it accepts their loads),
+  # so where it has such a union, directly or through an embedded attribute,
+  # those attributes are replaced with their attributes only. A resource
+  # already on the way (the keys of `seen`, a plain map: dialyzer flags a
+  # `MapSet` threaded through this recursion as opaque) keeps its
+  # AttributesOnlySchema.
+  defp attributes_only_type(resource, resource_lookup, seen \\ %{}) do
+    base = resource_schema(resource, "AttributesOnlySchema")
 
-    {rel.name, "#{formatted_name}: #{metadata}"}
+    overrides =
+      if Map.has_key?(seen, resource),
+        do: [],
+        else:
+          attributes_only_overrides(
+            resource,
+            "AttributesOnlySchema",
+            [],
+            resource_lookup,
+            Map.put(seen, resource, true)
+          )
+
+    case overrides do
+      [] ->
+        base
+
+      overrides ->
+        omits = format_fields_for_typescript(resource, override_names(overrides))
+        fields = Enum.map_join(overrides, " ", fn {_name, override} -> override <> ";" end)
+        "(Omit<#{base}, #{omits}> & { #{fields} })"
+    end
   end
 
-  defp generate_attributes_only_embedded_override(resource, attr, embedded_resource) do
-    formatted_name = ClientNames.resource_field(resource, attr.name)
-    embedded_name = Helpers.build_resource_type_name(embedded_resource)
-    is_array = api_field_is_array?(attr)
+  # The attributes of `resource` (but `skip`) whose type in its `suffix`
+  # schema still allows loads under them, retyped with their attributes only:
+  # an embedded attribute typed otherwise than with its attributes-only type,
+  # and a union attribute with resource members.
+  defp attributes_only_overrides(resource, suffix, skip, resource_lookup, seen) do
+    resource_lookup
+    |> Ash.Info.Manifest.get_resource!(resource)
+    |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
+    |> Enum.reject(&(&1.name in skip))
+    |> Enum.flat_map(fn attribute ->
+      case resolve_field_info(resource, attribute.name, resource_lookup) do
+        {:resource, field, destination, _suffix} ->
+          type = attributes_only_type(destination, resource_lookup, seen)
 
-    resource_type =
-      if Map.get(attr, :allow_nil?, true) do
-        "#{embedded_name}AttributesOnlySchema | null"
-      else
-        "#{embedded_name}AttributesOnlySchema"
-      end
+          if type == resource_schema(destination, suffix),
+            do: [],
+            else: [{field.name, resource_field_override(resource, field, type)}]
 
-    metadata =
-      if is_array do
-        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
-      else
-        "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-      end
-
-    {attr.name, "#{formatted_name}: #{metadata}"}
-  end
-
-  defp generate_attributes_only_union_override(resource, attr, union_types, resource_lookup) do
-    formatted_name = ClientNames.resource_field(resource, attr.name)
-    is_array = api_field_is_array?(attr)
-    union = resolve_inner_api_type(attr.type)
-
-    member_type_strs =
-      union_types
-      |> Enum.map(fn {member_name, member_config} ->
-        member_type = Keyword.get(member_config, :type)
-        inner_type = unwrap_array_type(member_type)
-
-        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
-          resource_name = Helpers.build_resource_type_name(inner_type)
-          formatted_member = ClientNames.union_member(union, member_name)
-          member_is_array = match?({:array, _}, member_type)
-
-          if member_is_array do
-            "{ #{formatted_member}: { __type: \"Relationship\"; __array: true; __resource: #{resource_name}AttributesOnlySchema; } }"
-          else
-            "{ #{formatted_member}: { __type: \"Relationship\"; __resource: #{resource_name}AttributesOnlySchema; } }"
+        {:union, field, union} ->
+          case attributes_only_members(union, resource_lookup, seen) do
+            members when map_size(members) == 0 -> []
+            members -> [{field.name, union_override(resource, field, union, members)}]
           end
-        else
-          nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
 
-    if Enum.empty?(member_type_strs) do
-      nil
-    else
-      members_str = member_type_strs |> Enum.join(" | ")
-
-      metadata =
-        if is_array do
-          "{ __type: \"Union\"; __array: true; __members: #{members_str}; }"
-        else
-          "{ __type: \"Union\"; __members: #{members_str}; }"
-        end
-
-      {attr.name, "#{formatted_name}: #{metadata}"}
-    end
+        _other ->
+          []
+      end
+    end)
   end
 
-  defp process_nested_allow_field(
-         resource,
-         field_name,
-         allowed_nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    case resolve_field_info(resource, field_name, resource_lookup) do
-      {:relationship, rel} ->
-        process_nested_allow_relationship(
-          resource,
-          rel,
-          allowed_nested_fields,
-          schema_name,
-          resource_lookup
-        )
-
-      {:embedded, attr, embedded_resource} ->
-        process_nested_allow_embedded(
-          resource,
-          attr,
-          embedded_resource,
-          allowed_nested_fields,
-          schema_name,
-          resource_lookup
-        )
-
-      {:union, attr, union_types} ->
-        process_nested_allow_union(
-          resource,
-          attr,
-          union_types,
-          allowed_nested_fields,
-          schema_name,
-          resource_lookup
-        )
-
-      :not_found ->
-        {"", nil}
-    end
-  end
-
-  defp process_nested_allow_relationship(
-         resource,
-         rel,
-         allowed_nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    nested_resource_name = Helpers.build_resource_type_name(rel.destination)
-    nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = nested_schema_name(schema_name, [rel.name])
-
-    nested_def =
-      generate_allow_only_schema(
-        rel.destination,
-        allowed_nested_fields,
-        nested_schema_name,
-        nested_base,
-        resource_lookup
-      )
-
-    override = generate_relationship_override(resource, rel, nested_schema_name)
-
-    {nested_def, {rel.name, override}}
-  end
-
-  defp process_nested_allow_embedded(
-         resource,
-         attr,
-         embedded_resource,
-         allowed_nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
-    nested_base = "#{nested_resource_name}ResourceSchema"
-    nested_schema_name = nested_schema_name(schema_name, [attr.name])
-
-    nested_def =
-      generate_allow_only_schema(
-        embedded_resource,
-        allowed_nested_fields,
-        nested_schema_name,
-        nested_base,
-        resource_lookup
-      )
-
-    override = generate_embedded_override(resource, attr, nested_schema_name)
-
-    {nested_def, {attr.name, override}}
-  end
-
-  defp process_nested_allow_union(
-         resource,
-         attr,
-         union_types,
-         allowed_nested_fields,
-         schema_name,
-         resource_lookup
-       ) do
-    {member_schema_defs, member_overrides} =
-      union_types
-      |> Enum.map(fn {member_name, member_config} ->
-        member_type = Keyword.get(member_config, :type)
-        inner_type = unwrap_array_type(member_type)
-
-        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
-          nested_resource_name = Helpers.build_resource_type_name(inner_type)
-          nested_base = "#{nested_resource_name}ResourceSchema"
-
-          member_schema_name =
-            nested_schema_name(schema_name, [attr.name, member_name])
-
-          nested_def =
-            generate_allow_only_schema(
-              inner_type,
-              allowed_nested_fields,
-              member_schema_name,
-              nested_base,
-              resource_lookup
-            )
-
-          {nested_def, {member_name, member_schema_name, member_type}}
-        else
-          {"", nil}
-        end
-      end)
-      |> Enum.unzip()
-
-    valid_member_overrides = Enum.reject(member_overrides, &is_nil/1)
-    all_schema_defs = Enum.reject(member_schema_defs, &(&1 == ""))
-
-    if Enum.empty?(valid_member_overrides) do
-      {"", nil}
-    else
-      override = generate_union_override(resource, attr, union_types, valid_member_overrides)
-      {all_schema_defs, {attr.name, override}}
-    end
-  end
-
+  # The step `LoadPaths` takes through `field_name`, the same walk VerifyRpc
+  # checks restrictions with. A relationship to an unexposed resource has no
+  # key in the base schema. A field holding a resource (an embedded attribute
+  # or aggregate, or a calculation returning a resource) carries the suffix of
+  # the schema the base schema renders it with: an aggregate's attributes only.
   defp resolve_field_info(resource, field_name, resource_lookup) do
-    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
-    rel = Ash.Info.Manifest.Resource.get_relationship(api_resource, field_name)
-    field = Ash.Info.Manifest.Resource.get_field(api_resource, field_name)
+    case LoadPaths.step(resource_lookup, AshTypescript.type_lookup(), resource, field_name) do
+      {:relationship, rel, _destination} ->
+        if Helpers.exposed_relationship?(rel, resource_lookup),
+          do: {:relationship, rel},
+          else: :not_found
 
-    cond do
-      rel && Helpers.exposed_relationship?(rel, resource_lookup) -> {:relationship, rel}
-      # The base schema has no relationship to an unexposed resource
-      rel -> :not_found
-      field -> resolve_field_type_info(field)
-      true -> :not_found
-    end
-  end
+      {kind, field, destination} when kind in [:embedded, :resource_calculation] ->
+        suffix = if field.kind == :aggregate, do: "AttributesOnlySchema", else: "ResourceSchema"
+        {:resource, field, destination, suffix}
 
-  defp resolve_field_type_info(%Ash.Info.Manifest.Field{} = field) do
-    api_type = resolve_inner_api_type(field.type)
+      {:union, field, union} ->
+        {:union, field, union}
 
-    cond do
-      api_type.kind in [:embedded_resource, :resource] ->
-        {:embedded, field, api_type.resource_module}
+      {:leaf, _field} ->
+        :not_found
 
-      api_type.kind == :union ->
-        union_types = Keyword.get(api_type.constraints || [], :types, [])
-        {:union, field, union_types}
-
-      true ->
+      :invalid ->
         :not_found
     end
   end
 
-  # Unwraps :array types to get the inner Ash.Info.Manifest.Type, otherwise returns the type as-is.
-  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}),
-    do: resolve_inner_api_type(item_type)
-
-  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}),
-    do: Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
-
-  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{} = type), do: type
-
-  # Checks if an Ash.Info.Manifest.Field has an array type.
-  defp api_field_is_array?(%Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{kind: :array}}),
-    do: true
-
-  defp api_field_is_array?(%Ash.Info.Manifest.Field{}), do: false
+  defp resource_schema(resource, suffix), do: Helpers.build_resource_type_name(resource) <> suffix
 
   # A nested schema's type name: the schema's name, then each raw name made
   # an identifier first (`:best_children?` → `BestChildren`), so a raw name
@@ -676,122 +385,56 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
       schema_name <>
         Enum.map_join(raw_names, &snake_to_pascal_case(NameValidation.suggest_name(&1)))
 
-  # Unwraps raw Ash array types (used for union member type processing).
-  defp unwrap_array_type({:array, inner}), do: inner
-  defp unwrap_array_type(type), do: type
+  # A field holding a resource, with `schema` in place of the resource's
+  # schema, in the shape the base schema gives it: a calculation with
+  # arguments keeps them.
+  defp resource_field_override(resource, field, schema) do
+    type =
+      if ResourceSchemas.classify_field(field) == :calculation,
+        do: ResourceSchemas.calculation_field_type(resource, field, array_of(field, schema)),
+        else: ResourceSchemas.embedded_field_type(field, schema)
 
-  defp generate_relationship_override(resource, rel, nested_schema_name) do
-    formatted_name = ClientNames.resource_field(resource, rel.name)
-
-    resource_type =
-      if rel.type in [:has_many, :many_to_many] do
-        nested_schema_name
-      else
-        if Map.get(rel, :allow_nil?, true) do
-          "#{nested_schema_name} | null"
-        else
-          nested_schema_name
-        end
-      end
-
-    metadata =
-      case rel.type do
-        :has_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
-
-        :many_to_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
-
-        _ ->
-          "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-      end
-
-    "#{formatted_name}: #{metadata}"
+    "#{ClientNames.resource_field(resource, field.name)}: #{type}"
   end
 
-  defp generate_embedded_override(resource, attr, nested_schema_name) do
-    formatted_name = ClientNames.resource_field(resource, attr.name)
-    is_array = api_field_is_array?(attr)
+  # A union field with `member_schemas` (`TypeMapper.build_union_type_from_members/2`),
+  # in the shape the base schema gives it.
+  defp union_override(resource, field, union, member_schemas) do
+    union_type = TypeMapper.build_union_type_from_members(union, member_schemas)
 
-    resource_type =
-      if Map.get(attr, :allow_nil?, true) do
-        "#{nested_schema_name} | null"
-      else
-        nested_schema_name
-      end
+    type =
+      if ResourceSchemas.classify_field(field) == :calculation,
+        do: ResourceSchemas.calculation_field_type(resource, field, array_of(field, union_type)),
+        else: ResourceSchemas.typed_field_type(field, union_type)
 
-    metadata =
-      if is_array do
-        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
-      else
-        "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
-      end
-
-    "#{formatted_name}: #{metadata}"
+    "#{ClientNames.resource_field(resource, field.name)}: #{type}"
   end
 
-  defp generate_union_override(resource, attr, union_types, member_overrides) do
-    formatted_name = ClientNames.resource_field(resource, attr.name)
-    is_array = api_field_is_array?(attr)
-    union = resolve_inner_api_type(attr.type)
-
-    member_type_strs =
-      union_types
-      |> Enum.map(fn {member_name, member_config} ->
-        member_type = Keyword.get(member_config, :type)
-
-        case Enum.find(member_overrides, fn {name, _, _} -> name == member_name end) do
-          {_, schema_name, _member_type} ->
-            generate_union_member_metadata(union, member_name, schema_name, member_type)
-
-          nil ->
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    if Enum.empty?(member_type_strs) do
-      nil
-    else
-      members_str = member_type_strs |> Enum.join(" | ")
-
-      metadata =
-        if is_array do
-          "{ __type: \"Union\"; __array: true; __members: #{members_str}; }"
-        else
-          "{ __type: \"Union\"; __members: #{members_str}; }"
-        end
-
-      "#{formatted_name}: #{metadata}"
-    end
+  # Each member holding a resource, mapped to its attributes-only type.
+  defp attributes_only_members(union, resource_lookup, seen \\ %{}) do
+    for %{name: member} <- union.members || [],
+        {:embedded, _member, member_resource} <- [LoadPaths.member_step(union, member)],
+        into: %{},
+        do: {member, attributes_only_type(member_resource, resource_lookup, seen)}
   end
 
-  defp generate_union_member_metadata(union, member_name, schema_name, member_type) do
-    is_array = match?({:array, _}, member_type)
-    formatted_member_name = ClientNames.union_member(union, member_name)
+  defp array_of(%Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{kind: :array}}, type),
+    do: "Array<#{type}>"
 
-    if is_array do
-      "{ #{formatted_member_name}: { __type: \"Relationship\"; __array: true; __resource: #{schema_name}; } }"
-    else
-      "{ #{formatted_member_name}: { __type: \"Relationship\"; __resource: #{schema_name}; } }"
-    end
-  end
+  defp array_of(%Ash.Info.Manifest.Field{}, type), do: type
+
+  # A relationship with `schema` in place of its destination's schema, query
+  # markers included.
+  defp generate_relationship_override(resource, rel, schema),
+    do:
+      "#{ClientNames.resource_field(resource, rel.name)}: " <>
+        ResourceSchemas.relationship_field_type(rel, schema)
 
   defp generate_override_fields(overrides) do
     Enum.map_join(overrides, "\n", fn {_field_name, override_str} -> "  #{override_str};" end)
   end
 
-  defp partition_restrictions(restrictions) do
-    flat =
-      restrictions
-      |> Enum.filter(&is_atom/1)
-
-    nested =
-      restrictions
-      |> Enum.filter(&is_tuple/1)
-
-    {flat, nested}
-  end
+  defp partition_restrictions(restrictions), do: Enum.split_with(restrictions, &is_atom/1)
 
   defp get_loadable_field_names(resource, resource_lookup) do
     api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
