@@ -87,261 +87,343 @@ defmodule AshTypescript.Rpc.VerifyRpcOptionsTest do
   """
   use ExUnit.Case, async: false
 
-  alias AshTypescript.Rpc.VerifyRpcOptionsTest.Source
+  alias AshTypescript.Rpc.VerifyRpcOptionsTest.{Item, Source}
 
   describe "show_metadata validation" do
     test "rejects metadata fields the action does not define" do
-      defmodule BadMetadataDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule BadMetadataDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_with_meta, :read_with_meta, show_metadata: [:total_count, :has_more]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_with_meta, :read_with_meta,
+                  show_metadata: [:total_count, :has_more]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert {:error, message} = silent_verify_for_domains([BadMetadataDomain])
+      assert {:error, message} = silent_verify_for_domains([domain])
       assert message =~ "show_metadata contains unknown metadata fields"
       assert message =~ ":has_more"
       assert message =~ "list_with_meta"
     end
 
     test "accepts metadata fields the action defines" do
-      defmodule GoodMetadataDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule GoodMetadataDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_with_meta_ok, :read_with_meta,
-              show_metadata: [:total_count, :cache_status]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_with_meta_ok, :read_with_meta,
+                  show_metadata: [:total_count, :cache_status]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert :ok = silent_verify_for_domains([GoodMetadataDomain])
+      assert :ok = silent_verify_for_domains([domain])
     end
   end
 
   describe "allowed_loads / denied_loads validation" do
     test "rejects load paths that don't exist on the resource" do
-      defmodule BadAllowedLoadsDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule BadAllowedLoadsDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_bad_loads, :read, allowed_loads: [:nonexistent]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_bad_loads, :read, allowed_loads: [:nonexistent]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert {:error, message} = silent_verify_for_domains([BadAllowedLoadsDomain])
+      assert {:error, message} = silent_verify_for_domains([domain])
       assert message =~ "allowed_loads contains invalid load paths"
       assert message =~ "nonexistent"
     end
 
     test "rejects nested load paths that don't exist on the relationship destination" do
-      defmodule BadNestedDeniedLoadsDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule BadNestedDeniedLoadsDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_bad_nested, :read, denied_loads: [items: [:bogus]]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_bad_nested, :read, denied_loads: [items: [:bogus]]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert {:error, message} = silent_verify_for_domains([BadNestedDeniedLoadsDomain])
+      assert {:error, message} = silent_verify_for_domains([domain])
       assert message =~ "denied_loads contains invalid load paths"
       assert message =~ "items.bogus"
     end
 
     test "rejects plain attributes (never load paths)" do
-      defmodule AttributeLoadDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule AttributeLoadDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_attr_load, :read, allowed_loads: [:name]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_attr_load, :read, allowed_loads: [:name]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert {:error, message} = silent_verify_for_domains([AttributeLoadDomain])
+      assert {:error, message} = silent_verify_for_domains([domain])
       assert message =~ "allowed_loads contains invalid load paths"
       assert message =~ "name"
     end
 
     test "rejects unknown fields nested under an embedded attribute" do
-      defmodule BadEmbeddedLoadsDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule BadEmbeddedLoadsDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_bad_embedded, :read, allowed_loads: [settings: [:nope]]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_bad_embedded, :read, allowed_loads: [settings: [:nope]]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert {:error, message} = silent_verify_for_domains([BadEmbeddedLoadsDomain])
+      assert {:error, message} = silent_verify_for_domains([domain])
       assert message =~ "allowed_loads contains invalid load paths"
       assert message =~ "settings.nope"
     end
 
     test "accepts relationships, calculations, aggregates, and valid nested paths" do
-      defmodule GoodLoadsDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule GoodLoadsDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :list_good_loads, :read,
-              allowed_loads: [:display_name, :items_count, settings: [:display_theme], items: []]
+            typescript_rpc do
+              resource Source do
+                rpc_action :list_good_loads, :read,
+                  allowed_loads: [
+                    :display_name,
+                    :items_count,
+                    settings: [:display_theme],
+                    items: []
+                  ]
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert :ok = silent_verify_for_domains([GoodLoadsDomain])
+      assert :ok = silent_verify_for_domains([domain])
     end
   end
 
   describe "reserved RPC action names" do
     test "rejects an rpc_action whose function name is a reserved word" do
-      defmodule ReservedNameDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule ReservedNameDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :delete, :read
+            typescript_rpc do
+              resource Source do
+                rpc_action :delete, :read
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
       error =
         assert_raise Spark.Error.DslError, fn ->
-          silent_verify_for_domains([ReservedNameDomain])
+          silent_verify_for_domains([domain])
         end
 
       assert Exception.message(error) =~
-               "  RPC action :delete in #{inspect(ReservedNameDomain)}:\n" <>
+               "  RPC action :delete in #{inspect(domain)}:\n" <>
                  ~s[    - function "delete", a JavaScript reserved word: rename the rpc_action, ] <>
                  "for example :delete_item\n"
     end
 
     test "accepts names that contain a reserved word or are TypeScript type keywords" do
-      defmodule NearReservedNameDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule NearReservedNameDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            rpc_action :delete_item, :read
-            rpc_action :import_users, :read
-            rpc_action :string, :read
+            typescript_rpc do
+              resource Source do
+                rpc_action :delete_item, :read
+                rpc_action :import_users, :read
+                rpc_action :string, :read
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
+            end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert :ok = silent_verify_for_domains([NearReservedNameDomain])
+      assert :ok = silent_verify_for_domains([domain])
     end
 
     test "rejects a typed_query whose fields const name is a reserved word" do
-      defmodule ReservedTypedQueryDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule ReservedTypedQueryDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            typed_query :delete, :read do
-              ts_result_type_name "DeleteResult"
-              fields [:id]
+            typescript_rpc do
+              resource Source do
+                typed_query :delete, :read do
+                  ts_result_type_name "DeleteResult"
+                  fields [:id]
+                end
+
+                typed_query :list_sources, :read do
+                  ts_result_type_name "ListSourcesResult"
+                  ts_fields_const_name "default"
+                  fields [:id]
+                end
+              end
             end
 
-            typed_query :list_sources, :read do
-              ts_result_type_name "ListSourcesResult"
-              ts_fields_const_name "default"
-              fields [:id]
+            resources do
+              resource Source
+              resource Item
             end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
       error =
         assert_raise Spark.Error.DslError, fn ->
-          silent_verify_for_domains([ReservedTypedQueryDomain])
+          silent_verify_for_domains([domain])
         end
 
       message = Exception.message(error)
 
       assert message =~
-               "  Typed query :delete in #{inspect(ReservedTypedQueryDomain)}:\n" <>
+               "  Typed query :delete in #{inspect(domain)}:\n" <>
                  ~s[    - const "delete", a JavaScript reserved word: rename the typed_query, ] <>
                  "for example :delete_item, or set ts_fields_const_name\n"
 
       assert message =~
-               "  Typed query :list_sources in #{inspect(ReservedTypedQueryDomain)}:\n" <>
+               "  Typed query :list_sources in #{inspect(domain)}:\n" <>
                  ~s[    - const "default" (ts_fields_const_name), a JavaScript reserved word: ] <>
                  "change ts_fields_const_name\n"
     end
 
     test "accepts a reserved typed_query name with a valid ts_fields_const_name" do
-      defmodule RenamedTypedQueryDomain do
-        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+      {domain, stderr} =
+        define_quietly(fn ->
+          defmodule RenamedTypedQueryDomain do
+            use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-        typescript_rpc do
-          resource Source do
-            typed_query :delete, :read do
-              ts_result_type_name "DeleteResult"
-              ts_fields_const_name "deleteFields"
-              fields [:id]
+            typescript_rpc do
+              resource Source do
+                typed_query :delete, :read do
+                  ts_result_type_name "DeleteResult"
+                  ts_fields_const_name "deleteFields"
+                  fields [:id]
+                end
+              end
+            end
+
+            resources do
+              resource Source
+              resource Item
             end
           end
-        end
+        end)
 
-        resources do
-          resource Source
-        end
-      end
+      refute stderr =~ "Exception while verifying"
 
-      assert :ok = silent_verify_for_domains([RenamedTypedQueryDomain])
+      assert :ok = silent_verify_for_domains([domain])
     end
+  end
+
+  # Defines the inline domain inside a stderr capture, so the test can assert
+  # its verifiers print nothing (a relationship destination missing from the
+  # domain shows up as "Exception while verifying").
+  defp define_quietly(define) do
+    {{:module, domain, _binary, _term}, stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, define)
+
+    {domain, stderr}
   end
 
   # Compiling the throwaway manifest module makes Elixir's parallel checker echo

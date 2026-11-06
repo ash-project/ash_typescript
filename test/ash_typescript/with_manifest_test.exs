@@ -5,6 +5,7 @@
 defmodule AshTypescript.WithManifestTest do
   use ExUnit.Case, async: true
 
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Test.CodegenTestHelper
 
   setup_all do
@@ -29,6 +30,45 @@ defmodule AshTypescript.WithManifestTest do
 
   test "the override is restored even when the function raises", %{pascal: pascal} do
     assert_raise RuntimeError, fn -> AshTypescript.with_manifest(pascal, fn -> raise "x" end) end
+    assert AshTypescript.output_field_formatter() == :camel_case
+  end
+
+  test "typed_query_lookup/0 honours the override", %{pascal: pascal} do
+    expected =
+      pascal.entrypoints
+      |> Enum.filter(&Custom.typed_query/1)
+      |> Map.new(&{to_string(Custom.typed_query(&1).name), &1})
+
+    assert expected != %{}
+    assert expected != AshTypescript.typed_query_lookup()
+
+    AshTypescript.with_manifest(pascal, fn ->
+      assert AshTypescript.typed_query_lookup() == expected
+      assert AshTypescript.typed_query_lookup() == AshTypescript.typed_query_lookup(pascal)
+    end)
+  end
+
+  test "typed_query_lookup/1 accepts a manifest struct" do
+    from_struct = AshTypescript.typed_query_lookup(AshTypescript.manifest())
+
+    assert from_struct != %{}
+
+    assert Map.keys(from_struct) ==
+             Map.keys(AshTypescript.typed_query_lookup(AshTypescript.Test.Manifest))
+  end
+
+  test "nested with_manifest restores the outer override", %{pascal: pascal} do
+    snake =
+      AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)
+
+    AshTypescript.with_manifest(pascal, fn ->
+      AshTypescript.with_manifest(snake, fn ->
+        assert AshTypescript.output_field_formatter() == :snake_case
+      end)
+
+      assert AshTypescript.output_field_formatter() == :pascal_case
+    end)
+
     assert AshTypescript.output_field_formatter() == :camel_case
   end
 

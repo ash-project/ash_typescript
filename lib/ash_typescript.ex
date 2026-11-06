@@ -493,7 +493,8 @@ defmodule AshTypescript do
   Gets the typed controller generation mode.
 
   Controls what TypeScript code is generated for typed controller routes:
-  - `:full` (default) — generates path helpers AND fetch-based action functions for mutation routes
+  - `:full` (default) — generates path helpers AND fetch-based action functions for mutation
+    routes and for GET routes that declare `returns`
   - `:paths_only` — generates only path helpers, no fetch action functions
 
   ## Example
@@ -531,7 +532,7 @@ defmodule AshTypescript do
   @doc """
   Gets the beforeRequest hook function name for typed controller actions from application configuration.
 
-  This hook is called before making the HTTP request for typed controller mutation actions,
+  This hook is called before making the HTTP request in typed controller fetch functions,
   allowing you to modify the config (add headers, set fetchOptions, etc.).
 
   ## Configuration
@@ -549,7 +550,7 @@ defmodule AshTypescript do
   @doc """
   Gets the afterRequest hook function name for typed controller actions from application configuration.
 
-  This hook is called after the HTTP request completes for typed controller mutation actions,
+  This hook is called after the HTTP request completes in typed controller fetch functions,
   regardless of success or failure.
 
   ## Configuration
@@ -798,12 +799,10 @@ defmodule AshTypescript do
 
   @doc """
   Runs `fun` with `manifest` as this process's manifest: `manifest/0`,
-  `resource_lookup/1`, `action_lookup/1`, `type_lookup/1` and the formatter
-  accessors return it (or derive from it); `entrypoints/1` and
-  `typed_query_lookup/1` still read the configured manifest module unless
-  given a source explicitly. Used by
-  tests to vary formatters without mutating global config; safe under
-  `async: true`.
+  `entrypoints/1`, `resource_lookup/1`, `action_lookup/1`, `type_lookup/1`,
+  `typed_query_lookup/1` and the formatter accessors return the override (or
+  derive from it) when called without a source. Used by tests to vary
+  formatters without mutating global config; safe under `async: true`.
   """
   @spec with_manifest(Ash.Info.Manifest.t(), (-> result)) :: result when result: term()
   def with_manifest(%Ash.Info.Manifest{} = manifest, fun) when is_function(fun, 0) do
@@ -863,10 +862,15 @@ defmodule AshTypescript do
 
   @doc """
   Returns the `%{typed_query_name_string => %Ash.Info.Manifest.Entrypoint{}}`
-  lookup for typed-query entrypoints (defaults to the configured manifest module).
+  lookup for typed-query entrypoints of `source` (see `resource_lookup/1`).
   """
-  def typed_query_lookup(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :typed_query_lookup) || %{}
+  def typed_query_lookup(source \\ nil),
+    do:
+      lookup(
+        source,
+        :typed_query_lookup,
+        &AshTypescript.Manifest.Transformers.DecorateManifest.build_typed_query_lookup/1
+      )
 
   @doc """
   Runs a typed query (server-side rendering, controllers).
@@ -889,9 +893,8 @@ defmodule AshTypescript do
         )
 
       entrypoint ->
-        # ash_rpc reads every top-level key under its output-formatted client name.
-        formatter = AshRpc.Manifest.output_formatter(manifest)
-        wire = &AshRpc.FieldFormatter.format_field_name(&1, formatter)
+        # ash_rpc reads every top-level key under its vocabulary's client name.
+        wire = &AshTypescript.Codegen.ClientNames.vocabulary!(manifest, :params, &1)
 
         wire_params =
           [input: wire.(:input), page: wire.(:page), filter: wire.(:filter), sort: wire.(:sort)]

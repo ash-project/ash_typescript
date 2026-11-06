@@ -4,11 +4,11 @@
 
 defmodule AshTypescript.Rpc.RuntimeSourceOfTruthGuardTest do
   @moduledoc """
-  Locks in the single-source-of-truth invariant: runtime request-pipeline
-  modules must read ash_typescript-specific derived data only through
-  `AshTypescript.Manifest.Custom`, never `AshTypescript.Resource.Info`,
-  `AshTypescript.Rpc.Info`, or `Map.get/2` on a raw rpc_action for the
-  migrated concerns (load restrictions, filter/sort, metadata exposure).
+  Locks in the single-source-of-truth invariant: the runtime request
+  pipeline (in ash_rpc) reads per-entrypoint options (load restrictions,
+  filter/sort, metadata exposure) from `AshRpc.Entrypoint`, never from
+  `AshTypescript.Resource.Info`, `AshTypescript.Rpc.Info` or `Map.get/2` on a
+  raw rpc_action.
   """
   use ExUnit.Case, async: true
 
