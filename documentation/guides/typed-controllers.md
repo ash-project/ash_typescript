@@ -265,8 +265,8 @@ end
 | name | atom | Yes | — | Argument name (positional arg) |
 | type | Ash type | Yes | — | An Ash type that is plain data: `:string`, `:boolean`, `:integer`, an enum, a typed map (`:map` with `fields`, an `Ash.TypedStruct`, a NewType of one), a custom type module, or `{:array, inner}` of those. Resources, embedded resources, unions and recursive types are rejected (see [Response Types](#response-types)). On GET routes and in path params, only scalars (and, in a GET query string, arrays of scalars) are allowed; see [Compile-Time Validation](#compile-time-validation) |
 | `constraints` | keyword | No | `[]` | Type constraints (e.g. `min_length`, `match`, `min`, `max`). Validated against `Ash.Type.constraints/1` at compile time — invalid constraints are compile errors — and enforced at runtime like Ash action arguments |
-| `allow_nil?` | boolean | No | `true` | If `false`, argument is required |
-| `default` | any | No | — | Default value |
+| `allow_nil?` | boolean | No | `true` | If `false`, argument is required (unless it has a `default`) and can't be `null`, a default or not |
+| `default` | any | No | — | Value the handler receives when the request omits the argument, whatever `allow_nil?`, like a create/update action argument. A sent `null` (or `""` that casts to `nil`) stays `nil`: a 422 when `allow_nil?` is `false`; an argument with a default is optional in the generated TypeScript |
 
 ## Route Handlers
 
@@ -325,9 +325,9 @@ When a request hits a typed controller route, AshTypescript automatically:
 1. **Resolves** param keys to argument names, per source. Query and body keys must be an argument's generated client name (from your `output_field_formatter`); router path params resolve by their segment name (`:user_id`). Keys matching no argument (another casing, an undeclared name, a segment name sent outside the path) are dropped. An argument reached by more than one key or source is rejected with an `ambiguous_param` 422
 2. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
 3. **Extracts** only declared arguments (undeclared params are dropped)
-4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
+4. **Validates** required arguments (`allow_nil?: false` and no `default`) — missing args produce 422 errors; an omitted argument with a `default` gets the default, while a sent `null` stays `nil` (a 422 on a non-nilable argument)
 5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings included; any other key is an `unknown_input` 422 whose `path` locates it), and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
-6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
+6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on an `allow_nil?: false` string, default or not, it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
 Errors from every argument are collected and returned in one 422; the handler is not called. The route's arguments, client names and formatter come from the manifest, so the controller must be listed in the manifest module's `typed_controllers:` option; otherwise every request returns a 500 (with `typed_controller_show_raised_errors` enabled, its message says the controller is not in the manifest). The `output_field_formatter` used here is the one baked into your AshTypescript manifest at compile time (the same one the RPC runtime uses); changing it at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
@@ -1088,7 +1088,7 @@ When enabled, 500 responses include the real exception message (or the inspected
 
 Route generation covers the controllers listed in the manifest module's `typed_controllers:` option (not a config key; see [Quick Start](#3-configure-code-generation)). `router` is needed for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory.
 
-Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. Without RPC output (no `output_file`), the shared types file holds only the aliases the routes use (`UUID`, `Decimal`, the aliases of custom types and NewTypes), and isn't written when they use none. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
+Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. Without RPC output (no `output_file`), the shared types file holds only the aliases the routes use (`UUID`, `Decimal`, the aliases of custom types and NewTypes), and isn't written when they use none; the Zod/Valibot files hold the route schemas and the custom-type schemas that reach no resource or embedded resource, no resource schemas. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 
 ### Path Params Style
 

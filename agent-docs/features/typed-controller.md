@@ -78,8 +78,10 @@ end
 3. **Strip** Phoenix-internal params (`_format`, `action`, `controller`, `_*` prefixed)
    after resolution, so a style variant (`Action`) can't re-inject them
 4. **Extract** only declared arguments — undeclared params are dropped
-5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
-   argument (`allow_nil?: false`) is a 422 error
+5. **Fill** omitted params from the argument's `default` (or `nil`) — an omitted required
+   argument (`RouteArgument.required?/1`: `allow_nil?: false` and no `default`) is a 422
+   error. Omitted is decided per argument with `Map.fetch/2` on the resolved values: a sent
+   `null` is not omitted, so it gets no default
 6. **Format + cast** values. `AshRpc.ValueFormatter` (`:input`, a runtime built from
    `AshTypescript.manifest()`, via `format_input/3`) maps nested client keys back by
    exact lookup (a miss → `unknown_input` with the argument's client name first in
@@ -133,7 +135,13 @@ with `TypedRouteCollector` into undecorated structs, and `DecorateManifest` runs
   `client_input_names` (client name → argument), `path_input_names` (segment name →
   argument) and the decorated `returns`
 - `%AshTypescript.Manifest.RouteArgument{}`: `name`, `client_name`, decorated `type`,
-  `allow_nil?`, `has_default?`, `description`
+  `allow_nil?`, `has_default?`. `RouteArgument.required?/1` (not nilable
+  and no default) is the one requiredness predicate: the renderer's TS optionality and
+  the request handler's `required` error both read it, and an omitted argument with a
+  default gets the default whatever `allow_nil?`, like a create/update action argument
+  (`Ash.Changeset`); a sent `null` (or `""` that casts to `nil`) stays `nil` and is
+  `required` on a non-nilable argument. `allow_nil?` alone only decides `| null`
+  (`typed_runtime_source_guard_test.exs` pins the renderer's reads)
 - Read with `AshTypescript.Manifest.Custom.route/3` / `routes/1` (`nil` source reads the
   configured manifest and honours `AshTypescript.with_manifest/2`). Two arguments with
   the same client name are a `Spark.Error.DslError` when the manifest compiles
@@ -257,8 +265,8 @@ end
 | `name` | atom | Yes | - | Argument name (positional arg) |
 | `type` | Ash type | Yes | - | Any form `Ash.OptionsHelpers.ash_type/0` accepts — `:string`, a custom type module, or `{:array, inner}`. Array item constraints go under `constraints: [items: [...]]`. Plain data only, like `returns` (no resources, embedded resources, unions or recursive types; checked when the manifest compiles) |
 | `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and the generated Zod/Valibot schemas. |
-| `allow_nil?` | boolean | No | `true` | Whether argument can be nil. Set to `false` to make required. |
-| `default` | any | No | - | Default value |
+| `allow_nil?` | boolean | No | `true` | Whether the argument can be nil. `false` makes it required (unless it has a `default`) and rejects a sent `null`, a default or not. |
+| `default` | any | No | - | Value used when the request omits the argument, whatever `allow_nil?` (like a create/update action argument). A sent `null` (or `""` that casts to `nil`) stays `nil`. Makes the argument optional in the generated TypeScript. |
 
 ### Handler Types
 

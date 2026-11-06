@@ -1412,6 +1412,57 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
   end
 
+  describe "PUT and DELETE routes" do
+    test "put and delete verb shortcuts generate typed fetch functions", %{
+      typescript: typescript
+    } do
+      assert typescript =~
+               "export type ReplaceProviderInput = {\n  name: string;\n};"
+
+      assert typescript =~
+               "export async function replaceProvider(input: ReplaceProviderInput, " <>
+                 "config?: TypedControllerConfig): Promise<Response> {\n" <>
+                 ~s[  return executeTypedControllerRequest("/providers/current", "PUT", ] <>
+                 ~s["replaceProvider", JSON.stringify(input), config);]
+
+      assert typescript =~
+               "export async function removeProvider(config?: TypedControllerConfig): " <>
+                 "Promise<Response> {\n" <>
+                 ~s[  return executeTypedControllerRequest("/providers/current", "DELETE", ] <>
+                 ~s["removeProvider", undefined, config);]
+    end
+  end
+
+  describe "argument defaults" do
+    test "an argument with a default is optional in TS", %{typescript: typescript} do
+      assert typescript =~
+               "export type DefaultsInput = {\n  pageSize?: number;\n  label?: string | null;\n};"
+
+      assert typescript =~
+               "export type DefaultsResult = {pageSize: number, label: string | null};"
+    end
+  end
+
+  describe "path param names" do
+    test "path params are named by the route's client names" do
+      pascal =
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(),
+          output_formatter: :pascal_case
+        )
+
+      typescript =
+        AshTypescript.with_manifest(pascal, fn ->
+          CodegenTestHelper.generate_controller_content(
+            router: AshTypescript.Test.ControllerResourceTestRouter
+          )
+        end)
+
+      assert typescript =~ "export function ProviderPagePath(Path: { Provider: string }"
+      assert typescript =~ "${encodeURIComponent(Path.Provider)}"
+      refute typescript =~ "Path.provider"
+    end
+  end
+
   defp reset_env(key, nil), do: Application.delete_env(:ash_typescript, key)
   defp reset_env(key, value), do: Application.put_env(:ash_typescript, key, value)
 end

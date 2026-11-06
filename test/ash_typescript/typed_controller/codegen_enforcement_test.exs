@@ -91,7 +91,156 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
     end
   end
 
+  defmodule MapPathParam do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.MapPathParamController
+
+      get :by_range do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+
+        argument :range, :map,
+          allow_nil?: false,
+          constraints: [fields: [from: [type: :integer], to: [type: :integer]]]
+      end
+    end
+  end
+
+  defmodule MapPathParamRouter do
+    use Phoenix.Router
+
+    get(
+      "/ranges/:range",
+      AshTypescript.TypedController.CodegenEnforcementTest.MapPathParamController,
+      :by_range
+    )
+  end
+
+  defmodule MapArrayQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.MapArrayQueryArgumentController
+
+      get :by_points do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+
+        argument :points, {:array, :map}, constraints: [items: [fields: [x: [type: :integer]]]]
+      end
+    end
+  end
+
+  defmodule StructQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.StructQueryArgumentController
+
+      get :by_stats do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :stats, AshTypescript.Test.TaskStats
+      end
+    end
+  end
+
+  defmodule NewTypeQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.NewTypeQueryArgumentController
+
+      get :by_settings do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :settings, AshTypescript.Test.RouteSettings
+      end
+    end
+  end
+
+  defmodule CustomTypeQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.CustomTypeQueryArgumentController
+
+      get :near do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :point, AshTypescript.Test.GeoPoint
+      end
+    end
+  end
+
+  defmodule ScalarArrayQueryArgument do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.ScalarArrayQueryArgumentController
+
+      get :tagged do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :tags, {:array, :string}
+      end
+    end
+  end
+
+  defp url_error(controller, router \\ nil) do
+    manifest =
+      AshTypescript.Test.InlineManifest.build!(
+        typed_controllers: [controller],
+        typed_channels: []
+      )
+
+    error =
+      assert_raise RuntimeError, fn ->
+        AshTypescript.with_manifest(manifest, fn ->
+          CodegenTestHelper.generate_controller_content(router: router)
+        end)
+      end
+
+    Exception.message(error)
+  end
+
+  defp url_sentence(route, args),
+    do:
+      "Route :#{route} sends the arguments #{args} in its URL, but their types are not " <>
+        "scalars, so they can't be written to a path segment or query string.\n"
+
   describe "URL argument types" do
+    test "a path param of map type is not URL-safe" do
+      assert url_error(MapPathParam, MapPathParamRouter) =~ url_sentence(:by_range, ":range")
+    end
+
+    test "a GET query argument that is an array of maps is not URL-safe" do
+      assert url_error(MapArrayQueryArgument) =~ url_sentence(:by_points, ":points")
+    end
+
+    test "a GET query argument of a struct type is not URL-safe" do
+      assert url_error(StructQueryArgument) =~ url_sentence(:by_stats, ":stats")
+    end
+
+    test "a GET query argument of a NewType over a map is not URL-safe" do
+      assert url_error(NewTypeQueryArgument) =~ url_sentence(:by_settings, ":settings")
+    end
+
+    test "a GET query argument of a declared map custom type is not URL-safe" do
+      assert url_error(CustomTypeQueryArgument) =~ url_sentence(:near, ":point")
+    end
+
+    test "a GET query argument that is an array of scalars generates" do
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [ScalarArrayQueryArgument],
+          typed_channels: []
+        )
+
+      typescript =
+        AshTypescript.with_manifest(manifest, fn ->
+          CodegenTestHelper.generate_controller_content(router: nil)
+        end)
+
+      assert typescript =~ "export function taggedPath(query?: { tags?: Array<string> | null })"
+    end
+
     test "codegen fails for a GET route with a map query argument" do
       manifest =
         AshTypescript.Test.InlineManifest.build!(

@@ -25,6 +25,14 @@ defmodule AshTypescript.Test.Session do
       argument :tab, :string
     end
 
+    # A path param named by a reserved word: bound as `newParam` under
+    # `typed_controller_path_params_style: :args` (the `path_params_args`
+    # codegen variant)
+    get :item_page do
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ItemPage") end
+      argument :new, :string, allow_nil?: false
+    end
+
     # Positional method arg syntax — `route :name, :get do ... end`
     route :search, :get do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Search") end
@@ -93,6 +101,19 @@ defmodule AshTypescript.Test.Session do
       returns :map
     end
 
+    # Verb shortcuts for PUT and DELETE
+    put :replace_provider do
+      run fn conn, params ->
+        Plug.Conn.send_resp(conn, 200, "ProviderReplaced=#{params.name}")
+      end
+
+      argument :name, :string, allow_nil?: false
+    end
+
+    delete :remove_provider do
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderRemoved") end
+    end
+
     route :raise_error, :post do
       run fn _conn, _params -> raise "test error for show_raised_errors" end
     end
@@ -137,6 +158,28 @@ defmodule AshTypescript.Test.Session do
 
       # NewType reachable only from this route, not from RPC
       returns AshTypescript.Test.RouteResultSummary
+    end
+
+    # Arguments with defaults: an omitted one gets the default, whatever
+    # allow_nil?, so both are optional in TS; a sent null stays null (required
+    # for page_size, nil for label)
+    post :defaults do
+      argument :page_size, :integer, allow_nil?: false, default: 25
+      argument :label, :string, default: "none"
+
+      returns :map
+
+      constraints fields: [
+                    page_size: [type: :integer, allow_nil?: false],
+                    label: [type: :string, allow_nil?: true]
+                  ]
+
+      run fn conn, params ->
+        AshTypescript.TypedController.json(conn, %{
+          page_size: params.page_size,
+          label: params.label
+        })
+      end
     end
 
     route :create_task, :post do

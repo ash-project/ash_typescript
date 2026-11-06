@@ -6,7 +6,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   @moduledoc """
   Generates TypeScript functions for typed controller routes.
 
-  - GET routes generate path helper functions.
+  - Every route generates a path helper function.
   - Mutation routes (POST/PATCH/PUT/DELETE) generate typed action functions
     with input types derived from route arguments.
   - Routes declaring `returns` get an exported result type; their action
@@ -27,22 +27,21 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Manifest.RouteArgument
   alias AshTypescript.NameValidation
   alias AshTypescript.TypedController.Codegen
 
   @mutation_methods [:post, :patch, :put, :delete]
 
   @doc """
-  Renders TypeScript code for a single route without Zod schema.
-
-  Same as `render/1` but skips Zod schema generation (for split-file mode
-  where Zod schemas live in ash_zod.ts).
+  Renders TypeScript code for a single route without Zod schema (Zod schemas
+  live in ash_zod.ts, see `render_zod_schema/1`).
 
   ## Options
 
     * `:has_base_path` - When true, prefixes all URL expressions with `${_basePath}`
   """
-  def render_no_zod(route_info, opts \\ []) do
+  def render_no_zod(route_info, opts) do
     fetch_function =
       cond do
         not Codegen.fetch_function?(route_info) -> ""
@@ -105,7 +104,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     use_path_prefix = style == :object and path_params != []
 
     if query_args == [] do
-      url_expr = build_url_template(path, path_params, use_path_prefix, has_base_path)
+      url_expr = build_url_template(route_info, path, path_params, use_path_prefix, has_base_path)
 
       """
       #{jsdoc}
@@ -114,7 +113,15 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       }
       """
     else
-      url_expr = build_url_template_to_variable(path, path_params, use_path_prefix, has_base_path)
+      url_expr =
+        build_url_template_to_variable(
+          route_info,
+          path,
+          path_params,
+          use_path_prefix,
+          has_base_path
+        )
+
       body = Enum.join(query_body_lines, "\n")
 
       """
@@ -129,12 +136,10 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     end
   end
 
-  defp get_path_param_type(route_info, param) do
-    case manifest_input(route_info, param) do
-      nil -> "string"
-      input -> input_ts_type(input)
-    end
-  end
+  # Every path param has a route argument (`Codegen` raises otherwise before
+  # rendering), so its type and name are the manifest route input's.
+  defp get_path_param_type(route_info, param),
+    do: route_info |> manifest_input(param) |> input_ts_type()
 
   defp manifest_input(route_info, name),
     do: Enum.find(route_info.manifest_route.inputs, &(&1.name == name))
@@ -150,14 +155,14 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   defp build_query_param_and_body([]), do: {nil, []}
 
   defp build_query_param_and_body(query_inputs) do
-    any_required = Enum.any?(query_inputs, &(not &1.allow_nil? and not &1.has_default?))
+    any_required = Enum.any?(query_inputs, &RouteArgument.required?/1)
     optional_marker = if any_required, do: "", else: "?"
 
     fields =
       Enum.map_join(query_inputs, "; ", fn input ->
         base_type = input_ts_type(input)
         ts_type = if input.allow_nil?, do: "#{base_type} | null", else: base_type
-        opt = if input.allow_nil? or input.has_default?, do: "?", else: ""
+        opt = if RouteArgument.required?(input), do: "", else: "?"
         "#{input.client_name}#{opt}: #{ts_type}"
       end)
 
@@ -167,7 +172,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       ["  const searchParams = new URLSearchParams();"] ++
         Enum.map(query_inputs, fn input ->
           field = input.client_name
-          required = not input.allow_nil? and not input.has_default?
+          required = RouteArgument.required?(input)
 
           # Array arguments append one `name[]=` pair per element — Plug's query
           # parser needs that to rebuild a list. `String(array)` would collapse
@@ -232,7 +237,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     params = Enum.join(all_params, ", ")
 
     use_path_prefix = style == :object and path_params != []
-    url_expr = build_url_template(path, path_params, use_path_prefix, has_base_path)
+    url_expr = build_url_template(route_info, path, path_params, use_path_prefix, has_base_path)
     jsdoc = build_action_jsdoc(route, method_upper, path)
 
     body_arg =
@@ -271,7 +276,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       case {style, path_params} do
         {_, []} -> []
         {:object, _} -> [format_output_field(:path)]
-        {:args, _} -> Enum.map(path_params, &path_param_local/1)
+        {:args, _} -> Enum.map(path_params, &path_param_local(route_info, &1))
       end ++ if(query_param, do: ["query"], else: [])
 
     config_var = format_output_field(:config)
@@ -361,7 +366,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
               input.client_name,
               %{type: input.type},
               input.allow_nil?,
-              input.allow_nil? or input.has_default?
+              not RouteArgument.required?(input)
             )
 
           "  #{name}: #{schema_type},"
@@ -379,7 +384,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     route_info
     |> non_path_inputs()
     |> Enum.map(fn input ->
-      optional = input.allow_nil? or input.has_default?
+      optional = not RouteArgument.required?(input)
       base_type = input_ts_type(input)
       ts_type = if input.allow_nil?, do: "#{base_type} | null", else: base_type
       {input.client_name, ts_type, optional}
@@ -402,7 +407,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     path_fields =
       Enum.map_join(path_params, ", ", fn param ->
         ts_type = get_path_param_type(route_info, param)
-        "#{format_output_field(param)}: #{ts_type}"
+        "#{path_param_name(route_info, param)}: #{ts_type}"
       end)
 
     [format_output_field(:path) <> ": { " <> path_fields <> " }"]
@@ -411,29 +416,32 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   defp build_path_param_args(route_info, path_params, :args) do
     Enum.map(path_params, fn param ->
       ts_type = get_path_param_type(route_info, param)
-      "#{path_param_local(param)}: #{ts_type}"
+      "#{path_param_local(route_info, param)}: #{ts_type}"
     end)
   end
 
   # A positional path param's local name: its client name, or, when that is a
   # JavaScript reserved word a parameter can't be named (`new`), the name
   # plus `Param`. Positional names aren't API, so this is safe to change.
-  defp path_param_local(param) do
-    name = format_output_field(param)
+  defp path_param_local(route_info, param) do
+    name = path_param_name(route_info, param)
     if NameValidation.reserved_word?(name), do: name <> "Param", else: name
   end
 
-  defp build_url_template(nil, _path_params, _use_path_prefix, _has_base_path), do: "\"\""
+  defp path_param_name(route_info, param), do: manifest_input(route_info, param).client_name
 
-  defp build_url_template(path, [], _use_path_prefix, false), do: "\"#{path}\""
+  defp build_url_template(_route_info, nil, _path_params, _use_path_prefix, _has_base_path),
+    do: "\"\""
 
-  defp build_url_template(path, [], _use_path_prefix, true),
+  defp build_url_template(_route_info, path, [], _use_path_prefix, false), do: "\"#{path}\""
+
+  defp build_url_template(_route_info, path, [], _use_path_prefix, true),
     do: "`${_basePath}#{path}`"
 
-  defp build_url_template(path, path_params, use_path_prefix, has_base_path) do
+  defp build_url_template(route_info, path, path_params, use_path_prefix, has_base_path) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        interpolation = path_param_interpolation(param, use_path_prefix)
+        interpolation = path_param_interpolation(route_info, param, use_path_prefix)
         String.replace(acc, ":#{param}", interpolation)
       end)
 
@@ -441,19 +449,31 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     "`#{prefix}#{template}`"
   end
 
-  defp build_url_template_to_variable(nil, _path_params, _use_path_prefix, _has_base_path),
-    do: "const base = \"\";"
+  defp build_url_template_to_variable(
+         _route_info,
+         nil,
+         _path_params,
+         _use_path_prefix,
+         _has_base_path
+       ),
+       do: "const base = \"\";"
 
-  defp build_url_template_to_variable(path, [], _use_path_prefix, false),
+  defp build_url_template_to_variable(_route_info, path, [], _use_path_prefix, false),
     do: "const base = \"#{path}\";"
 
-  defp build_url_template_to_variable(path, [], _use_path_prefix, true),
+  defp build_url_template_to_variable(_route_info, path, [], _use_path_prefix, true),
     do: "const base = `${_basePath}#{path}`;"
 
-  defp build_url_template_to_variable(path, path_params, use_path_prefix, has_base_path) do
+  defp build_url_template_to_variable(
+         route_info,
+         path,
+         path_params,
+         use_path_prefix,
+         has_base_path
+       ) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        interpolation = path_param_interpolation(param, use_path_prefix)
+        interpolation = path_param_interpolation(route_info, param, use_path_prefix)
         String.replace(acc, ":#{param}", interpolation)
       end)
 
@@ -464,12 +484,12 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   # Path-param values are always encodeURIComponent-wrapped so a value can never
   # alter URL structure (e.g. a "/"-prefixed value forming a protocol-relative
   # URL that redirects the request and its credentialed headers to another host).
-  defp path_param_interpolation(param, use_path_prefix) do
+  defp path_param_interpolation(route_info, param, use_path_prefix) do
     var =
       if use_path_prefix do
-        "#{format_output_field(:path)}.#{format_output_field(param)}"
+        "#{format_output_field(:path)}.#{path_param_name(route_info, param)}"
       else
-        path_param_local(param)
+        path_param_local(route_info, param)
       end
 
     "${encodeURIComponent(#{var})}"

@@ -172,6 +172,75 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
   end
 
+  defmodule ModuleHandler do
+    @behaviour AshTypescript.TypedController.Route
+
+    @impl true
+    def run(conn, params), do: Plug.Conn.send_resp(conn, 200, "module handler: #{params.name}")
+  end
+
+  defmodule NonConnModuleHandler do
+    @behaviour AshTypescript.TypedController.Route
+
+    @impl true
+    def run(_conn, _params), do: :not_a_conn
+  end
+
+  # A scalar whose `apply_constraints/2` answers in every shape Ash lets a type
+  # answer, so the handler's normalization of each one is reachable.
+  defmodule PickyCode do
+    use Ash.Type
+
+    @impl true
+    def storage_type(_), do: :string
+
+    def typescript_type, do: "string"
+
+    @impl true
+    def cast_input(value, _) when is_binary(value) or is_nil(value), do: {:ok, value}
+    def cast_input(_, _), do: :error
+
+    @impl true
+    def cast_stored(value, _), do: {:ok, value}
+
+    @impl true
+    def dump_to_native(value, _), do: {:ok, value}
+
+    @impl true
+    def apply_constraints("bare-error", _), do: :error
+    def apply_constraints("no-reasons", _), do: {:error, []}
+    def apply_constraints("exception", _), do: {:error, ArgumentError.exception("is not a code")}
+    def apply_constraints("opaque", _), do: {:error, :not_a_code}
+    def apply_constraints(_, _), do: :ok
+  end
+
+  defmodule HandlerSession do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name AshTypescript.TypedController.RequestHandlerTest.HandlerController
+
+      post :module_handler do
+        run AshTypescript.TypedController.RequestHandlerTest.ModuleHandler
+        argument :name, :string, allow_nil?: false
+      end
+
+      post :non_conn_module_handler do
+        run AshTypescript.TypedController.RequestHandlerTest.NonConnModuleHandler
+      end
+
+      get :tagged do
+        run fn conn, params -> Plug.Conn.send_resp(conn, 200, :erlang.term_to_binary(params)) end
+        argument :tags, {:array, :string}
+      end
+
+      post :picky do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :code, AshTypescript.TypedController.RequestHandlerTest.PickyCode
+      end
+    end
+  end
+
   # The test-local typed controllers are in no manifest module option (adding
   # them would change the generated snapshots), so requests run against an
   # inline manifest that lists them.
@@ -180,7 +249,8 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     __MODULE__.AllowlistSession,
     __MODULE__.BadReturnSession,
     __MODULE__.ReservedSession,
-    __MODULE__.FormattingSession
+    __MODULE__.FormattingSession,
+    __MODULE__.HandlerSession
   ]
 
   defp manifest,
@@ -786,6 +856,201 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
 
       assert conn.status == 200
       assert conn.resp_body == "Search"
+    end
+  end
+
+  describe "module handlers" do
+    test "a module handler runs" do
+      conn = call(HandlerSession, :module_handler, %{"name" => "ada"})
+
+      assert conn.status == 200
+      assert conn.resp_body == "module handler: ada"
+    end
+
+    test "a module handler returning a non-conn is a 500" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          conn = call(HandlerSession, :non_conn_module_handler, %{})
+
+          assert conn.status == 500
+
+          assert %{
+                   "errors" => [
+                     %{"type" => "internal_error", "message" => "Internal server error"}
+                   ]
+                 } =
+                   json_body(conn)
+        end)
+
+      assert log =~
+               "#{inspect(HandlerSession)} route :non_conn_module_handler: " <>
+                 "Route handler must return %Plug.Conn{}, got: :not_a_conn"
+    end
+  end
+
+  describe "AshTypescript.TypedController.format_result/2 outside a route" do
+    test "format_result/2 on a conn the handler never dispatched" do
+      error =
+        assert_raise ArgumentError, fn ->
+          AshTypescript.TypedController.format_result(Plug.Test.conn(:get, "/"), %{a: 1})
+        end
+
+      assert Exception.message(error) ==
+               "the conn was not dispatched by an AshTypescript typed controller route"
+    end
+  end
+
+  describe "unfetched conns" do
+    # Phoenix hands the controller a conn whose query string the handler parses
+    # itself when no plug fetched it, and a GET request has no body params.
+    test "a GET handler receives tags[]=a&tags[]=b as a list" do
+      conn = Plug.Test.conn(:get, "/tagged?tags[]=ab&tags[]=cd")
+      assert %Plug.Conn.Unfetched{} = conn.query_params
+      assert %Plug.Conn.Unfetched{} = conn.body_params
+
+      conn =
+        AshTypescript.with_manifest(manifest(), fn ->
+          RequestHandler.handle(conn, HandlerSession, :tagged, %{})
+        end)
+
+      assert echoed(conn) == %{tags: ["ab", "cd"]}
+    end
+  end
+
+  describe "argument types answering apply_constraints in other shapes" do
+    test "a bare :error makes the argument invalid" do
+      assert [%{"type" => "invalid_argument", "message" => "is invalid", "fields" => ["code"]}] =
+               call(HandlerSession, :picky, %{"code" => "bare-error"})
+               |> json_body()
+               |> Map.fetch!("errors")
+    end
+
+    test "an error with no reasons makes the argument invalid" do
+      assert [%{"type" => "invalid_argument", "message" => "is invalid", "fields" => ["code"]}] =
+               call(HandlerSession, :picky, %{"code" => "no-reasons"})
+               |> json_body()
+               |> Map.fetch!("errors")
+    end
+
+    test "an exception reports its message" do
+      assert [%{"type" => "invalid_argument", "message" => "is not a code", "fields" => ["code"]}] =
+               call(HandlerSession, :picky, %{"code" => "exception"})
+               |> json_body()
+               |> Map.fetch!("errors")
+    end
+
+    test "an unrecognized error makes the argument invalid" do
+      assert [%{"type" => "invalid_argument", "message" => "is invalid", "fields" => ["code"]}] =
+               call(HandlerSession, :picky, %{"code" => "opaque"})
+               |> json_body()
+               |> Map.fetch!("errors")
+    end
+
+    test "a value the type accepts passes" do
+      assert call(HandlerSession, :picky, %{"code" => "fine"}).status == 200
+    end
+  end
+
+  describe "PUT and DELETE routes" do
+    test "put and delete routes run their handlers" do
+      conn = call(:replace_provider, %{"name" => "x"})
+      assert conn.status == 200
+      assert conn.resp_body == "ProviderReplaced=x"
+
+      conn = call(:remove_provider, %{})
+      assert conn.status == 200
+      assert conn.resp_body == "ProviderRemoved"
+    end
+  end
+
+  describe "argument defaults" do
+    test "a missing argument with a default and allow_nil?: false gets its default" do
+      conn = call(:defaults, %{})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn) == %{"pageSize" => 25, "label" => "none"}
+    end
+
+    test "a missing nilable argument with a default gets its default" do
+      conn = call(:defaults, %{"pageSize" => 5})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn)["label"] == "none"
+    end
+
+    test "a sent value wins over the default" do
+      conn = call(:defaults, %{"pageSize" => 5, "label" => "mine"})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn) == %{"pageSize" => 5, "label" => "mine"}
+    end
+
+    # Like an Ash create/update argument: the default applies only when the
+    # argument is omitted. A sent null, or a value that casts to nil, stays nil.
+    test "an explicit null on a required argument with a default is required" do
+      conn = call(:defaults, %{"pageSize" => nil})
+
+      assert conn.status == 422
+
+      assert %{
+               "errors" => [
+                 %{"type" => "required", "message" => "is required", "fields" => ["pageSize"]}
+               ]
+             } = json_body(conn)
+    end
+
+    test "a nilable argument with a default sent null gets nil" do
+      conn = call(:defaults, %{"pageSize" => 5, "label" => nil})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn) == %{"pageSize" => 5, "label" => nil}
+    end
+
+    test "an empty string stays nil: required on a required argument, nil on a nilable one" do
+      conn = call(:defaults, %{"pageSize" => "", "label" => ""})
+
+      assert conn.status == 422
+      assert [%{"type" => "required", "fields" => ["pageSize"]}] = json_body(conn)["errors"]
+
+      conn = call(:defaults, %{"pageSize" => 5, "label" => ""})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn) == %{"pageSize" => 5, "label" => nil}
+    end
+
+    test "an empty query param stays nil" do
+      conn =
+        request(AshTypescript.Test.Session, :defaults, query: %{"pageSize" => "", "label" => ""})
+
+      assert conn.status == 422
+      assert [%{"type" => "required", "fields" => ["pageSize"]}] = json_body(conn)["errors"]
+
+      conn =
+        request(AshTypescript.Test.Session, :defaults, query: %{"pageSize" => "5", "label" => ""})
+
+      assert conn.status == 200, conn.resp_body
+      assert json_body(conn) == %{"pageSize" => 5, "label" => nil}
+    end
+
+    test "a value that fails to cast reports invalid, not the default" do
+      conn = call(:defaults, %{"pageSize" => "abc"})
+
+      assert conn.status == 422
+
+      assert %{"errors" => [%{"type" => "invalid_argument", "fields" => ["pageSize"]}]} =
+               json_body(conn)
+    end
+
+    test "a required argument without default still reports required" do
+      conn = call(:login, %{})
+
+      assert conn.status == 422
+
+      assert %{
+               "errors" => [
+                 %{"type" => "required", "message" => "is required", "fields" => ["code"]}
+               ]
+             } = json_body(conn)
     end
   end
 

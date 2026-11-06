@@ -7,8 +7,8 @@ defmodule AshTypescript.TypedController.Dsl do
   Spark DSL extension for defining typed controller routes.
 
   This extension generates TypeScript path helper functions and a thin Phoenix
-  controller from routes configured in the DSL. Unlike `AshTypescript.ControllerResource`,
-  this is a standalone Spark DSL — not attached to `Ash.Resource`.
+  controller from routes configured in the DSL. This is a standalone Spark DSL —
+  not attached to `Ash.Resource`.
 
   Routes contain colocated arguments and handler functions (inline closures or
   handler modules implementing `AshTypescript.TypedController.Route`).
@@ -111,12 +111,17 @@ defmodule AshTypescript.TypedController.Dsl do
         type: :boolean,
         required: false,
         default: true,
-        doc: "Whether this argument can be nil. Set to false to make it required."
+        doc:
+          "Whether this argument can be nil. Set to false to make it required (unless it has a `default`)."
       ],
       default: [
         type: :any,
         required: false,
-        doc: "Default value for this argument"
+        doc:
+          "Value used when the request omits the argument, whatever `allow_nil?`, like a " <>
+            "create/update action argument. A sent `null` (or a value that casts to `nil`) " <>
+            "stays `nil`, and is a `required` error when `allow_nil?` is false. " <>
+            "An argument with a default is optional in the generated TypeScript."
       ]
     ],
     args: [:name, :type]

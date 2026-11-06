@@ -24,7 +24,8 @@ defmodule AshTypescript.TypedController.Route do
 
   Then in the DSL:
 
-      route :login, method: :post, run: MyApp.LoginHandler do
+      post :login do
+        run MyApp.LoginHandler
         argument :code, :string, allow_nil?: false
       end
   """

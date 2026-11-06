@@ -21,7 +21,7 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
           routes_config()
         )
 
-      assert length(route_infos) == 11
+      assert length(route_infos) == 15
 
       auth = Enum.find(route_infos, &(&1.route.name == :auth))
       assert auth.path == "/auth"
@@ -62,7 +62,7 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
           routes_config()
         )
 
-      assert length(route_infos) == 22
+      assert length(route_infos) == 29
 
       auth_routes = Enum.filter(route_infos, &(&1.route.name == :auth))
       assert length(auth_routes) == 2

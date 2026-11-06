@@ -217,6 +217,49 @@ defmodule AshTypescript.Manifest.RoutesTest do
     end
   end
 
+  describe "client-name collisions" do
+    test "route arguments sharing a client name fail manifest compile" do
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule SharedClientNameSession do
+          @moduledoc false
+          use AshTypescript.TypedController
+
+          typed_controller do
+            module_name AshTypescript.Manifest.RoutesTest.SharedClientNameController
+
+            post :share do
+              run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              argument :user_id, :string
+              argument :userId, :string
+            end
+          end
+        end
+      end)
+
+      error =
+        assert_raise RuntimeError, fn ->
+          InlineManifest.build!(typed_controllers: [__MODULE__.SharedClientNameSession])
+        end
+
+      # InlineManifest re-raises the manifest compile's DslError as a RuntimeError
+      assert Exception.message(error) =~
+               "typed_controller -> share :\n  " <>
+                 "#{inspect(__MODULE__.SharedClientNameSession)} route :share has arguments " <>
+                 "that share a client name:\n" <>
+                 ~s(  - "userId": :user_id, :userId\n) <>
+                 "Rename one of the arguments.\n"
+    end
+  end
+
+  describe "RouteArgument.required?/1" do
+    test "required?/1" do
+      assert RouteArgument.required?(%RouteArgument{allow_nil?: false, has_default?: false})
+      refute RouteArgument.required?(%RouteArgument{allow_nil?: false, has_default?: true})
+      refute RouteArgument.required?(%RouteArgument{allow_nil?: true, has_default?: false})
+      refute RouteArgument.required?(%RouteArgument{allow_nil?: true, has_default?: true})
+    end
+  end
+
   describe "AshTypescript.Manifest.redecorate/2" do
     test "rebuilds route client names with the new output formatter" do
       pascal =

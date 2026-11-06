@@ -162,7 +162,7 @@ defmodule AshTypescript.TypedController.RequestHandler do
         else
           dsl_arg = Map.fetch!(dsl_args, input.name)
 
-          case cast_argument(input, dsl_arg, Map.get(values, input.name), runtime) do
+          case cast_argument(input, dsl_arg, Map.fetch(values, input.name), runtime) do
             {:ok, value} -> {Map.put(params, input.name, value), errors}
             {:error, arg_errors} -> {params, Enum.reverse(arg_errors, errors)}
           end
@@ -172,17 +172,22 @@ defmodule AshTypescript.TypedController.RequestHandler do
     {params, Enum.reverse(errors)}
   end
 
-  defp cast_argument(input, dsl_arg, nil, _runtime) do
-    if dsl_arg.allow_nil?,
-      do: {:ok, dsl_arg.default},
-      else: {:error, [required_error(input.client_name)]}
+  # Like a create/update action argument (`Ash.Changeset`): an omitted
+  # argument gets its `default` whatever `allow_nil?`, and is `required` only
+  # when `RouteArgument.required?/1` (the predicate codegen types optionality
+  # by). A sent value maps its client names to internal ones (strict on
+  # decorated types), is cast and constrained, and stays `nil` when it is or
+  # becomes `nil` (`null`, `""` under allow_empty?: false): no default, and a
+  # `required` error when the argument isn't nilable.
+  defp cast_argument(input, dsl_arg, :error, _runtime) do
+    if RouteArgument.required?(input),
+      do: {:error, [required_error(input.client_name)]},
+      else: {:ok, dsl_arg.default}
   end
 
-  # Like Ash action arguments: map the value's client names to internal ones
-  # (strict on decorated types), cast, apply constraints, then re-check
-  # allow_nil? (a value constrained to nil, like "" under allow_empty?: false,
-  # fails a required argument).
-  defp cast_argument(input, dsl_arg, raw_value, runtime) do
+  defp cast_argument(input, dsl_arg, {:ok, nil}, _runtime), do: nil_or_required(input, dsl_arg)
+
+  defp cast_argument(input, dsl_arg, {:ok, raw_value}, runtime) do
     type = Ash.Type.get_type(dsl_arg.type)
     constraints = dsl_arg.constraints || []
 
@@ -190,33 +195,32 @@ defmodule AshTypescript.TypedController.RequestHandler do
          {:ok, cast} <- tag_cast_error(Ash.Type.cast_input(type, value, constraints), input),
          {:ok, constrained} <-
            tag_cast_error(Ash.Type.apply_constraints(type, cast, constraints), input) do
-      if is_nil(constrained) and not dsl_arg.allow_nil?,
-        do: {:error, [required_error(input.client_name)]},
+      if is_nil(constrained),
+        do: nil_or_required(input, dsl_arg),
         else: {:ok, constrained}
     end
   end
 
-  # Nested misses become `unknown_input` errors located under the argument;
-  # any other reason (an invalid union shape) makes the argument invalid.
+  defp nil_or_required(input, dsl_arg) do
+    if dsl_arg.allow_nil?,
+      do: {:ok, nil},
+      else: {:error, [required_error(input.client_name)]}
+  end
+
+  # Nested misses become `unknown_input` errors located under the argument.
+  # `format_input/3` fails otherwise only on an invalid union shape, and route
+  # arguments are plain data with no union at any depth
+  # (`AshTypescript.Manifest.PlainData`), so misses are the only reasons.
   defp format_argument(raw_value, input, runtime) do
     case ValueFormatter.format_input(raw_value, input.type, runtime) do
       {:ok, value} ->
         {:ok, value}
 
       {:error, reasons} ->
-        {misses, other} = Enum.split_with(reasons, &match?({:unknown_input, _, _}, &1))
-
-        errors =
-          Enum.map(misses, fn {:unknown_input, key, path} ->
-            unknown_input_error(key, [input.client_name | path])
-          end)
-
-        invalid =
-          if other == [],
-            do: [],
-            else: [invalid_argument_error(input.client_name, "is invalid", %{})]
-
-        {:error, errors ++ invalid}
+        {:error,
+         Enum.map(reasons, fn {:unknown_input, key, path} ->
+           unknown_input_error(key, [input.client_name | path])
+         end)}
     end
   end
 

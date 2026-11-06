@@ -279,20 +279,20 @@ defmodule AshTypescript.TypedController.Codegen do
   @doc """
   Collects all per-route Zod schemas from typed controller routes.
 
-  Returns a list of Zod schema strings (one per mutation route that has non-path arguments).
+  Returns a list of Zod schema strings (one per route that has non-path arguments).
   These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
   """
-  def collect_route_zod_schemas(opts \\ []) do
+  def collect_route_zod_schemas(opts) do
     collect_route_schemas(opts, &RouteRenderer.render_zod_schema/1)
   end
 
   @doc """
   Collects all per-route Valibot schemas from typed controller routes.
 
-  Returns a list of Valibot schema strings (one per mutation route that has non-path arguments).
+  Returns a list of Valibot schema strings (one per route that has non-path arguments).
   These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
   """
-  def collect_route_valibot_schemas(opts \\ []) do
+  def collect_route_valibot_schemas(opts) do
     collect_route_schemas(opts, &RouteRenderer.render_valibot_schema/1)
   end
 
@@ -377,7 +377,7 @@ defmodule AshTypescript.TypedController.Codegen do
 
   Returns a map of `%{namespace => [route_info]}` where namespace is a string or nil.
   """
-  def get_routes_by_namespace(opts \\ []) do
+  def get_routes_by_namespace(opts) do
     router = Keyword.get(opts, :router) || AshTypescript.router()
     routes_config = RouteConfigCollector.manifest_routes_config()
 

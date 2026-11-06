@@ -36,4 +36,46 @@ defmodule AshTypescript.TypedRuntimeSourceGuardTest do
       end
     end
   end
+
+  @renderer "lib/ash_typescript/typed_controller/codegen/route_renderer.ex"
+
+  # Requiredness (may the argument be omitted?) has one owner,
+  # `RouteArgument.required?/1`; `allow_nil?` is read only for nullability
+  # (the `| null` suffix of the two TS types and the schema's nullable flag).
+  test "the renderer reads requiredness only through RouteArgument.required?/1" do
+    {:ok, ast} =
+      @renderer
+      |> Path.expand(Path.join(__DIR__, "../.."))
+      |> File.read!()
+      |> Code.string_to_quoted()
+
+    reads = fn field ->
+      {_, lines} =
+        Macro.prewalk(ast, [], fn
+          {{:., meta, [_, ^field]}, _, []} = node, acc -> {node, [meta[:line] | acc]}
+          node, acc -> {node, acc}
+        end)
+
+      Enum.reverse(lines)
+    end
+
+    assert reads.(:has_default?) == [],
+           "#{@renderer} reads has_default? at lines #{inspect(reads.(:has_default?))}; " <>
+             "use RouteArgument.required?/1"
+
+    assert length(reads.(:allow_nil?)) == 3,
+           "#{@renderer} reads allow_nil? at lines #{inspect(reads.(:allow_nil?))}; only the " <>
+             "two `| null` decisions and the schema's nullable flag may read it"
+
+    {_, required_calls} =
+      Macro.prewalk(ast, 0, fn
+        {{:., _, [{:__aliases__, _, [:RouteArgument]}, :required?]}, _, [_]} = node, n ->
+          {node, n + 1}
+
+        node, n ->
+          {node, n}
+      end)
+
+    assert required_calls > 0
+  end
 end

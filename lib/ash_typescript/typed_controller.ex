@@ -18,14 +18,12 @@ defmodule AshTypescript.TypedController do
         typed_controller do
           module_name MyAppWeb.SessionController
 
-          route :login do
-            method :post
-            run fn conn, params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          post :login do
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
             argument :code, :string, allow_nil?: false
           end
 
-          route :auth do
-            method :get
+          get :auth do
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Auth") end
           end
         end
@@ -46,6 +44,7 @@ defmodule AshTypescript.TypedController do
   Use it from a route handler:
 
       post :login do
+        argument :code, :string, allow_nil?: false
         returns :map
         constraints fields: [user_id: [type: :uuid, allow_nil?: false]]
 

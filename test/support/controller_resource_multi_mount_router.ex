@@ -20,6 +20,9 @@ defmodule AshTypescript.Test.ControllerResourceMultiMountRouter do
     post("/echo", AshTypescript.Test.SessionController, :echo_params)
     post("/register", AshTypescript.Test.SessionController, :register)
     post("/tasks", AshTypescript.Test.SessionController, :create_task)
+    post("/defaults", AshTypescript.Test.SessionController, :defaults)
+    put("/providers/current", AshTypescript.Test.SessionController, :replace_provider)
+    delete("/providers/current", AshTypescript.Test.SessionController, :remove_provider)
   end
 
   scope "/app", as: :app do
@@ -34,5 +37,8 @@ defmodule AshTypescript.Test.ControllerResourceMultiMountRouter do
     post("/echo", AshTypescript.Test.SessionController, :echo_params)
     post("/register", AshTypescript.Test.SessionController, :register)
     post("/tasks", AshTypescript.Test.SessionController, :create_task)
+    post("/defaults", AshTypescript.Test.SessionController, :defaults)
+    put("/providers/current", AshTypescript.Test.SessionController, :replace_provider)
+    delete("/providers/current", AshTypescript.Test.SessionController, :remove_provider)
   end
 end
