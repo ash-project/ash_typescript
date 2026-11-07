@@ -78,7 +78,11 @@ defmodule AshTypescript.Rpc.TypedQueryRenderFormsTest do
                 filter: %{
                   tags: %{has: "urgent"},
                   description: %{is_nil: true},
-                  title: %{contains: "x"}
+                  title: %{contains: "x"},
+                  attachments: %{
+                    has: %{file: %{filename: "a", mime_type: "x"}},
+                    intersects: [%{file: %{filename: "b", mime_type: "y"}}]
+                  }
                 },
                 fields: [:id]
               }
@@ -127,6 +131,15 @@ defmodule AshTypescript.Rpc.TypedQueryRenderFormsTest do
     assert ts =~ ~s|title: { contains: "x" }|
   end
 
+  # `has` takes one element of an array field, `intersects` a list of them
+  # (`AshRpc.Introspection.filter_operator_value_type/2`), so each element is
+  # a union value with client names.
+  test "has and intersects on an array field render its elements", %{filter_ts: ts} do
+    assert ts =~
+             ~s|attachments: { has: { file: { filename: "a", mimeType: "x" } }, | <>
+               ~s|intersects: [{ file: { filename: "b", mimeType: "y" } }] }|
+  end
+
   test "the filters and sorts above pass the verifier" do
     assert :ok = verify(Domain)
     assert :ok = verify(FilterDomain)
@@ -151,7 +164,18 @@ defmodule AshTypescript.Rpc.TypedQueryRenderFormsTest do
     {"a sort that isn't a list or a string", quote(do: %{sort: 5}),
      "Invalid sort for relationship 'comments' at path []: 5 is not a valid sort"},
     {"a sort entry that isn't a name", quote(do: %{sort: [5]}),
-     "Invalid sort for relationship 'comments' at path []: 5 is not a valid sort"}
+     "Invalid sort for relationship 'comments' at path []: 5 is not a valid sort"},
+    {"a tuple value for a field that isn't a tuple",
+     quote(do: %{filter: %{author_name: %{eq: {:a, :b}}}}),
+     "Invalid filter for relationship 'comments' at path []: Invalid filter value at " <>
+       ~s|[:filter, :author_name, :eq]: {:invalid_filter_value, "A value of the field's type"}|},
+    {"a list value for an operator that takes one value",
+     quote(do: %{filter: %{author_name: %{eq: ["a"]}}}),
+     "Invalid filter for relationship 'comments' at path []: Invalid filter value at " <>
+       ~s|[:filter, :author_name, :eq]: {:invalid_filter_value, "A value of the field's type"}|},
+    {"a boolean filter", quote(do: %{filter: true}),
+     "Invalid filter for relationship 'comments' at path []: " <>
+       "Invalid filter value at [:filter]: :invalid_filter_statement"}
   ]
 
   for {{label, envelope, line}, index} <- Enum.with_index(@rejected) do
@@ -223,33 +247,29 @@ defmodule AshTypescript.Rpc.TypedQueryRenderFormsTest do
     end
   end
 
-  # Filters the runtime takes but the generated types have no form for.
-  @unrenderable [
-    {"a tuple value for a field that isn't a tuple",
-     quote(do: %{filter: %{author_name: %{eq: {:a, :b}}}}), "{:a, :b}"},
-    {"a list value for an operator that takes one value",
-     quote(do: %{filter: %{author_name: %{eq: ["a"]}}}), ~s|["a"]|},
-    {"a boolean filter", quote(do: %{filter: true}), "true"}
-  ]
+  # A filter the runtime takes but the generated types have no form for: a
+  # keyword list for a keyword field (the types take the fields as an object).
+  test "a keyword list value for a keyword field passes the verifier and raises in codegen" do
+    domain =
+      define_domain(
+        Module.concat(__MODULE__, "Unrenderable"),
+        AshTypescript.Test.User,
+        :todos,
+        quote(do: %{filter: %{options: %{eq: [priority: 1]}}})
+      )
 
-  for {{label, envelope, part}, index} <- Enum.with_index(@unrenderable) do
-    test "#{label} passes the verifier and raises in codegen" do
-      domain =
-        define_domain(
-          Module.concat(__MODULE__, "Unrenderable#{unquote(index)}"),
-          unquote(Macro.escape(envelope))
-        )
+    assert :ok = verify(domain)
 
-      assert :ok = verify(domain)
-
-      assert_raise ArgumentError,
-                   "cannot render #{unquote(part)} in a typed query's fields: " <>
-                     "the generated TypeScript types have no form for it",
-                   fn -> render(domain) end
-    end
+    assert_raise ArgumentError,
+                 "cannot render [priority: 1] in a typed query's fields: " <>
+                   "the generated TypeScript types have no form for it",
+                 fn -> render(domain) end
   end
 
-  defp define_domain(domain, envelope) do
+  defp define_domain(domain, envelope),
+    do: define_domain(domain, AshTypescript.Test.Todo, :comments, envelope)
+
+  defp define_domain(domain, resource, relationship, envelope) do
     Module.create(
       domain,
       quote do
@@ -259,15 +279,15 @@ defmodule AshTypescript.Rpc.TypedQueryRenderFormsTest do
           validate_config_inclusion?: false
 
         typescript_rpc do
-          resource AshTypescript.Test.Todo do
+          resource unquote(resource) do
             typed_query :envelope_filter, :read do
-              fields [:id, %{comments: Map.put(unquote(envelope), :fields, [:id])}]
+              fields [:id, %{unquote(relationship) => Map.put(unquote(envelope), :fields, [:id])}]
             end
           end
         end
 
         resources do
-          resource AshTypescript.Test.Todo
+          resource unquote(resource)
         end
       end,
       Macro.Env.location(__ENV__)

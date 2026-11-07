@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
   alias Ash.Info.Manifest
   alias AshRpc.RequestedFieldsProcessor
-  alias AshTypescript.Codegen.{ClientNames, FilterTypes}
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
   alias AshTypescript.Rpc.Codegen.FunctionNames
@@ -379,36 +379,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp format_filter_ops(value, resource, field, rt),
     do: format_filter_ops(%{eq: value}, resource, field, rt)
 
-  # The type an operator's value takes, as the runtime's filter reads it
-  # (`FilterTypes.operator_value/3`): the field's own type (one element of it
-  # for `has`), a list of it (`in`), or nil for a concrete scalar (`isNil`).
+  # The type an operator's value takes, as the runtime's filter reads it: the
+  # field's own type, one element of it (`has`), a list of either (`in`,
+  # `intersects`), or nil for a concrete scalar (`isNil`).
   defp operator_value_type(%Manifest.Field{} = field, op) do
-    name =
-      case Ash.Filter.get_operator(op) do
-        nil -> op
-        operator -> operator.operator()
-      end
-
-    applicable =
-      Enum.find(
-        List.wrap(field.filter_operators) ++ List.wrap(field.filter_functions),
-        &(&1.name == name)
-      )
-
-    applicable &&
-      FilterTypes.operator_value(
-        applicable,
-        fn
-          :field -> field.type
-          :element -> field.type.item_type
-          {:concrete, _module} -> nil
-        end,
-        &array_of/1
-      )
+    case AshRpc.Introspection.filter_operator_value_type(field, op) do
+      {:concrete, _module} -> nil
+      type -> type
+    end
   end
-
-  defp array_of(nil), do: nil
-  defp array_of(%Manifest.Type{} = item), do: %Manifest.Type{kind: :array, item_type: item}
 
   # A filter value in the input shape the generated FilterInput types take
   # (`TypeMapper.map_plain_type(type, :input)`): a union value as its member
@@ -487,7 +466,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     do: "[#{Enum.map_join(sort, ", ", &format_sort_entry(&1, resource, rt))}]"
 
   defp format_sort_entry(entry, resource, rt) when is_binary(entry) do
-    {modifier, name} = split_sort_modifier(entry)
+    {modifier, name} = AshRpc.FilterInput.split_sort_modifier(entry)
     field = internal({:resource, resource}, name, rt)
     Jason.encode!(modifier <> ClientNames.resource_field(resource, field))
   end
@@ -495,17 +474,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp format_sort_entry(entry, resource, _rt) when is_atom(entry),
     do: Jason.encode!(ClientNames.resource_field(resource, entry))
 
-  defp split_sort_modifier("++" <> name), do: {"++", name}
-  defp split_sort_modifier("--" <> name), do: {"--", name}
-  defp split_sort_modifier("+" <> name), do: {"+", name}
-  defp split_sort_modifier("-" <> name), do: {"-", name}
-  defp split_sort_modifier(name), do: {"", name}
-
-  # A scalar. A map reaches this only where the runtime rejects it (a scalar
-  # operator's value, a page option), which `VerifyTypedQueryFields` reports; a
-  # list or tuple where the operator takes one scalar the runtime passes
-  # through, but the generated types have no form for it. Lists the operator
-  # takes (`in`, array fields) are rendered through their item type.
+  # A scalar. A map, list or tuple reaches this only where the runtime rejects
+  # it (a scalar operator's value, a page option), which
+  # `VerifyTypedQueryFields` reports, or as a keyword list for a keyword field,
+  # which the runtime takes but the generated types (an object of its fields)
+  # have no form for. Lists the operator takes (`in`, array fields) are
+  # rendered through their item type.
   defp json_value!(value) when is_list(value) or is_tuple(value), do: unrenderable!(value)
   defp json_value!(value), do: Jason.encode!(value)
 
@@ -529,9 +503,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
   # `VerifyTypedQueryFields` ran the selection, filters and sorts through the
   # runtime, so a shape the runtime rejects never reaches this; what does is a
-  # form the runtime takes but the generated types can't express (a boolean
-  # filter, a tuple for a field that isn't a tuple, a list for an operator
-  # that takes one value).
+  # form the runtime takes but the generated types can't express (a keyword
+  # list for a keyword field).
   defp unrenderable!(part) do
     raise ArgumentError,
           "cannot render #{inspect(part)} in a typed query's fields: " <>
