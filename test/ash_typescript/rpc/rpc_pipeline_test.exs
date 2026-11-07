@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
         "action" => "list_todos",
         "fields" => ["id", "title"],
         "input" => %{"filterCompleted" => true},
-        "filter" => %{"status" => "active"},
+        "filter" => %{"status" => "pending"},
         "sort" => "title"
       }
 
@@ -113,7 +113,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
       assert request.load == []
       # Formatted from camelCase - only known arguments are converted
       assert request.input == %{filter_completed: true}
-      assert request.filter == %{status: "active"}
+      assert request.filter == %{status: :pending}
+      assert request.query_errors == []
       assert request.sort == "title"
     end
 

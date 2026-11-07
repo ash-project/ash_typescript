@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 # Resources are defined at top level so Spark DSL fully compiles them before
-# the inline domains reference them. They name their domain: ash_rpc runs a
-# create without passing the entrypoint's domain.
+# the inline domains reference them. They have no domain of their own
+# (`domain: nil`): ash_rpc runs each action in its entrypoint's domain.
 defmodule AshTypescript.Rpc.DomainErrorHandlerTest.Handler do
   @moduledoc false
   def handle_error(error, _context), do: %{error | message: "handled by module"}
@@ -15,7 +15,7 @@ end
 defmodule AshTypescript.Rpc.DomainErrorHandlerTest.MfaNote do
   @moduledoc false
   use Ash.Resource,
-    domain: AshTypescript.Rpc.DomainErrorHandlerTest.MfaDomain,
+    domain: nil,
     data_layer: Ash.DataLayer.Ets,
     extensions: [AshTypescript.Resource]
 
@@ -36,7 +36,7 @@ end
 defmodule AshTypescript.Rpc.DomainErrorHandlerTest.ModuleNote do
   @moduledoc false
   use Ash.Resource,
-    domain: AshTypescript.Rpc.DomainErrorHandlerTest.ModuleDomain,
+    domain: nil,
     data_layer: Ash.DataLayer.Ets,
     extensions: [AshTypescript.Resource]
 

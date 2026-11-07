@@ -54,7 +54,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}}
+        "filter" => %{"status" => %{"eq" => "pending"}}
       }
 
       conn = %Plug.Conn{}
@@ -63,7 +63,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == nil
-      assert request.filter == %{status: %{eq: "active"}}
+      assert request.filter == %{status: %{eq: :pending}}
+      assert request.query_errors == []
     end
 
     test "filter errors first when both enable options are false" do
@@ -306,7 +307,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
+        "filter" => %{"status" => %{"eq" => "pending"}},
         "page" => %{"limit" => 10}
       }
 
@@ -315,7 +316,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       assert {:ok, request} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert request.filter == %{status: %{eq: "active"}}
+      assert request.filter == %{status: %{eq: :pending}}
+      assert request.query_errors == []
       assert request.sort == nil
       assert request.pagination == %{limit: 10}
     end

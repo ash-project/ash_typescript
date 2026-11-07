@@ -39,7 +39,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}}
+        "filter" => %{"status" => %{"eq" => "pending"}}
       }
 
       conn = %Plug.Conn{}
@@ -47,7 +47,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert {:ok, request} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert request.filter == %{status: %{eq: "active"}}
+      assert request.filter == %{status: %{eq: :pending}}
+      assert request.query_errors == []
     end
 
     test "sort is not affected by enable_filter?" do
@@ -278,7 +279,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
+        "filter" => %{"status" => %{"eq" => "pending"}},
         "sort" => "-createdAt",
         "page" => %{"limit" => 10}
       }
@@ -288,7 +289,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert {:ok, request} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      assert request.filter == %{status: %{eq: "active"}}
+      assert request.filter == %{status: %{eq: :pending}}
+      assert request.query_errors == []
       assert request.sort == "-created_at"
       assert request.pagination == %{limit: 10}
     end
