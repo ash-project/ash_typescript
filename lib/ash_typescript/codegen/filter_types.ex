@@ -18,7 +18,8 @@ defmodule AshTypescript.Codegen.FilterTypes do
   The TS renderer types the operators in `@typed_operators` and the
   functions in `@typed_functions`, names each by its Ash name in ash_rpc's
   `:filter_ops` vocabulary (`AshRpc.Manifest.vocabulary/1`, the keys the
-  runtime accepts) and computes the RHS TS type from `op.rhs`.
+  runtime accepts) and types its value as ash_rpc reads it
+  (`AshRpc.Introspection.filter_operator_value_type/2`).
 
   Operator values are typed with the field's input rendering: ash_rpc reads
   them as input, so a structured value takes the same client keys (optional
@@ -218,7 +219,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     |> Enum.filter(fn %{name: name} -> Map.has_key?(@typed_operators, name) end)
     |> Enum.reject(fn %{name: name} -> name == :is_nil and not field.allow_nil? end)
     |> Enum.filter(&allowed?(field, &1))
-    |> Enum.map(&format_operation(&1, base_type))
+    |> Enum.map(&format_operation(&1, field, base_type))
   end
 
   defp allowed?(field, %{name: name}),
@@ -275,7 +276,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     |> Enum.filter(fn %{name: name} = function ->
       MapSet.member?(@typed_functions, name) and allowed?(field, function)
     end)
-    |> Enum.map(&format_function(&1, base_type))
+    |> Enum.map(&format_function(&1, field, base_type))
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -305,51 +306,33 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp format_operation(%Ash.Info.Manifest.ApplicableOperator{name: name} = operator, base_type) do
-    "    #{filter_key(@typed_operators[name])}?: #{rhs_to_ts(operator, base_type)};"
+  defp format_operation(%Ash.Info.Manifest.ApplicableOperator{name: name}, field, base_type) do
+    "    #{filter_key(@typed_operators[name])}?: #{value_ts(field, name, base_type)};"
   end
 
-  defp format_function(%Ash.Info.Manifest.ApplicableFunction{name: name} = function, base_type) do
-    "    #{filter_key(name)}?: #{rhs_to_ts(function, base_type)};"
+  defp format_function(%Ash.Info.Manifest.ApplicableFunction{name: name}, field, base_type) do
+    "    #{filter_key(name)}?: #{value_ts(field, name, base_type)};"
   end
 
-  @doc false
-  # The value an operator or function takes, from its `rhs`, folded with
-  # `value` and `array`: `value.(:field)` for the field's own type (`:same`,
-  # `:any`), `value.(:element)` for one element of it (`has` on an array
-  # field), `value.({:concrete, module})` for a fixed type (`isNil`), and
-  # `array.(inner)` around the value of `{:array, rhs}` (`in`). The filter
-  # types type operator values with it, typed queries render them with it.
-  @spec operator_value(
-          Ash.Info.Manifest.ApplicableOperator.t() | Ash.Info.Manifest.ApplicableFunction.t(),
-          (:field | :element | {:concrete, module()} -> value),
-          (value -> value)
-        ) :: value
-        when value: term()
-  def operator_value(%{name: name, rhs: rhs}, value, array) do
-    fold_rhs(rhs, if(name == :has, do: :element, else: :field), value, array)
-  end
+  # The TS type of an operator's value, from the type ash_rpc reads it as
+  # (`AshRpc.Introspection.filter_operator_value_type/2`): the field's own type
+  # is `base_type`, one element of an array field (`has`) its element, an
+  # array of either (`in`, `intersects`) wraps, and concrete builtin types map
+  # through `@builtin_rhs_to_ts` (others fall back to `base_type`).
+  defp value_ts(field, name, base_type),
+    do:
+      field |> AshRpc.Introspection.filter_operator_value_type(name) |> type_ts(field, base_type)
 
-  defp fold_rhs(rhs, same, value, _array) when rhs in [:same, :any], do: value.(same)
-  defp fold_rhs({:concrete, _module} = concrete, _same, value, _array), do: value.(concrete)
+  defp type_ts({:concrete, module}, _field, base_type),
+    do: Map.get(@builtin_rhs_to_ts, module, base_type)
 
-  defp fold_rhs({:array, inner}, same, value, array),
-    do: array.(fold_rhs(inner, same, value, array))
+  defp type_ts(%Type{} = type, %{type: type}, base_type), do: base_type
 
-  # The TS type of an operator's value. The field's own type is `base_type`,
-  # concrete builtin types map through `@builtin_rhs_to_ts` (others fall back
-  # to `base_type`), arrays wrap.
-  defp rhs_to_ts(applicable, base_type) do
-    operator_value(
-      applicable,
-      fn
-        :field -> base_type
-        :element -> element_type(base_type)
-        {:concrete, module} -> Map.get(@builtin_rhs_to_ts, module, base_type)
-      end,
-      &"Array<#{&1}>"
-    )
-  end
+  defp type_ts(%Type{} = item, %{type: %Type{kind: :array, item_type: item}}, base_type),
+    do: element_type(base_type)
+
+  defp type_ts(%Type{kind: :array, item_type: %Type{} = item}, field, base_type),
+    do: "Array<#{type_ts(item, field, base_type)}>"
 
   # One element of an `Array<X>` field type, for `has`. Only the single
   # closing `>` of the `Array<...>` wrapper is dropped: the element type
