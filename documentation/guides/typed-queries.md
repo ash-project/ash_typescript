@@ -289,16 +289,19 @@ shape the generated filter types take, with client names. Filters and sorts are
 checked when the manifest compiles as the runtime checks them: an unknown field,
 a value an operator can't take or a sort that isn't a list of names fails the
 compile with a line naming the relationship ("Invalid filter for relationship
-'comments' at path []: No such field bogus for resource MyApp.Comment").
+'comments' at path []: No such field bogus for resource MyApp.Comment"). That
+includes a value the field's type can't cast (a tuple or list for a string
+field: "Invalid filter value at [:filter, :author_name, :eq]:
+{:invalid_filter_value, \"A value of the field's type\"}") and a filter that is
+a boolean ("Invalid filter value at [:filter]: :invalid_filter_statement").
 A filter written as a list is the `and` of its statements, as the runtime reads
 it (`filter: [title: [eq: "x"], completed: false]` becomes
 `{ and: [{ title: { eq: "x" } }, { completed: { eq: false } }] }`), operators may
 be a keyword list, and a tuple field's value may be an Elixir tuple of its
 elements (`coordinates: %{eq: {1.5, 2.5}}` becomes
 `{ latitude: 1.5, longitude: 2.5 }`). Calculation arguments in a filter
-(`input`), a filter that is a boolean, a tuple value for a field that isn't a
-tuple, and a list value for an operator that takes one value
-(`title: %{eq: ["a"]}`; `in` and array fields take lists) have no form in the
+(`input`) and a keyword field's value given as a keyword list
+(`options: %{eq: [priority: 1]}`; write it as a map) have no form in the
 generated filter types, and codegen raises.
 
 ## Passing Arguments

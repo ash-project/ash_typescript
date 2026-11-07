@@ -402,9 +402,10 @@ the runtime matches requests against, through `AshTypescript.Codegen.ClientNames
   forms render the same. They hold under one formatter only, which is why the
   string-name fixtures live in an inline manifest
   (`test/ash_typescript/rpc/typed_query_client_names_test.exs`), not the test domain.
-  Filter values are rendered through each operator's value type (the field's
-  `filter_operators` / `filter_functions` `rhs`, as ash_rpc's `FilterInput` reads it;
-  `FilterTypes.operator_value/3` holds the rule for both the filter types and typed queries):
+  Filter values are rendered through each operator's value type
+  (`AshRpc.Introspection.filter_operator_value_type/2`, the rule ash_rpc's `FilterInput`
+  reads them by, which the filter types use too: `has` takes an element of an array
+  field, `intersects` a list of them):
   union members, typed fields and union-member names are named through `ClientNames`
   in the input shape `TypeMapper.map_plain_type(type, :input)` gives the filter types
   (a tuple value by its element names, in order). A list filter renders as `and` of

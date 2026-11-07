@@ -115,6 +115,10 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: a sort or filter field name that isn't a client name of the resource now returns `unknown_field`, and an unknown filter operator `unknown_filter_operator`, instead of `unknown_error`
 
+* rpc: each filter operator's value is cast to the field's type, as Ash casts filter values (`"2"` to `2` on an integer field, a date string to a date, an enum value to its atom). A value the type can't cast (a value that isn't in the enum, `"abc"` for an integer, a list or object for a string) now returns `invalid_filter_value` at the operator (`details.expected` "A value of the field's type") instead of a filter that matches nothing. A filter statement that is a boolean (the filter, a list entry, an `and`/`or`/`not` operand) is `invalid_filter`, like a string, number or `null`. The generated filter types already exclude these values, so generated clients only meet the errors with filters built from untyped data (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#filter-values-are-cast-to-the-fields-type))
+
+* rpc: a calculation selected in an aggregate's value, or under a field of a typed map or struct (in a calculation's, attribute's or generic action's value), is now `invalid_field_selection` ("Cannot load calculations of the value of %{fieldType} %{field}") instead of being silently missing from the result (see the [upgrade guide](documentation/upgrading/upgrading-to-0.20.md#calculations-inside-aggregate-and-typed-values-are-errors))
+
 * rpc: embedded resources without the `AshTypescript.Resource` extension now have client names from the `output_field_formatter`. Their nested input keys must be those names, and any other key is `unknown_input`
 
 * typed-controller: request keys are resolved per source. Query and body keys must be the argument's generated client name, and segment-name spellings outside the path are dropped. Path params resolve by segment name. An argument reached by more than one key or source is `ambiguous_param`
@@ -195,6 +199,12 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Bug Fixes:
 
+* rpc: resources with `domain: nil` listed in a domain's `resources` block work in every action type: read, create and generic actions, and `validate_action`, run in the entrypoint's domain
+
+* rpc: a calculation selected in a member of a union-valued calculation is loaded; before, it was missing from the result
+
+* codegen: typed query filters render `intersects` on an array field as a list of its elements (`AshRpc.Introspection.filter_operator_value_type/2`), so structured elements get client names; before, each element was rendered as an untyped map with internal keys
+
 * codegen: RPC namespace files re-export every name the main file exports for their actions: the `Fields` and `Infer…Result` types of create, update and generic actions, `Infer…Result` of the other generic actions, and `Metadata` types were missing. The JSON manifest no longer lists `filterInput` for get actions, whose config takes no `filter`
 
 * codegen: a calculation with arguments that returns a type exporting `typescript_type/0` is typed as a calculation with its `args` in the resource schema; before, it was typed as the callback's string and couldn't be selected
@@ -251,9 +261,9 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * codegen: every invalid typed query selection gets a readable line instead of the raw error tuple: sub-fields of a field without any ("Field 'title' at path [] does not support nested field selection"), relationship envelopes ("Relationship 'user' at path [] is to-one and does not accept query options", and lines for query options on a non-relationship, unknown query option keys, an invalid nested page, `args` combined with query options, `page` on an unpaginated relationship, `filter` / `sort` on a relationship that doesn't support it, `page` combined with `limit` / `offset`, and a negative `limit` / `offset`), an invalid entry in a typed field selection, and a field selection on a primitive
 
-* codegen: a typed query's relationship `filter` and `sort` are checked when the manifest compiles, as the runtime checks them when it builds the relationship's query: an unknown filter key, a filter statement that isn't a map or list of them, an operator value the operator can't take, and a sort that isn't a string or list of names fail with "Invalid filter for relationship 'comments' at path []: …" / "Invalid sort for …". Before, the manifest compiled and codegen raised "cannot render", or the request failed when it ran
+* codegen: a typed query's relationship `filter` and `sort` are checked when the manifest compiles, as the runtime checks them when it builds the relationship's query: an unknown filter key, a filter statement that isn't a map or list of them, an operator value the operator can't take, and a sort that isn't a string or list of names fail with "Invalid filter for relationship 'comments' at path []: …" / "Invalid sort for …". Before, the manifest compiled and codegen raised "cannot render", or the request failed when it ran. A value the field's type can't cast (a tuple or a list for a string field) and a boolean filter are rejected there too
 
-* codegen: typed query filters written as a list (of maps or a keyword list) render as `{ and: [...] }`, operators written as a keyword list as the map form, and a tuple field's value given as an Elixir tuple as the object of its element names (`{ latitude: 1.5, longitude: 2.5 }`); before, each raised "cannot render". A list value for an operator that takes one value (`title: %{eq: ["a"]}`) now raises "cannot render" instead of rendering a constant the generated types reject
+* codegen: typed query filters written as a list (of maps or a keyword list) render as `{ and: [...] }`, operators written as a keyword list as the map form, and a tuple field's value given as an Elixir tuple as the object of its element names (`{ latitude: 1.5, longitude: 2.5 }`); before, each raised "cannot render". A keyword field's value given as a keyword list (`options: %{eq: [priority: 1]}`) raises "cannot render"; write it as a map
 
 * typed-controller: an omitted route argument with a `default` gets the default, whatever `allow_nil?`, like a create/update action argument; it was typed optional but answered 422. A sent `null` (or `""` that casts to `nil`) stays `nil`, and answers 422 `required` on an `allow_nil?: false` argument
 

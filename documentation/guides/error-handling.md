@@ -99,6 +99,9 @@ implement the protocol for your own error types and set one yourself.
 | `unknown_field` | A field, sort or filter name that isn't a client name of the resource, or a field that isn't accessible |
 | `unknown_input` | An input key (at any depth) that isn't a client name of the action's inputs or of the value's type |
 | `unknown_filter_operator` | A filter operator the field doesn't support (`vars.operator`) |
+| `invalid_filter_value` | A filter value the field's type can't cast (`details.expected`), at the operator's path |
+| `invalid_filter` | A filter statement that isn't an object of fields (a boolean, string, number or `null`), at its path |
+| `invalid_field_selection` | A selection the value can't take, such as a calculation selected in an aggregate's value or under a field of a typed map or struct (`vars.fieldType` `"aggregate"` / `"typed value"`, `vars.field`) |
 | `unknown_metadata_fields` | A `metadataFields` entry that isn't a metadata field the action exposes (misses in `fields`, allowed names in `details.allowedFields`) |
 | `unknown_error` | Unexpected error |
 | `internal_error` | Error details withheld; see `errorId` in the server log |

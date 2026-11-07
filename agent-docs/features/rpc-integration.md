@@ -313,7 +313,8 @@ aggregates), never attributes, so the restricted schemas never remove an attribu
   full (directly or through an embedded attribute), an inline
   `(Omit<XAttributesOnlySchema, 'u'> & { u: … })` with those members' attributes only, down
   to a resource already on the way. The base `AttributesOnlySchema` stays as it is: aggregates
-  use it on unrestricted actions, where ash_rpc accepts loads under an aggregate's value.
+  use it on unrestricted actions too, since ash_rpc rejects calculations under an aggregate's
+  value (`invalid_field_selection`) on every action.
 - Relationship overrides render through `ResourceSchemas.relationship_field_type/2`, the
   base schema's own rendering, so a restricted has_many / many_to_many keeps its
   `__pagination` / `__filterInput` / `__sortField` markers.

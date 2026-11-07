@@ -122,7 +122,7 @@ const todo = await getTodo({
 
 ### Calculations Returning Complex Types
 
-For calculations returning complex types (unions, embedded resources) without arguments, use nested syntax. In a union, members that are resources or typed maps must be selected with nested syntax; only primitive members can be listed as strings:
+For calculations returning complex types (unions, embedded resources) without arguments, use nested syntax. In a union, members that are resources or typed maps must be selected with nested syntax; only primitive members can be listed as strings. A union member's calculations and relationships are loaded too:
 
 ```typescript
 const todo = await getTodo({
@@ -203,6 +203,16 @@ const todo = await getTodo({
 ```
 
 Selecting a composite member as a plain string (`{ metadataReport: ["total", "rows"] }`) is a TypeScript compile error — members holding resources need explicit field selection, exactly like embedded resources elsewhere.
+
+Select only attributes under a typed map's or struct's fields. Ash can't load
+through a map, so a calculation selected there (`{ rows: ["displayCategory"] }`)
+is an `invalid_field_selection` error naming the field (`metadataReport.rows`,
+`vars.fieldType` `"typed value"`), wherever the typed value sits: a
+calculation's, an attribute's or a generic action's. The same holds for an
+aggregate's value (`vars.fieldType` `"aggregate"`). Before, the calculation was
+silently missing from the result. The generated types still accept these
+selections under typed-map fields and union-valued aggregates, so the error
+only shows at runtime.
 
 ### Custom Types With Declared Fields
 

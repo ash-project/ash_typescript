@@ -299,6 +299,29 @@ const johnsTodos = await listTodos({
 });
 ```
 
+### Filter Values
+
+The server casts each operator's value to the field's type, as Ash casts
+filter values: `"2"` on an integer field is `2`, a date string a date, and an
+enum value its atom. A value the type can't cast is `invalid_filter_value` at
+the operator, with `details.expected` "A value of the field's type": a string
+for an integer field, a list or object for a string field, a value that isn't
+in the enum. Before, such values were passed to the data layer and usually
+matched nothing. A filter statement that is a boolean, string, number or
+`null` (the filter itself, a list entry, or an `and`/`or`/`not` operand) is
+`invalid_filter` at its path. The generated filter types already rule these
+out, so a generated client only meets them through values built from untyped
+data (an `any`, a cast).
+
+```typescript
+// status is an enum: "active" isn't one of its values
+const result = await listTodos({
+  fields: ["id"],
+  filter: { status: { eq: "active" as any } }
+});
+// result.success === false, result.errors[0].type === "invalid_filter_value"
+```
+
 ### Filtering on Structured Values
 
 The value of `eq`, `notEq`, `in` and `has` on a typed map or struct, a

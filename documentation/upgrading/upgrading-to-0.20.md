@@ -31,8 +31,9 @@ to the page that documents the current behaviour where there is one.
    aliases), metadata names that collide with fields, load restrictions
    with entries under leaf fields ([Compile-time checks](#compile-time-checks)).
 4. Check hand-written clients, error handling and error handlers: request keys,
-   `required` errors, `unknown_*` errors, the `tenant` param, untyped data,
-   `typed_query_action`, validation without AshPhoenix
+   `required` errors, `unknown_*` errors, filter values the field's type can't
+   cast, calculations selected inside aggregate or typed values, the `tenant`
+   param, untyped data, `typed_query_action`, validation without AshPhoenix
    ([Requests and errors](#requests-and-errors)).
 5. Check client code that reads `nextPage` after a page with only `limit`,
    and `beforeChannelPush` hooks that return a new config
@@ -484,6 +485,38 @@ cast to an argument's type is `invalid_argument`. If your client switches on
 | An unknown filter operator | `unknown_error` | `unknown_filter_operator` |
 
 See [Common Error Types](../guides/error-handling.md#common-error-types).
+
+### Filter values are cast to the field's type
+
+Each operator's value is cast to the field's type, as Ash casts filter values,
+so a value the type can't cast is now an error instead of a filter that
+matches nothing:
+
+| Request | Before | After |
+|---------|--------|-------|
+| `status: { eq: "active" }` where `"active"` isn't an enum value | matched nothing | `invalid_filter_value` |
+| `priority: { eq: "abc" }` on an integer field | matched nothing or failed in the data layer | `invalid_filter_value` |
+| `title: { eq: ["a"] }` (a list or object for a string field) | passed to the data layer | `invalid_filter_value` |
+| `filter: true`, `and: [true]` (a boolean statement) | passed to Ash | `invalid_filter` |
+
+The error sits at the operator's path, with `details.expected` "A value of the
+field's type". Values that cast are converted first (`"2"` to `2` on an
+integer field, a date string to a date, an enum value to its atom). The
+generated filter types already rule these values out. A generated client
+meets the errors only when it builds a filter from untyped data, such as a
+query string or an `any`, so check those call sites. A typed query whose
+relationship filter holds such a value now fails the manifest compile (see
+[Typed queries](../guides/typed-queries.md)).
+
+### Calculations inside aggregate and typed values are errors
+
+A calculation selected in an aggregate's value, or under a field of a typed
+map or struct (a calculation's, an attribute's or a generic action's value),
+is now `invalid_field_selection` ("Cannot load calculations of the value of
+%{fieldType} %{field}", `vars.fieldType` `"aggregate"` or `"typed value"`).
+Before, it was silently missing from the result. Select only attributes
+there. A calculation selected in a member of a union-valued calculation is
+now loaded; before, it was missing too.
 
 ### Identity keys, `unknown_field` messages and hints
 
