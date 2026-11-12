@@ -33,6 +33,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   def generate_imports(opts \\ []) do
     skip_zod = Keyword.get(opts, :skip_zod, false)
     skip_valibot = Keyword.get(opts, :skip_valibot, false)
+    has_channel_actions = Keyword.get(opts, :has_channel_actions, true)
     output_file = Keyword.get(opts, :output_file)
 
     zod_import =
@@ -52,7 +53,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       end
 
     phoenix_import =
-      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() and has_channel_actions do
         phoenix_path = AshTypescript.Rpc.phoenix_import_path()
         "import { Channel } from \"#{phoenix_path}\";"
       else
@@ -583,17 +584,29 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          after_hook
        ) do
     before_hook_code =
-      if before_hook do
-        """
-            let processedConfig = config;
+      cond do
+        before_hook && after_hook ->
+          """
+              let processedConfig = config;
+              if (#{before_hook}) {
+                processedConfig = await #{before_hook}(payload.action, config);
+              }
+          """
+
+        before_hook ->
+          """
             if (#{before_hook}) {
-              processedConfig = await #{before_hook}(payload.action, config);
+              await #{before_hook}(payload.action, config);
             }
-        """
-      else
-        """
-            const processedConfig = config;
-        """
+          """
+
+        after_hook ->
+          """
+              const processedConfig = config;
+          """
+
+        true ->
+          ""
       end
 
     after_ok_hook_code =
