@@ -6,6 +6,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
   use ExUnit.Case
 
   alias AshTypescript.Test.TestHelpers
+  alias AshTypescript.Rpc.Codegen.TypescriptStatic
 
   @moduletag :ash_typescript
 
@@ -262,15 +263,56 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       refute typescript =~ ~r/hookCtx\?: ActionChannelHookContext;/
     end
 
-    test "uses simple config assignment when no beforeChannelPush hook" do
+    test "omits processedConfig when no channel hooks are configured" do
       Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
+      Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
+      Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
 
       {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      assert typescript =~ "const processedConfig = config;"
+      [action_channel_helper] =
+        Regex.run(
+          ~r/export async function executeActionChannelPush.*?(?=export async function executeValidationChannelPush|$)/s,
+          typescript
+        )
+
+      refute action_channel_helper =~ "processedConfig"
       refute typescript =~ "await ChannelHooks.beforeChannelPush"
       refute typescript =~ "await ChannelHooks.beforeValidationChannelPush"
+    end
+
+    test "omits the Phoenix Channel import when there are no channel actions" do
+      original_channel_config =
+        Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions)
+
+      on_exit(fn ->
+        if is_nil(original_channel_config) do
+          Application.delete_env(:ash_typescript, :generate_phx_channel_rpc_actions)
+        else
+          Application.put_env(
+            :ash_typescript,
+            :generate_phx_channel_rpc_actions,
+            original_channel_config
+          )
+        end
+      end)
+
+      Application.put_env(:ash_typescript, :generate_phx_channel_rpc_actions, true)
+
+      refute TypescriptStatic.generate_imports(
+               skip_zod: true,
+               skip_valibot: true,
+               has_channel_actions: false,
+               output_file: "generated.ts"
+             ) =~ "import { Channel }"
+
+      assert TypescriptStatic.generate_imports(
+               skip_zod: true,
+               skip_valibot: true,
+               has_channel_actions: true,
+               output_file: "generated.ts"
+             ) =~ "import { Channel } from \"phoenix\";"
     end
 
     test "does not include afterChannelResponse hook call when not configured" do
@@ -325,6 +367,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       )
 
       Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
+      Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
+      Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
 
       {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
