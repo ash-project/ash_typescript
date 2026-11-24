@@ -471,6 +471,8 @@ defmodule AshTypescript.TypedController.Codegen do
   def route_result_type_name(route, scope_prefix),
     do: Macro.camelize("#{scope_prefix}_#{route.name}_result")
 
+  # Codegen-time names built from DSL route and action names, not request input.
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_route_schema_name(route, scope_prefix, suffix) do
     case scope_prefix do
       nil ->
@@ -509,10 +511,12 @@ defmodule AshTypescript.TypedController.Codegen do
     )
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_export_function_name(action_name, nil, :path) do
     AshTypescript.Helpers.format_output_field(:"#{action_name}_path")
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_export_function_name(action_name, scope_prefix, :path) do
     AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}_path")
   end
@@ -521,6 +525,7 @@ defmodule AshTypescript.TypedController.Codegen do
     AshTypescript.Helpers.format_output_field(action_name)
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_export_function_name(action_name, scope_prefix, :action) do
     AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}")
   end

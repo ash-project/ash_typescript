@@ -154,6 +154,8 @@ defmodule AshTypescript.TypedController.Codegen.RouterIntrospector do
     end)
   end
 
+  # Path params and verbs come from the app's own Phoenix router during codegen.
+  # sobelow_skip ["DOS.StringToAtom"]
   defp extract_path_params(path) do
     Regex.scan(~r/:(\w+)/, path)
     |> Enum.map(fn [_, param] -> String.to_atom(param) end)
@@ -161,6 +163,7 @@ defmodule AshTypescript.TypedController.Codegen.RouterIntrospector do
 
   defp resolve_method(verb) when is_atom(verb), do: verb
 
+  # sobelow_skip ["DOS.StringToAtom"]
   defp resolve_method(verb) when is_binary(verb) do
     verb |> String.downcase() |> String.to_atom()
   end
