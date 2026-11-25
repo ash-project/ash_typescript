@@ -203,6 +203,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     @doc "Render a template from priv/templates/install/ with placeholder replacements."
+    # Template names are supplied by the installer, and the path is under this package's priv dir.
+    # sobelow_skip ["Traversal.FileModule"]
     def render_install_template(template_name, replacements \\ %{}) do
       priv_dir =
         case :code.priv_dir(:ash_typescript) do

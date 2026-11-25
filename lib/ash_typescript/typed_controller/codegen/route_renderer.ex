@@ -392,10 +392,13 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     "export type #{type_name} = {\n#{field_defs}\n};"
   end
 
+  # Codegen-time names built from DSL action names, not request input.
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_function_name(action_name, nil, :path) do
     format_output_field(:"#{action_name}_path")
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_function_name(action_name, scope_prefix, :path) do
     format_output_field(:"#{scope_prefix}_#{action_name}_path")
   end
@@ -404,6 +407,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     format_output_field(action_name)
   end
 
+  # sobelow_skip ["DOS.BinToAtom"]
   defp build_function_name(action_name, scope_prefix, :action) do
     format_output_field(:"#{scope_prefix}_#{action_name}")
   end
